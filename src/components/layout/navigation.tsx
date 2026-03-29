@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
+import LanguageSwitcher from "@/components/layout/language-switcher";
 
 export default function Navigation() {
   const { user, isAdmin, logout } = useAuth();
@@ -83,6 +84,8 @@ export default function Navigation() {
                 </Link>
               </>
             )}
+
+            <LanguageSwitcher />
           </div>
 
           {/* Mobile hamburger */}

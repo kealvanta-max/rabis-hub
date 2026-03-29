@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Serif_Display, Inter, Space_Grotesk } from "next/font/google";
 import { AuthProvider } from "@/context/auth-context";
+import { I18nProvider } from "@/context/i18n-context";
 import { ToastProvider } from "@/components/layout/toast-provider";
 import FloatingWhatsApp from "@/components/layout/floating-whatsapp";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
@@ -48,14 +49,16 @@ export default function RootLayout({
         className={`${dmSerifDisplay.variable} ${inter.variable} ${spaceGrotesk.variable} bg-[#0A1628] font-sans antialiased text-gray-100 min-h-screen overflow-x-hidden`}
       >
         <SmoothScroll>
-          <AuthProvider>
-            <ToastProvider>
-              <LoadingScreen />
-              {children}
-              <FloatingWhatsApp />
-              <AudioPlayer />
-            </ToastProvider>
-          </AuthProvider>
+          <I18nProvider>
+            <AuthProvider>
+              <ToastProvider>
+                <LoadingScreen />
+                {children}
+                <FloatingWhatsApp />
+                <AudioPlayer />
+              </ToastProvider>
+            </AuthProvider>
+          </I18nProvider>
         </SmoothScroll>
       </body>
     </html>

@@ -1,1 +1,32 @@
-{}
+{
+  "context\\i18n-context.tsx -> @/i18n/ee": {
+    "id": "context\\i18n-context.tsx -> @/i18n/ee",
+    "files": [
+      "static/chunks/_app-pages-browser_src_i18n_ee_ts.js"
+    ]
+  },
+  "context\\i18n-context.tsx -> @/i18n/fr": {
+    "id": "context\\i18n-context.tsx -> @/i18n/fr",
+    "files": [
+      "static/chunks/_app-pages-browser_src_i18n_fr_ts.js"
+    ]
+  },
+  "context\\i18n-context.tsx -> @/i18n/ga": {
+    "id": "context\\i18n-context.tsx -> @/i18n/ga",
+    "files": [
+      "static/chunks/_app-pages-browser_src_i18n_ga_ts.js"
+    ]
+  },
+  "context\\i18n-context.tsx -> @/i18n/ha": {
+    "id": "context\\i18n-context.tsx -> @/i18n/ha",
+    "files": [
+      "static/chunks/_app-pages-browser_src_i18n_ha_ts.js"
+    ]
+  },
+  "context\\i18n-context.tsx -> @/i18n/tw": {
+    "id": "context\\i18n-context.tsx -> @/i18n/tw",
+    "files": [
+      "static/chunks/_app-pages-browser_src_i18n_tw_ts.js"
+    ]
+  }
+}
