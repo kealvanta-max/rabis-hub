@@ -293,7 +293,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           <label className="flex items-start gap-3 cursor-pointer">
             <input type="checkbox" id="terms" className="mt-1 accent-primary cursor-pointer" required />
             <span className="text-sm text-gray-400">
-              I agree to the Terms & Conditions and understand that my Susu contributions will be managed through WhatsApp.
+              I agree to the <a href="/terms" target="_blank" className="text-primary hover:underline">Terms of Service</a> and <a href="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</a>, and understand that my Susu contributions will be managed through WhatsApp.
             </span>
           </label>
 

@@ -66,8 +66,8 @@ export default function Footer() {
             © {new Date().getFullYear()} Rabi&apos;s Saving Hub. All rights reserved.
           </p>
           <div className="flex gap-4">
-            <span className="text-xs text-gray-600 hover:text-gray-400 cursor-pointer transition-colors">Privacy Policy</span>
-            <span className="text-xs text-gray-600 hover:text-gray-400 cursor-pointer transition-colors">Terms of Service</span>
+            <Link href="/privacy" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Terms of Service</Link>
           </div>
         </div>
       </div>
