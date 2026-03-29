@@ -23,7 +23,9 @@ const AuthContext = createContext<AuthState>({
 });
 
 const ADMIN_EMAILS = ["rabisavinghub@gmail.com"];
-
+if (process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
+  ADMIN_EMAILS.push(...process.env.NEXT_PUBLIC_ADMIN_EMAIL.split(",").map(e => e.trim()));
+}
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserDoc | null>(null);
