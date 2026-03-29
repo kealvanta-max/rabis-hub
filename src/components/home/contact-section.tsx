@@ -71,8 +71,8 @@ export default function ContactSection() {
                 </svg>
               </div>
               <h3 className="text-base font-bold text-white mb-2">Direct Line</h3>
-              <a href="tel:+233XXXXXXXXX" className="text-sm text-gray-400 hover:text-primary transition-colors">
-                +233 XX XXX XXXX
+              <a href="tel:+233244990995" className="text-sm text-gray-400 hover:text-primary transition-colors">
+                +233 244 990 995
               </a>
             </Card>
           </motion.div>
