@@ -11,6 +11,7 @@ import {
   ArrowRight,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { useOutsideClick } from "@/hooks/use-outside-click";
@@ -279,20 +280,18 @@ export const BlurImage = ({
   [key: string]: any;
 }) => {
   const [isLoading, setLoading] = useState(true);
-  const { fill, ...restProps } = props; // Prevent 'fill' from passing to raw <img>
   return (
-    <img
+    <Image
       className={cn(
         "transition duration-300",
         isLoading ? "blur-sm" : "blur-0",
         className
       )}
-      onLoad={() => setLoading(false)}
+      onLoadCapture={() => setLoading(false)}
       src={src}
       loading="lazy"
-      decoding="async"
       alt={alt ? alt : "Background of a beautiful view"}
-      {...restProps}
+      {...props}
     />
   );
 };

@@ -121,6 +121,9 @@ export default function Navigation() {
 
             {user ? (
               <>
+                <div className="px-4 py-2 flex justify-start">
+                  <LanguageSwitcher />
+                </div>
                 {isAdmin ? (
                   <MobileLink href="/admin" onClick={() => setMenuOpen(false)}>Admin Panel</MobileLink>
                 ) : (
@@ -134,22 +137,27 @@ export default function Navigation() {
                 </button>
               </>
             ) : (
-              <div className="pt-3 flex gap-3">
-                <Link
-                  href="/auth?mode=signin"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex-1 text-center px-4 py-3 text-sm border border-gray-700 text-gray-300 rounded-xl hover:bg-white/5 transition-colors"
-                >
-                  {t.nav_signin}
-                </Link>
-                <Link
-                  href="/auth?mode=signup"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex-1 text-center px-4 py-3 text-sm font-semibold bg-gradient-to-r from-primary to-gold-accent text-navy-dark rounded-xl"
-                >
-                  {t.nav_join}
-                </Link>
-              </div>
+              <>
+                <div className="px-4 py-2 flex justify-start">
+                  <LanguageSwitcher />
+                </div>
+                <div className="pt-3 flex gap-3">
+                  <Link
+                    href="/auth?mode=signin"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex-1 text-center px-4 py-3 text-sm border border-gray-700 text-gray-300 rounded-xl hover:bg-white/5 transition-colors"
+                  >
+                    {t.nav_signin}
+                  </Link>
+                  <Link
+                    href="/auth?mode=signup"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex-1 text-center px-4 py-3 text-sm font-semibold bg-gradient-to-r from-primary to-gold-accent text-navy-dark rounded-xl"
+                  >
+                    {t.nav_join}
+                  </Link>
+                </div>
+              </>
             )}
           </div>
         </div>
