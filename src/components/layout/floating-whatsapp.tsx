@@ -1,7 +1,7 @@
 "use client";
 
 export default function FloatingWhatsApp() {
-  const phoneNumber = "233504701032";
+  const phoneNumber = "233244990995";
   const message = "Hello Rabi! I'm interested in joining a savings plan.";
   const waUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 

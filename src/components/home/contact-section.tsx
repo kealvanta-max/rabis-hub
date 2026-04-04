@@ -87,7 +87,7 @@ export default function ContactSection() {
               </div>
               <h3 className="relative z-10 text-base font-bold text-white mb-2">WhatsApp</h3>
               <a
-                href="https://wa.me/233XXXXXXXXX"
+                href="https://wa.me/233244990995"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="relative z-10 text-sm text-gray-400 hover:text-[#25D366] transition-colors"
@@ -106,7 +106,7 @@ export default function ContactSection() {
               </div>
               <h3 className="text-base font-bold text-white mb-2">Email Us</h3>
               <a href="mailto:rabisavinghub@gmail.com" className="text-sm text-gray-400 hover:text-blue-400 transition-colors">
-                rabishub@gmail.com
+                rabisavinghub@gmail.com
               </a>
             </Card>
           </motion.div>

@@ -1,5 +1,6 @@
 "use client";
 import { useMemo } from "react";
+import { useTranslation } from "@/context/i18n-context";
 
 import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid";
 import { 
@@ -15,36 +16,37 @@ import {
 import { motion } from "framer-motion";
 
 export default function TrustSection() {
+  const { t } = useTranslation();
   const features = useMemo(() => [
     {
-      title: "Verified Security",
-      description: "Multi-factor verification with Ghana Card & Real-time Biometrics.",
+      title: t.trust_security_title,
+      description: t.trust_security_desc,
       header: <SkeletonOne />,
       className: "md:col-span-2",
       icon: <ShieldCheck className="h-4 w-4 text-primary" />,
     },
     {
-      title: "Community Driven",
-      description: "Join 2,000+ active savers in our exclusive WhatsApp Hub.",
+      title: t.trust_community_title,
+      description: t.trust_community_desc,
       header: <SkeletonTwo />,
       className: "md:col-span-1",
       icon: <Users className="h-4 w-4 text-primary" />,
     },
     {
-      title: "Transparent Returns",
-      description: "Real-time tracking of your digital Susu growth.",
+      title: t.trust_returns_title,
+      description: t.trust_returns_desc,
       header: <SkeletonThree />,
       className: "md:col-span-1",
       icon: <TrendingUp className="h-4 w-4 text-primary" />,
     },
     {
-      title: "Mobile First",
-      description: "Banking-grade experience on any device, anywhere in Ghana.",
+      title: t.trust_mobile_title,
+      description: t.trust_mobile_desc,
       header: <SkeletonFour />,
       className: "md:col-span-2",
       icon: <Smartphone className="h-4 w-4 text-primary" />,
     },
-  ], []);
+  ], [t]);
 
 
   return (
@@ -60,7 +62,7 @@ export default function TrustSection() {
             viewport={{ once: true }}
             className="text-primary text-sm font-semibold tracking-widest uppercase mb-3 font-grotesk"
           >
-            The Gold Standard
+            {t.trust_label}
           </motion.p>
           <motion.h2 
             initial={{ opacity: 0, y: 20 }}
@@ -68,7 +70,7 @@ export default function TrustSection() {
             viewport={{ once: true }}
             className="font-display text-4xl md:text-5xl lg:text-6xl text-white mb-6"
           >
-            Built on <span className="gold-text-gradient">Integrity</span>
+            {t.trust_heading} <span className="gold-text-gradient">{t.trust_heading_gold}</span>
           </motion.h2>
           <motion.p 
             initial={{ opacity: 0 }}
@@ -76,7 +78,7 @@ export default function TrustSection() {
             viewport={{ once: true }}
             className="text-gray-400 max-w-2xl mx-auto text-lg"
           >
-            We blend traditional Susu values with world-class technology to secure your financial future.
+            {t.trust_description}
           </motion.p>
         </div>
 

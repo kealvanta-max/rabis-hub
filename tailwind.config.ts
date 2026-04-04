@@ -54,6 +54,32 @@ const config: Config = {
                     accent: "#E5B946",
                     light: "#F2D075",
                 },
+                animation: {
+                    "accordion-down": "accordion-down 0.2s ease-out",
+                    "accordion-up": "accordion-up 0.2s ease-out",
+                    scroll:
+                        "scroll var(--animation-duration, 40s) var(--animation-direction, forwards) linear infinite",
+                    "slide-up": "slide-up 0.3s ease-out forwards",
+                },
+                keyframes: {
+                    "accordion-down": {
+                        from: { height: "0" },
+                        to: { height: "var(--radix-accordion-content-height)" },
+                    },
+                    "accordion-up": {
+                        from: { height: "var(--radix-accordion-content-height)" },
+                        to: { height: "0" },
+                    },
+                    scroll: {
+                        to: {
+                            transform: "translate(calc(-50% - 0.5rem))",
+                        },
+                    },
+                    "slide-up": {
+                        "0%": { opacity: "0", transform: "translateY(20px)" },
+                        "100%": { opacity: "1", transform: "translateY(0)" },
+                    },
+                },
                 accent: {
                     gold: "#ecc813",
                     "gold-light": "#FFF9E6",

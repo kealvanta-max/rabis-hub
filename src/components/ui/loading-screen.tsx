@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield } from "lucide-react";
+import { useTranslation } from "@/context/i18n-context";
 
 export default function LoadingScreen() {
   const [isVisible, setIsVisible] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const { t } = useTranslation();
 
   useEffect(() => {
     setMounted(true);
@@ -77,7 +79,7 @@ export default function LoadingScreen() {
                 className="text-6xl md:text-8xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-orange-500 font-serif"
                 style={{ textShadow: '0 4px 20px rgba(245, 158, 11, 0.2)' }}
               >
-                Akwaaba
+                {t.loading_akwaaba}
               </motion.h1>
               <div className="flex flex-col items-center space-y-2">
                 <motion.p 
@@ -86,7 +88,7 @@ export default function LoadingScreen() {
                   transition={{ delay: 0.8, duration: 0.8 }}
                   className="text-lg md:text-xl text-gray-300 font-light tracking-[0.2em] md:tracking-[0.3em] uppercase"
                 >
-                  Welcome
+                  {t.loading_welcome}
                 </motion.p>
                 <motion.p 
                   initial={{ y: 20, opacity: 0 }}
@@ -94,7 +96,7 @@ export default function LoadingScreen() {
                   transition={{ delay: 0.9, duration: 0.8 }}
                   className="text-sm md:text-base text-amber-500/70 font-medium tracking-wide"
                 >
-                  To Ghana&apos;s Premium Susu Experience
+                  {t.loading_subtitle}
                 </motion.p>
               </div>
             </div>
@@ -111,7 +113,7 @@ export default function LoadingScreen() {
             >
               <div className="absolute inset-0 w-0 bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-500 ease-out group-hover:w-full opacity-90"></div>
               <span className="relative text-amber-400 group-hover:text-[#0A1628] font-bold transition-colors duration-300 flex items-center gap-3">
-                <span>Enter Experience</span>
+                <span>{t.loading_enter}</span>
                 <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>

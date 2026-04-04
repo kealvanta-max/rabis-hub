@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { doc, setDoc, Timestamp, collection, addDoc } from "firebase/firestore";
@@ -28,8 +28,15 @@ export default function DashboardPage() {
     );
   }
 
-  if (!user) {
-    router.push("/auth?mode=signin");
+  // Effect handles redirecting cleanly
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/auth?mode=signin");
+    }
+  }, [user, loading, router]);
+
+  // Don't render until we are absolutely sure the user exists and data is loaded.
+  if (!user && !loading) {
     return null;
   }
 
@@ -155,7 +162,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Submit Review */}
-          {userData?.status === "approved" && <SubmitReview userData={userData} userId={user.uid} />}
+          {userData?.status === "approved" && user && <SubmitReview userData={userData} userId={user.uid} />}
         </div>
       </main>
       <Footer />

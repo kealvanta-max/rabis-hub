@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/auth-context";
+import { useTranslation } from "@/context/i18n-context";
 import LanguageSwitcher from "@/components/layout/language-switcher";
 
 export default function Navigation() {
   const { user, isAdmin, logout } = useAuth();
+  const { t } = useTranslation();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -40,10 +42,10 @@ export default function Navigation() {
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-1">
-            <NavLink href="/#plans">Plans</NavLink>
-            <NavLink href="/#calculator">Calculator</NavLink>
-            <NavLink href="/#testimonials">Reviews</NavLink>
-            <NavLink href="/#contact">Contact</NavLink>
+            <NavLink href="/#plans">{t.nav_plans}</NavLink>
+            <NavLink href="/#calculator">{t.nav_calculator}</NavLink>
+            <NavLink href="/#testimonials">{t.nav_reviews}</NavLink>
+            <NavLink href="/#contact">{t.nav_contact}</NavLink>
 
             {user ? (
               <>
@@ -51,21 +53,21 @@ export default function Navigation() {
                   href="/dashboard"
                   className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
                 >
-                  Dashboard
+                  {t.nav_dashboard}
                 </Link>
                 {isAdmin && (
                   <Link
                     href="/admin"
                     className="px-4 py-2 text-sm text-primary hover:text-primary/80 transition-colors"
                   >
-                    Admin
+                    {t.nav_admin}
                   </Link>
                 )}
                 <button
                   onClick={logout}
                   className="ml-2 px-4 py-2 text-sm text-gray-400 hover:text-red-400 transition-colors cursor-pointer"
                 >
-                  Logout
+                  {t.nav_logout}
                 </button>
               </>
             ) : (
@@ -74,13 +76,13 @@ export default function Navigation() {
                   href="/auth?mode=signin"
                   className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
                 >
-                  Sign In
+                  {t.nav_signin}
                 </Link>
                 <Link
                   href="/auth?mode=signup"
                   className="ml-2 px-5 py-2.5 text-sm font-semibold rounded-xl bg-gradient-to-r from-primary to-gold-accent text-navy-dark hover:brightness-110 transition-all shadow-lg shadow-primary/20"
                 >
-                  Join Now
+                  {t.nav_join}
                 </Link>
               </>
             )}
@@ -111,14 +113,14 @@ export default function Navigation() {
       {menuOpen && (
         <div className="md:hidden bg-navy-dark/98 backdrop-blur-md border-t border-white/5">
           <div className="px-4 py-4 space-y-1">
-            <MobileLink href="/#plans" onClick={() => setMenuOpen(false)}>Plans</MobileLink>
-            <MobileLink href="/#calculator" onClick={() => setMenuOpen(false)}>Calculator</MobileLink>
-            <MobileLink href="/#testimonials" onClick={() => setMenuOpen(false)}>Reviews</MobileLink>
-            <MobileLink href="/#contact" onClick={() => setMenuOpen(false)}>Contact</MobileLink>
+            <MobileLink href="/#plans" onClick={() => setMenuOpen(false)}>{t.nav_plans}</MobileLink>
+            <MobileLink href="/#calculator" onClick={() => setMenuOpen(false)}>{t.nav_calculator}</MobileLink>
+            <MobileLink href="/#testimonials" onClick={() => setMenuOpen(false)}>{t.nav_reviews}</MobileLink>
+            <MobileLink href="/#contact" onClick={() => setMenuOpen(false)}>{t.nav_contact}</MobileLink>
 
             {user ? (
               <>
-                <MobileLink href="/dashboard" onClick={() => setMenuOpen(false)}>Dashboard</MobileLink>
+                <MobileLink href="/dashboard" onClick={() => setMenuOpen(false)}>{t.nav_dashboard}</MobileLink>
                 {isAdmin && (
                   <MobileLink href="/admin" onClick={() => setMenuOpen(false)}>Admin Panel</MobileLink>
                 )}
@@ -126,7 +128,7 @@ export default function Navigation() {
                   onClick={() => { logout(); setMenuOpen(false); }}
                   className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-white/5 rounded-xl transition-colors cursor-pointer"
                 >
-                  Logout
+                  {t.nav_logout}
                 </button>
               </>
             ) : (
@@ -136,14 +138,14 @@ export default function Navigation() {
                   onClick={() => setMenuOpen(false)}
                   className="flex-1 text-center px-4 py-3 text-sm border border-gray-700 text-gray-300 rounded-xl hover:bg-white/5 transition-colors"
                 >
-                  Sign In
+                  {t.nav_signin}
                 </Link>
                 <Link
                   href="/auth?mode=signup"
                   onClick={() => setMenuOpen(false)}
                   className="flex-1 text-center px-4 py-3 text-sm font-semibold bg-gradient-to-r from-primary to-gold-accent text-navy-dark rounded-xl"
                 >
-                  Join Now
+                  {t.nav_join}
                 </Link>
               </div>
             )}

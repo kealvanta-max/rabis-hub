@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { MoveRight } from "lucide-react";
+import { useTranslation } from "@/context/i18n-context";
 
 export default function CTABanner() {
+  const { t } = useTranslation();
   return (
     <section className="py-24 relative overflow-hidden bg-navy-dark">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-navy-light/50 pointer-events-none" />
@@ -27,7 +29,7 @@ export default function CTABanner() {
             transition={{ delay: 0.1 }}
             className="font-display text-4xl md:text-5xl lg:text-6xl text-white mb-6"
           >
-            Ready to Start Your <br/> <span className="gold-text-gradient">Savings Journey?</span>
+            {t.cta_heading_1} <br/> <span className="gold-text-gradient">{t.cta_heading_2}</span>
           </motion.h2>
           <motion.p 
             initial={{ opacity: 0 }}
@@ -36,7 +38,7 @@ export default function CTABanner() {
             transition={{ delay: 0.2 }}
             className="text-gray-400 text-lg mb-10 max-w-2xl mx-auto"
           >
-            Join over 2,000+ trusted members building generational wealth together. Your future self will thank you.
+            {t.cta_description}
           </motion.p>
           <motion.div
              initial={{ opacity: 0, y: 20 }}
@@ -48,7 +50,7 @@ export default function CTABanner() {
               href="/auth?mode=signup"
               className="group inline-flex items-center gap-3 px-10 py-4 text-base font-bold rounded-full bg-primary text-navy-dark hover:scale-105 transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
             >
-              Join Rabi&apos;s Saving Hub
+              {t.cta_button}
               <MoveRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
           </motion.div>

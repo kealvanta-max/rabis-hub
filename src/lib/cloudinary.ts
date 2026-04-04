@@ -1,5 +1,8 @@
 interface CloudinaryResponse {
     secure_url: string;
+    error?: {
+        message: string;
+    };
 }
 
 export const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -18,10 +21,16 @@ export async function uploadToCloudinary(file: File): Promise<string> {
                 body: formData,
             }
         );
+        
         const data: CloudinaryResponse = await res.json();
+        
+        if (!res.ok) {
+            throw new Error(data.error?.message || "Upload failed");
+        }
+        
         return data.secure_url;
     } catch (error) {
         console.error("Cloudinary upload error:", error);
-        throw new Error("Image upload failed");
+        throw new Error(error instanceof Error ? error.message : "Image upload failed");
     }
 }

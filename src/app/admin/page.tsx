@@ -138,6 +138,7 @@ export default function AdminPage() {
     a.href = url;
     a.download = "rabi-users.csv";
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const downloadAllJSON = () => {
@@ -148,6 +149,7 @@ export default function AdminPage() {
     a.href = url;
     a.download = "rabi-users-all-with-images.json";
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const downloadSingleUserJSON = (u: UserItem) => {
@@ -158,6 +160,7 @@ export default function AdminPage() {
     a.href = url;
     a.download = `rabi-user-${u.name.replace(/\s+/g, "-").toLowerCase()}.json`;
     a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const filteredUsers = users.filter((u) => {
