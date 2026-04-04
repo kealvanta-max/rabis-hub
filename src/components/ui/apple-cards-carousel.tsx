@@ -279,6 +279,7 @@ export const BlurImage = ({
   [key: string]: any;
 }) => {
   const [isLoading, setLoading] = useState(true);
+  const { fill, ...restProps } = props; // Prevent 'fill' from passing to raw <img>
   return (
     <img
       className={cn(
@@ -290,11 +291,8 @@ export const BlurImage = ({
       src={src}
       loading="lazy"
       decoding="async"
-      blurDataURL={src}
-      layout="fill"
-      objectFit="cover"
       alt={alt ? alt : "Background of a beautiful view"}
-      {...props}
+      {...restProps}
     />
   );
 };
