@@ -17,6 +17,12 @@ export default function DashboardPage() {
   const { user, userData, loading, logout } = useAuth();
   const router = useRouter();
 
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/auth?mode=signin");
+    }
+  }, [user, loading, router]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -28,15 +34,7 @@ export default function DashboardPage() {
     );
   }
 
-  // Effect handles redirecting cleanly
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/auth?mode=signin");
-    }
-  }, [user, loading, router]);
-
-  // Don't render until we are absolutely sure the user exists and data is loaded.
-  if (!user && !loading) {
+  if (!user) {
     return null;
   }
 

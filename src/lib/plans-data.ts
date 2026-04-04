@@ -27,11 +27,11 @@ export const plans: Record<string, PlanItem[]> = {
 };
 
 export const categoryImages = {
-  daily: "/images/daily.png", // Vibrant Ghana Market
-  weekly: "/images/weekly.png", // Modern Accra Professionals
-  months: "/images/months.png", // Accra Architecture
-  longterm: "/images/longterm.png", // Ghanaian Entrepreneurs
-  achiever: "/images/achiever.png", // Luxury Gold Award
+  daily: "/images/daily_ghana.png",
+  weekly: "/images/weekly_ghana.png",
+  months: "/images/months_ghana.png",
+  longterm: "/images/longterm_ghana.png",
+  achiever: "/images/achiever_ghana.png",
 };
 
 
