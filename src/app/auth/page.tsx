@@ -9,6 +9,7 @@ import { useToastContext } from "@/components/layout/toast-provider";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { getPlanOptions } from "@/lib/plans-data";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { getDoc } from "firebase/firestore";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import ImageUpload from "@/components/ui/image-upload";
@@ -101,7 +102,23 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const { status: gpsStatus, gpsData, error: gpsError, requestLocation } = useGeolocation();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const planOptions = getPlanOptions();
+  const [customPlans, setCustomPlans] = useState<any[]>([]);
+  const basePlanOptions = getPlanOptions();
+
+  // Fetch customizable plans from Admin
+  useEffect(() => {
+    async function loadCustomPlans() {
+      try {
+        const snap = await getDoc(doc(db, "settings", "customPlans"));
+        if (snap.exists() && snap.data().plans) {
+          setCustomPlans(snap.data().plans);
+        }
+      } catch (err) {
+        console.error("Error loading custom plans:", err);
+      }
+    }
+    loadCustomPlans();
+  }, []);
 
   const [form, setForm] = useState<RegistrationData>({
     firstName: "", lastName: "", email: "", phone: "", location: "", password: "",
@@ -181,7 +198,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
               required
             >
               <option value="">Select a plan...</option>
-              {planOptions.map((group) => (
+              {customPlans.length > 0 && (
+                <optgroup label="🌟 New Custom Plans (Admin)">
+                  {customPlans.map((opt) => (
+                    <option key={opt.id} value={opt.id}>{opt.name} ({opt.freq} - Target: GH₵{opt.ret})</option>
+                  ))}
+                </optgroup>
+              )}
+              {basePlanOptions.map((group) => (
                 <optgroup key={group.label} label={group.label}>
                   {group.options.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>

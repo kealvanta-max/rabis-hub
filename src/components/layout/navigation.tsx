@@ -49,18 +49,19 @@ export default function Navigation() {
 
             {user ? (
               <>
-                <Link
-                  href="/dashboard"
-                  className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
-                >
-                  {t.nav_dashboard}
-                </Link>
-                {isAdmin && (
+                {isAdmin ? (
                   <Link
                     href="/admin"
-                    className="px-4 py-2 text-sm text-primary hover:text-primary/80 transition-colors"
+                    className="px-4 py-2 text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
                   >
-                    {t.nav_admin}
+                    Admin Panel
+                  </Link>
+                ) : (
+                  <Link
+                    href="/dashboard"
+                    className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
+                  >
+                    {t.nav_dashboard}
                   </Link>
                 )}
                 <button
@@ -120,9 +121,10 @@ export default function Navigation() {
 
             {user ? (
               <>
-                <MobileLink href="/dashboard" onClick={() => setMenuOpen(false)}>{t.nav_dashboard}</MobileLink>
-                {isAdmin && (
+                {isAdmin ? (
                   <MobileLink href="/admin" onClick={() => setMenuOpen(false)}>Admin Panel</MobileLink>
+                ) : (
+                  <MobileLink href="/dashboard" onClick={() => setMenuOpen(false)}>{t.nav_dashboard}</MobileLink>
                 )}
                 <button
                   onClick={() => { logout(); setMenuOpen(false); }}

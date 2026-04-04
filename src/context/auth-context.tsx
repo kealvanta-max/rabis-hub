@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { onAuthStateChanged, User, signOut, getIdTokenResult } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import type { UserDoc } from "@/lib/types";
 
@@ -33,37 +33,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let unsubscribeDoc: (() => void) | null = null;
+
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
+      
       setUser(firebaseUser);
       
       if (firebaseUser) {
-        // Force-refresh the token to always get the latest custom claims from Firebase
-        // This is critical after admin-setup.mjs grants custom claims
         const tokenResult = await getIdTokenResult(firebaseUser, true);
         const hasAdminClaim = !!tokenResult.claims.admin;
         
-        // Fallback: also check the email list from environment variable
         const userEmail = (firebaseUser.email || "").toLowerCase().trim();
         const isEmailAdmin = ADMIN_EMAILS.some(e => e.toLowerCase().trim() === userEmail);
         
         const adminStatus = hasAdminClaim || isEmailAdmin;
         setIsAdmin(adminStatus);
 
-        try {
-          const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-          if (snap.exists()) {
-            setUserData(snap.data() as UserDoc);
+        unsubscribeDoc = onSnapshot(
+          doc(db, "users", firebaseUser.uid),
+          (snap) => {
+            if (snap.exists()) {
+              setUserData(snap.data() as UserDoc);
+            } else {
+              setUserData(null);
+            }
+          },
+          (err) => {
+            console.error("Error listening to user data:", err);
           }
-        } catch (err) {
-          console.error("Error fetching user data:", err);
-        }
+        );
       } else {
         setUserData(null);
         setIsAdmin(false);
       }
       setLoading(false);
     });
-    return () => unsub();
+
+    return () => {
+      if (unsubscribeDoc) unsubscribeDoc();
+      unsub();
+    };
   }, []);
 
   const logout = async () => {

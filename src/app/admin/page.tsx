@@ -35,10 +35,11 @@ export default function AdminPage() {
   const [testimonials, setTestimonials] = useState<TestimonialItem[]>([]);
   const [waLinks, setWaLinks] = useState<Record<string, string>>({});
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [customPlans, setCustomPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"users" | "map" | "testimonials" | "whatsapp" | "announcements">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "map" | "testimonials" | "whatsapp" | "announcements" | "plans">("users");
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -61,6 +62,12 @@ export default function AdminPage() {
       const aSnap = await getDocs(collection(db, "announcements"));
       const aData = aSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setAnnouncements(aData);
+
+      // Custom Plans
+      const pSnap = await getDoc(doc(db, "settings", "customPlans"));
+      if (pSnap.exists()) {
+        setCustomPlans(pSnap.data().plans || []);
+      }
     } catch (err) {
       console.error("Admin fetch error:", err);
     } finally {
@@ -218,7 +225,7 @@ export default function AdminPage() {
 
           {/* Tabs */}
           <div className="flex gap-1 mb-6 bg-white/[0.03] rounded-xl p-1 overflow-x-auto">
-            {(["users", "map", "testimonials", "whatsapp", "announcements"] as const).map((tab) => (
+            {(["users", "map", "testimonials", "whatsapp", "announcements", "plans"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab as any)}
@@ -228,7 +235,7 @@ export default function AdminPage() {
                     : "text-gray-400 hover:text-white hover:bg-white/5"
                 }`}
               >
-                {tab === "users" ? "Users" : tab === "map" ? "Map View" : tab === "testimonials" ? "Reviews" : tab === "whatsapp" ? "WhatsApp Links" : "Announcements"}
+                {tab === "users" ? "Users" : tab === "map" ? "Map View" : tab === "testimonials" ? "Reviews" : tab === "whatsapp" ? "WhatsApp Links" : tab === "announcements" ? "Announcements" : "Custom Plans"}
               </button>
             ))}
           </div>
@@ -445,6 +452,48 @@ export default function AdminPage() {
               )}
             </div>
           )}
+
+          {/* === DYNAMIC PLANS TAB === */}
+          {activeTab === "plans" && (
+            <div className="space-y-4">
+              <AddCustomPlan onAdd={async (newPlan) => {
+                const newPlans = [newPlan, ...customPlans];
+                try {
+                  await setDoc(doc(db, "settings", "customPlans"), { plans: newPlans });
+                  setCustomPlans(newPlans);
+                } catch (e) {
+                  console.error("Save plans err:", e);
+                }
+              }} />
+              {customPlans.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No custom plans created yet.</p>
+              ) : (
+                customPlans.map((plan) => (
+                  <Card key={plan.id} className="!p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className="font-bold text-white mb-1">{plan.name}</h3>
+                        <p className="text-sm text-gray-300">Rate: GH₵{plan.amt} | Frequency: {plan.freq}</p>
+                        <p className="text-sm text-emerald-400 font-semibold mt-1">Target Return: GH₵{plan.ret}</p>
+                      </div>
+                      <button onClick={async () => {
+                        const newPlans = customPlans.filter(p => p.id !== plan.id);
+                        try {
+                          await setDoc(doc(db, "settings", "customPlans"), { plans: newPlans });
+                          setCustomPlans(newPlans);
+                          addToast("Plan deleted successfully!", "success");
+                        } catch (e) {
+                          addToast("Failed to delete plan", "error");
+                        }
+                      }} className="px-3 py-1.5 text-xs bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors cursor-pointer">
+                        Delete
+                      </button>
+                    </div>
+                  </Card>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </main>
 
@@ -632,6 +681,53 @@ function AddAnnouncement({ onAdd }: { onAdd: (a: any) => void }) {
             />
           </div>
           <Button onClick={handleAdd} loading={loading} className="w-full">Push Announcement</Button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+function AddCustomPlan({ onAdd }: { onAdd: (plan: any) => Promise<void> }) {
+  const { addToast } = useToastContext();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [plan, setPlan] = useState({ name: "", amt: "", freq: "", ret: "" });
+
+  const handleAdd = async () => {
+    if (!plan.name || !plan.amt || !plan.freq || !plan.ret) {
+      addToast("Please fill all fields", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      await onAdd({
+        id: `custom-${Date.now()}`,
+        name: plan.name,
+        amt: Number(plan.amt),
+        freq: plan.freq,
+        ret: Number(plan.ret),
+      });
+      addToast("Custom plan saved!", "success");
+      setOpen(false);
+      setPlan({ name: "", amt: "", freq: "", ret: "" });
+    } catch {
+      addToast("Failed to save plan", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <Button size="sm" onClick={() => setOpen(true)}>Add Custom Susu Plan</Button>
+      <Modal isOpen={open} onClose={() => setOpen(false)} title="Create New Plan">
+        <div className="space-y-4">
+          <Input label="Plan Name (e.g. Daily GH₵50)" value={plan.name} onChange={(e) => setPlan(p => ({ ...p, name: e.target.value }))} required />
+          <Input label="Contribution Amount (GH₵)" type="number" value={plan.amt} onChange={(e) => setPlan(p => ({ ...p, amt: e.target.value }))} required />
+          <Input label="Frequency (e.g. Daily, 5 Days)" value={plan.freq} onChange={(e) => setPlan(p => ({ ...p, freq: e.target.value }))} required />
+          <Input label="Target Return Amount (GH₵)" type="number" value={plan.ret} onChange={(e) => setPlan(p => ({ ...p, ret: e.target.value }))} required />
+          
+          <Button onClick={handleAdd} loading={loading} className="w-full">Save Plan to Live Site</Button>
         </div>
       </Modal>
     </>

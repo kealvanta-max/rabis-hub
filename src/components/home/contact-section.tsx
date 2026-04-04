@@ -71,8 +71,8 @@ export default function ContactSection() {
                 </svg>
               </div>
               <h3 className="text-base font-bold text-white mb-2">Direct Line</h3>
-              <a href="tel:+233244990995" className="text-sm text-gray-400 hover:text-primary transition-colors">
-                +233 244 990 995
+              <a href="tel:+233504701032" className="text-sm text-gray-400 hover:text-primary transition-colors">
+                +233 50 470 1032
               </a>
             </Card>
           </motion.div>
@@ -87,7 +87,7 @@ export default function ContactSection() {
               </div>
               <h3 className="relative z-10 text-base font-bold text-white mb-2">WhatsApp</h3>
               <a
-                href="https://wa.me/233244990995"
+                href="https://wa.me/233504701032"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="relative z-10 text-sm text-gray-400 hover:text-[#25D366] transition-colors"
