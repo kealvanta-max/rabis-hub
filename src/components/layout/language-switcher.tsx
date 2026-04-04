@@ -30,14 +30,14 @@ export default function LanguageSwitcher() {
         aria-label="Change language"
       >
         <span className="text-sm">{current.flag}</span>
-        <span className="hidden sm:inline">{current.name}</span>
+        <span>{current.name}</span>
         <svg className={`w-3 h-3 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-44 bg-navy-dark/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/40 overflow-hidden z-[9999] animate-in fade-in slide-in-from-top-2">
+        <div className="absolute left-0 md:right-0 md:left-auto bottom-full md:bottom-auto md:top-full mb-2 md:mb-0 md:mt-2 w-48 max-h-[60vh] overflow-y-auto bg-navy-dark/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/40 z-[9999]">
           {locales.map((l) => (
             <button
               key={l.code}
@@ -45,7 +45,7 @@ export default function LanguageSwitcher() {
                 setLocale(l.code as Locale);
                 setOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors cursor-pointer ${
                 locale === l.code
                   ? "bg-primary/10 text-primary"
                   : "text-gray-300 hover:bg-white/5 hover:text-white"
@@ -65,3 +65,4 @@ export default function LanguageSwitcher() {
     </div>
   );
 }
+
