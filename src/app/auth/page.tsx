@@ -105,6 +105,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const [customPlans, setCustomPlans] = useState<any[]>([]);
   const basePlanOptions = getPlanOptions();
 
+  // Math Captcha State
+  const [mathObj, setMathObj] = useState({ a: 0, b: 0 });
+  const [mathAns, setMathAns] = useState("");
+
+  useEffect(() => {
+    setMathObj({ a: Math.floor(Math.random() * 5) + 1, b: Math.floor(Math.random() * 5) + 1 });
+  }, []);
+
   // Fetch customizable plans from Admin
   useEffect(() => {
     async function loadCustomPlans() {
@@ -132,6 +140,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const canStep2 = form.firstName && form.lastName && form.email && form.phone && form.password && form.plan;
   const canStep3 = form.ghanaCardFront && form.ghanaCardBack && form.passportPhoto;
   const canStep4 = gpsStatus === "success";
+  const mathPassed = mathAns.trim() === (mathObj.a + mathObj.b).toString();
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -314,16 +323,31 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <p className="text-gray-400">Documents: <span className="text-emerald-400">3 uploaded</span></p>
           </div>
 
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input type="checkbox" id="terms" className="mt-1 accent-primary cursor-pointer" required />
-            <span className="text-sm text-gray-400">
-              I agree to the <a href="/terms" target="_blank" className="text-primary hover:underline">Terms of Service</a> and <a href="/privacy" target="_blank" className="text-primary hover:underline">Privacy Policy</a>, and understand that my Susu contributions will be managed through WhatsApp.
+          <div className="bg-[#051A10]/60 border border-[#065F46] rounded-xl p-5 mt-4">
+            <h3 className="text-white font-bold mb-2">Human Verification</h3>
+            <p className="text-gray-400 text-sm mb-3">For security, please solve this quick math problem.</p>
+            <div className="flex items-center gap-3">
+              <span className="text-xl font-bold font-display text-primary">{mathObj.a} + {mathObj.b} = </span>
+              <input 
+                type="number" 
+                value={mathAns} 
+                onChange={(e) => setMathAns(e.target.value)} 
+                className="w-24 px-3 py-2 bg-[#020c06] border border-[#065F46] rounded-lg text-white font-bold focus:outline-none focus:border-primary" 
+                placeholder="?" 
+              />
+            </div>
+          </div>
+
+          <label className="flex items-start gap-4 cursor-pointer mt-4 bg-primary/5 p-4 rounded-xl border border-primary/20">
+            <input type="checkbox" id="terms" className="mt-1 accent-primary w-5 h-5 flex-shrink-0" required />
+            <span className="text-sm text-gray-300 leading-relaxed">
+              I, <strong className="text-primary tracking-wide text-base">{form.firstName || "[Name]"} {form.lastName || ""}</strong>, agree to join Rabi&apos;s Saving Hub. I confirm that I will abide by the strict Susu rules, understand that funds are non-refundable, and will fill out all mandatory forms before any cashout.
             </span>
           </label>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 pt-2">
             <Button variant="secondary" onClick={() => setStep(3)} className="flex-1">Back</Button>
-            <Button onClick={handleSubmit} loading={loading} className="flex-1">
+            <Button onClick={handleSubmit} loading={loading} disabled={!mathPassed} className="flex-1">
               Create Account
             </Button>
           </div>

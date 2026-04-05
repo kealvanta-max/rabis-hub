@@ -47,7 +47,7 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${dmSerifDisplay.variable} ${inter.variable} ${spaceGrotesk.variable} bg-[#0A1628] font-sans antialiased text-gray-100 min-h-screen overflow-x-hidden`}
+        className={`${dmSerifDisplay.variable} ${inter.variable} ${spaceGrotesk.variable} bg-[#020C06] font-sans antialiased text-gray-100 min-h-screen overflow-x-hidden`}
       >
         <SmoothScroll>
           <I18nProvider>
@@ -61,6 +61,7 @@ export default function RootLayout({
             </AuthProvider>
           </I18nProvider>
         </SmoothScroll>
+        <script src="https://cdn.lordicon.com/lordicon.js" async></script>
       </body>
     </html>
   );

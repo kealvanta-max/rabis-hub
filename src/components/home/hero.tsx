@@ -15,7 +15,7 @@ export default function HeroSection() {
   const { t } = useTranslation();
   return (
     <HeroHighlight>
-      <section className="relative min-h-screen flex items-center overflow-hidden pt-20">
+      <section className="relative min-h-screen flex items-center overflow-hidden pt-20 bg-shader-gradient">
         <BackgroundBeams />
         {/* Subtle spotlight for added drama behind the text */}
         <Spotlight className="-top-40 left-0 md:left-20 md:-top-20" fill="white" />
@@ -31,9 +31,9 @@ export default function HeroSection() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/5 mb-6 md:mb-8 backdrop-blur-md"
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 mb-6 md:mb-8 glass-card"
               >
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_10px_#D4AF37]" />
+                <span className="w-2 h-2 rounded-full bg-gold animate-pulse shadow-[0_0_10px_#FACC15]" />
                 <span className="text-[10px] md:text-xs font-semibold text-primary tracking-widest uppercase font-grotesk whitespace-nowrap">
                   {t.hero_badge}
                 </span>
@@ -60,7 +60,7 @@ export default function HeroSection() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1.5, duration: 0.8 }}
-                className="max-w-xl text-gray-400 text-base sm:text-lg md:text-xl mb-8 md:mb-10 leading-relaxed font-sans"
+                className="max-w-xl text-gray-300 text-base sm:text-lg md:text-xl mb-8 md:mb-10 leading-relaxed font-sans"
               >
                 {t.hero_description}
               </motion.p>
@@ -73,7 +73,7 @@ export default function HeroSection() {
                 className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center lg:justify-start w-full sm:w-auto"
               >
                 <Link href="/auth?mode=signup" className="w-full sm:w-auto">
-                  <ShimmerButton className="shadow-[0_0_40px_-10px_rgba(212,175,55,0.4)] w-full sm:w-auto">
+                  <ShimmerButton className="shadow-[0_0_40px_-10px_rgba(250,204,21,0.4)] w-full sm:w-auto">
                     <span className="whitespace-nowrap text-center text-sm md:text-base font-bold leading-none tracking-tighter text-white">
                       {t.hero_cta}
                     </span>
@@ -82,10 +82,10 @@ export default function HeroSection() {
                 
                 <Link
                   href="/#plans"
-                  className="group relative px-8 py-3.5 text-sm md:text-base font-medium rounded-full text-white/80 hover:text-primary transition-colors overflow-hidden text-center w-full sm:w-auto flex items-center justify-center border border-white/10 hover:border-primary/50 bg-white/5 backdrop-blur-md"
+                  className="group relative px-8 py-3.5 text-sm md:text-base font-medium rounded-full text-white/80 hover:text-white transition-colors overflow-hidden text-center w-full sm:w-auto flex items-center justify-center border border-white/10 hover:border-primary/50 glass-card"
                 >
                   <span className="relative z-10">{t.hero_view_plans}</span>
-                  <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </Link>
               </motion.div>
 
@@ -109,7 +109,7 @@ export default function HeroSection() {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.5, duration: 1.5 }}
-                className="hidden md:block w-full h-full relative z-20"
+                className="hidden md:block w-full h-full relative z-20 mix-blend-screen"
               >
                  <SplineScene 
                   scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
@@ -133,7 +133,7 @@ export default function HeroSection() {
                     src="/images/ghana-globe.png"
                     alt="Ghana Globe"
                     fill
-                    className="object-contain drop-shadow-[0_0_30px_rgba(212,175,55,0.4)]"
+                    className="object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.4)]"
                     priority
                   />
                 </motion.div>

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
-import { doc, setDoc, Timestamp, collection, addDoc } from "firebase/firestore";
+import { doc, setDoc, Timestamp, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToastContext } from "@/components/layout/toast-provider";
 import Navigation from "@/components/layout/navigation";
@@ -16,12 +16,28 @@ import { planLabels } from "@/lib/plans-data";
 export default function DashboardPage() {
   const { user, userData, loading, logout } = useAuth();
   const router = useRouter();
+  const [announcements, setAnnouncements] = useState<any[]>([]);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth?mode=signin");
     }
   }, [user, loading, router]);
+
+  useEffect(() => {
+    if (user) {
+      const fetchAnnouncements = async () => {
+        try {
+          const q = query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(3));
+          const snap = await getDocs(q);
+          setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch (e) {
+          console.error("Failed to fetch announcements", e);
+        }
+      };
+      fetchAnnouncements();
+    }
+  }, [user]);
 
   if (loading) {
     return (
@@ -50,6 +66,25 @@ export default function DashboardPage() {
             </h1>
             <p className="text-gray-400 text-sm">Manage your savings and track your progress.</p>
           </div>
+
+          {/* Announcements */}
+          {announcements.length > 0 && (
+            <div className="mb-8 space-y-3">
+              {announcements.map((a) => (
+                <div key={a.id} className="p-4 rounded-xl bg-orange-900/20 border border-orange-500/30 flex items-start gap-4">
+                  <div className="bg-orange-500/20 p-2 rounded-full shrink-0 mt-1">
+                    <svg className="w-5 h-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-white font-bold m-0">{a.title}</h4>
+                    <p className="text-sm text-gray-300 mt-1 leading-relaxed">{a.message}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Status Banner */}
           {userData && (

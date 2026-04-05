@@ -44,10 +44,10 @@ export default function PlansSection() {
   ));
 
   return (
-    <section id="plans" className="py-28 bg-navy-dark relative overflow-hidden">
+    <section id="plans" className="py-28 bg-shader-gradient relative overflow-hidden">
       {/* Background Glows */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gold-accent/5 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gold/10 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none" />
 
       {/* Section Header */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-20 relative z-10">
@@ -180,7 +180,7 @@ const AchieverList = ({ tiers }: { tiers: any[] }) => {
               <span className="text-[10px] text-gold-accent/60 font-black uppercase tracking-[0.2em]">HIGH ACHIEVER</span>
               <h3 className="text-xl font-bold text-white group-hover:text-gold-accent transition-colors">{tier.days} Days</h3>
             </div>
-            <div className="w-2 h-2 rounded-full bg-gold-accent shadow-[0_0_10px_rgba(212,175,55,0.5)]" />
+            <div className="w-2 h-2 rounded-full bg-gold-accent shadow-[0_0_10px_#FACC15]" />
           </div>
 
           <p className="text-lg font-medium text-gray-300 leading-snug mb-10">

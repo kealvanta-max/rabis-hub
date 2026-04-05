@@ -6,7 +6,7 @@ export const BackgroundBeams = ({ className }: { className?: string }) => {
   return (
     <div
       className={cn(
-        "absolute inset-0 h-full w-full bg-slate-950 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]",
+        "absolute inset-0 h-full w-full bg-transparent [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]",
         className
       )}
     >
@@ -30,8 +30,8 @@ export const BackgroundBeams = ({ className }: { className?: string }) => {
             gradientUnits="userSpaceOnUse"
             gradientTransform="translate(720 450) rotate(90) scale(450 720)"
           >
-            <stop stopColor="#D4AF37" stopOpacity="0.1" />
-            <stop offset="1" stopColor="#D4AF37" stopOpacity="0" />
+            <stop stopColor="#10B981" stopOpacity="0.15" />
+            <stop offset="1" stopColor="#10B981" stopOpacity="0" />
           </radialGradient>
         </defs>
       </svg>

@@ -19,7 +19,7 @@ const AuthContext = createContext<AuthState>({
   userData: null,
   isAdmin: false,
   loading: true,
-  logout: async () => {},
+  logout: async () => { },
 });
 
 // Admin emails are now primarily handled via Firebase Custom Claims on the backend
@@ -40,16 +40,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         unsubscribeDoc();
         unsubscribeDoc = null;
       }
-      
+
       setUser(firebaseUser);
-      
+
       if (firebaseUser) {
         const tokenResult = await getIdTokenResult(firebaseUser, true);
         const hasAdminClaim = !!tokenResult.claims.admin;
-        
+
         const userEmail = (firebaseUser.email || "").toLowerCase().trim();
         const isEmailAdmin = ADMIN_EMAILS.some(e => e.toLowerCase().trim() === userEmail);
-        
+
         const adminStatus = hasAdminClaim || isEmailAdmin;
         setIsAdmin(adminStatus);
 

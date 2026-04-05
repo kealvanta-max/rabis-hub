@@ -15,44 +15,44 @@ const config: Config = {
         extend: {
             colors: {
                 primary: {
-                    DEFAULT: "#D4AF37",
-                    dark: "#B5952F",
-                    hover: "#C4A030",
+                    DEFAULT: "#10B981", // Emerald 500
+                    dark: "#059669",    // Emerald 600
+                    hover: "#34D399",   // Emerald 400
                 },
-                secondary: "#E5B946",
-                navy: {
-                    dark: "#0A1628",
-                    light: "#152338",
+                secondary: "#059669",
+                navy: { // Legacy key, now represents ultra deep greens instead of blues
+                    dark: "#020c06",
+                    light: "#051A10",
                 },
                 background: {
-                    light: "#F7F5F0",
-                    dark: "#0A1628",
+                    light: "#F0FDF4", // Green 50
+                    dark: "#020c06",
                 },
                 surface: {
                     light: "#FFFFFF",
-                    dark: "#1E1E1E",
+                    dark: "#051A10",
                     DEFAULT: "#FFFFFF",
                 },
                 input: {
-                    dark: "#1F2937",
+                    dark: "#064E3B",
                 },
                 border: {
-                    dark: "#374151",
+                    dark: "#065F46",
                 },
                 card: {
-                    dark: "#112240",
+                    dark: "#051A10",
                     light: "#FFFFFF",
-                    bg: "rgba(255,255,255,0.04)",
+                    bg: "rgba(16, 185, 129, 0.04)",
                 },
                 admin: {
-                    bg: "#0A1628",
-                    card: "#12233b",
-                    border: "#1e3a5f",
+                    bg: "#020c06",
+                    card: "#051A10",
+                    border: "#064E3B",
                 },
-                gold: {
-                    DEFAULT: "#D4AF37",
-                    accent: "#E5B946",
-                    light: "#F2D075",
+                gold: { // Very bright yellow accent
+                    DEFAULT: "#FACC15",
+                    accent: "#EAB308",
+                    light: "#FEF08A",
                 },
                 animation: {
                     "accordion-down": "accordion-down 0.2s ease-out",

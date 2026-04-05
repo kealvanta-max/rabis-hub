@@ -8,7 +8,7 @@ import { useTranslation } from "@/context/i18n-context";
 export default function CTABanner() {
   const { t } = useTranslation();
   return (
-    <section className="py-24 relative overflow-hidden bg-navy-dark">
+    <section className="py-24 relative overflow-hidden bg-shader-gradient">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-navy-light/50 pointer-events-none" />
       
       {/* Decorative Blur */}
@@ -20,7 +20,7 @@ export default function CTABanner() {
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="bg-navy-light/40 backdrop-blur-xl border border-white/10 rounded-3xl p-10 md:p-16 shadow-2xl"
+          className="bg-navy-light/40 backdrop-blur-xl border border-white/10 rounded-3xl p-10 md:p-16 shadow-2xl glass-card"
         >
           <motion.h2 
             initial={{ opacity: 0, y: 20 }}
@@ -48,7 +48,7 @@ export default function CTABanner() {
           >
             <Link
               href="/auth?mode=signup"
-              className="group inline-flex items-center gap-3 px-10 py-4 text-base font-bold rounded-full bg-primary text-navy-dark hover:scale-105 transition-all shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+              className="group inline-flex items-center gap-3 px-10 py-4 text-base font-bold rounded-full bg-primary text-navy-dark hover:scale-105 transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)]"
             >
               {t.cta_button}
               <MoveRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />

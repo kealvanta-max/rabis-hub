@@ -50,9 +50,9 @@ export default function TrustSection() {
 
 
   return (
-    <section className="py-24 bg-navy-dark relative overflow-hidden">
+    <section className="py-24 bg-shader-gradient relative overflow-hidden">
       {/* Decorative background circle */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center mb-16">
