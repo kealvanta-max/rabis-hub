@@ -5,6 +5,8 @@ import { I18nProvider } from "@/context/i18n-context";
 import { ToastProvider } from "@/components/layout/toast-provider";
 import FloatingWhatsApp from "@/components/layout/floating-whatsapp";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
+import AudioPlayer from "@/components/ui/audio-player";
+import LoadingScreen from "@/components/ui/loading-screen";
 import "./globals.css";
 
 const dmSerifDisplay = DM_Serif_Display({
@@ -58,9 +60,6 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
 };
-
-import AudioPlayer from "@/components/ui/audio-player";
-import LoadingScreen from "@/components/ui/loading-screen";
 
 export default function RootLayout({
   children,
