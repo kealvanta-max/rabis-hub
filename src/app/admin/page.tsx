@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useAuth } from "@/context/auth-context";
 import { collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc, addDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -278,7 +279,7 @@ export default function AdminPage() {
                       <div className="flex items-start gap-4 flex-wrap">
                         {/* Avatar */}
                         {u.passportPhoto ? (
-                          <img src={u.passportPhoto} alt={u.name} className="w-14 h-14 rounded-xl object-cover border border-white/10 shrink-0" />
+                          <Image src={u.passportPhoto} alt={u.name} width={56} height={56} className="w-14 h-14 rounded-xl object-cover border border-white/10 shrink-0" />
                         ) : (
                           <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                             <span className="text-primary font-bold text-lg">{u.name.charAt(0)}</span>
@@ -524,7 +525,7 @@ export default function AdminPage() {
                   <p className="text-xs text-gray-500 mb-1">{d.label}</p>
                   {d.url ? (
                     <a href={d.url} target="_blank" rel="noopener noreferrer">
-                      <img src={d.url} alt={d.label} className="w-full h-32 object-cover rounded-lg border border-white/10 hover:border-primary/30 transition-colors" />
+                      <Image src={d.url} alt={d.label} width={400} height={128} className="w-full h-32 object-cover rounded-lg border border-white/10 hover:border-primary/30 transition-colors" />
                     </a>
                   ) : (
                     <div className="w-full h-32 bg-white/5 rounded-lg flex items-center justify-center text-xs text-gray-600">Not uploaded</div>

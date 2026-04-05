@@ -1,111 +1,124 @@
-# 🌟 Rabi's Saving Hub
-
-![Rabi's Saving Hub](public/rabi_companion_logo.png)
-
-> **"Ghana's Premium Susu Savings Platform — Save smart, grow together with a community that cares."**
-
-Welcome to the **Awwwards-tier codebase** for Rabi's Saving Hub. This document serves as the master guide for expert developers and AI agents (specifically following the *Aetherius Vanguard Protocol*) tasked with maintaining, scaling, or contributing to this project.
-
-## 🚀 The Vision
-
-Rabi's Saving Hub evolved from a standard fintech concept into a visceral, high-impact web experience. It leverages psychological design triggers, a bespoke "Midnight Blue & Vibrant Gold" palette, transparent glassmorphism, and a meticulously crafted component architecture to deliver unprecedented trust and conversion in the Ghanaian Susu savings sector.
+<div align="center">
+  <img src="public/brand_logo.png" alt="Rabi's Saving Hub Logo" width="200" />
+  <br/>
+  <h1>Rabi's Saving Hub</h1>
+  <p><strong>Ghana's Premium Online Susu Experience</strong></p>
+  <p>Digitizing community savings with military-grade security, real-time tracking, and an Awwwards-tier "Emerald God Mode" UI interface.</p>
+</div>
 
 ---
 
-## 🛠️ Tech Stack & Architecture
+## 📖 Overview
 
-This application is built for absolute performance, SEO dominance, and unparalleled user experience.
+Rabi's Saving Hub modernizes the traditional Ghanaian *"Susu"* system. This platform allows users to seamlessly select savings plans, securely register with mathematical anti-bot verifications, agree to strict community terms, and get instantly routed to their dedicated Susu WhatsApp groups upon admin approval.
 
-- **Framework:** [Next.js 14](https://nextjs.org/) (App Router, Server & Client Components)
-- **Styling:** [Tailwind CSS v3](https://tailwindcss.com/) with strategic custom utility classes
-- **UI/UX Engineering:** [Framer Motion](https://www.framer.com/motion/) handling visceral layout transitions, micro-interactions, and scroll contexts.
-- **Scroll Physics:** Lenis Smooth Scroll integrated globally for fluid navigation.
-- **Database & Auth:** [Firebase v10](https://firebase.google.com/) (Firestore & Firebase Auth configured for Email + Google Sign-In)
-- **Asset Optimization:** Cloudinary & Next/Image pre-optimization.
-- **AI Integration:** Global ElevenLabs A.I. Voice Assistant mounted in the RootLayout.
+Built for scale, speed, and premium aesthetics, this application replaces scattered manual ledgers with a central dashboard, secure Firebase backend, and a cryptographically locked Admin Panel.
 
 ---
 
-## 🧭 Codebase Topography
+## 🚀 Key Features
 
-For AI Agents and Engineers navigating the repository:
-
-### `/src/app`
-- **Root Layout:** Orchestrates global providers (`AuthProvider`, `ToastProvider`, `SmoothScroll`, `AudioPlayer`, `FloatingWhatsApp`).
-- **Private Routes:** User Dashboard (`/dashboard`) and strictly gated Admin Portal (`/admin`).
-
-### `/src/components`
-- **`/ui`**: Core atomic components (Buttons, Inputs, Modals, Apple-style UI elements, and the custom global Audio Player).
-- **`/home`**: Landing page sections (Hero, Plans Bento Grid, Testimonials, CTA, Trust).
-- **`/layout`**: Structural components (Navigation, Footer, WhatsApp integration).
-
-### `/src/lib`
-- **`plans-data.ts`**: The central nervous system for Subscription configuration. *Never hardcode prices in UI components; always reference this module.*
-- **`firebase.ts`**: Client-side initialization.
-- **`firebase-admin.ts`**: Secure server-side execution handlers.
-- **`types.ts`**: Strict TypeScript interfaces protecting the data layer.
-
-### `/src/context`
-- **`auth-context.tsx`**: Centralized user state and permission handling (User vs. Admin roles).
+*   **Emerald UI "God Mode" Design:** Ultra-premium visual styling utilizing fluid shader gradients (`#020c06` to `#10B981`), glassmorphic layouts, and micro-animations for an elite user experience.
+*   **Military-Grade Registration:** Dynamic math-captcha challenges to prevent bot-spam and enforce human-verified signups.
+*   **Dynamic Agreements:** Personalized, strict, and 100% human-toned terms of service and registration agreements tailored to Ghanaian business nuances.
+*   **Role-Based Access Control (RBAC):** Firebase Custom Claims ensures the admin panel is cryptographically locked exclusively to authorized owner emails.
+*   **Global Announcements:** Real-time push announcements directly from the Admin Panel to user dashboards.
+*   **Live User Map & Data Export:** Visual map integration of user demographics via Leaflet, plus 1-click JSON/CSV exports for administrative offline backups.
+*   **Internationalization (i18n):** Support for both English and local dialects (Twi).
 
 ---
 
-## 🎯 The Awwwards Protocol (Design Guidelines)
+## 🛠️ Tech Stack
 
-If you are modifying the UI, you **MUST** adhere to these immutable laws:
-
-1. **The Purple/Violet Ban**: Under no circumstances should purple or violet hues be introduced to this project.
-2. **Color Palette Compliance**: 
-   - *Backgrounds*: Deep Navy (`#0A1628`), Midnight Blue (`#0F2039`)
-   - *Accents*: Vibrant Gold (`#D4AF37`), Neon Emerald (`#10B981`)
-   - *Text*: Titanium White (`#F8FAFC`), Slate Gray (`#94A3B8`)
-3. **Typography Rule**: Readability is paramount. `DM Serif Display` is reserved exclusively for high-impact Headings. `Space Grotesk` or `Inter` handles UI copy and body text.
-4. **Motion Restraint**: Animations must be purposeful. Bounce physics are banned. Prefer `ease-in-out` opacity fades, slight Y-axis translations (`y: 20`), and subtle scale interactions (`scale: 1.05`).
-5. **Layout Discipline**: Use the asymmetric Bento Grid over constrained carousels whenever data visibility overrides discovery. 
+| Domain | Technology | Description |
+| :--- | :--- | :--- |
+| **Framework** | [Next.js 14](https://nextjs.org/) | App Router, Server/Client components. |
+| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) | Utility-first CSS, custom variables, dynamic theme classes. |
+| **Backend** | [Firebase](https://firebase.google.com/) | Authentication, Firestore DB, Custom Claims Admin SDK. |
+| **Animations** | [Framer Motion](https://www.framer.com/motion/) | Smooth entrance, stagger, and interactive micro-animations. |
+| **Icons** | [Lucide React](https://lucide.dev/) & LordIcon | Scalable SVG icons and animated piggy bank assets. |
+| **Language** | [TypeScript](https://www.typescriptlang.org/) | Strict, scalable type-safety across the entire codebase. |
 
 ---
 
-## 🔑 Admin Portal Capabilities
+## 📂 Project Structure
 
-The `/admin` route is fortified behind Role-Based Access Control (RBAC). 
-Features available to Administrators:
-- **Comprehensive User Export**: One-click generation of JSON or CSV dossiers containing all user metadata.
-- **Image Extraction**: Single-user JSON exports include embedded profile imagery.
-- **Global Announcements**: Native broadcast creation distributed across all user dashboards.
-- **Approval Engine**: Accept/Reject workflows for Testimonials and Accounts.
+```text
+rabis-hub/
+├── src/
+│   ├── app/                # Next.js 14 App Router (Pages, Layouts)
+│   │   ├── admin/          # Strictly secured admin portal
+│   │   ├── auth/           # Login/Registration flow and Math Captcha
+│   │   ├── dashboard/      # User dashboard & Announcements
+│   │   └── terms/          # Platform Rules & Agreements
+│   ├── components/         # Reusable React components
+│   │   ├── admin/          # Admin-specific UI elements (e.g., UserMap)
+│   │   ├── home/           # Landing page sections (Hero, Trust, Plans)
+│   │   ├── layout/         # Globals (Nav, Footer)
+│   │   └── ui/             # Core UI components (Buttons, Inputs, Modals)
+│   ├── context/            # Global state (AuthContext, i18nContext)
+│   └── lib/                # Configs, Firebase Init, Global Types
+├── public/                 # Static assets (Logos, Custom premium imagery)
+└── tailwind.config.ts      # UI theme extensions (Emerald UI configs)
+```
 
 ---
 
-## ⚡ Setup & Development
+## ⚙️ Getting Started (Local Development)
 
-### 1. Environment Configuration
-Clone `.env.example` into `.env.local` and populate the Firebase and Cloudinary credentials.
+### 1. Prerequisites
+Ensure you have Node.js (v18+) and npm installed. Check your versions:
+```bash
+node -v
+npm -v
+```
 
-\`\`\`bash
-cp .env.example .env.local
-\`\`\`
-
-### 2. Initialization
-Ensure you are using `npm` (Node v18+).
-
-\`\`\`bash
+### 2. Clone and Install
+```bash
+git clone https://github.com/your-username/rabis-hub.git
+cd rabis-hub
 npm install
+```
+
+### 3. Environment Variables
+Create a `.env.local` file in the root directory. You will need your Firebase project configuration keys:
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
+
+### 4. Run the Dev Server
+```bash
 npm run dev
-\`\`\`
-
-### 3. Production Build
-Verify the architecture and optimize assets before deployment. You must run the priority checklist using the `checklist.py` agent script if available, or manually verify:
-
-\`\`\`bash
-npm run build
-npm start
-\`\`\`
+```
+Navigate to `http://localhost:3000` to preview the platform.
 
 ---
 
-## 🛡️ Security & Deployment
+## 🌍 Deployment (Vercel)
 
-- **Firestore Rules**: Lock down read/writes. Users can only read/write their own UID documents. Admins override via custom claims.
-- **Vercel**: The target host. Ensure `NEXT_PUBLIC_APP_URL` is set in the Vercel dashboard.
+This application is fully optimized for single-click deployment on **Vercel**.
 
-> *"We don't just write code; we architect trust." - Aetherius Vanguard*
+1. Navigate to your [Vercel Dashboard](https://vercel.com/dashboard).
+2. Click **Add New Project** and connect your GitHub repository.
+3. Vercel will auto-detect **Next.js**. 
+4. **Important:** Open the **Environment Variables** section and paste your `.env.local` keys.
+5. Click **Deploy**. Vercel will handle the CI/CD pipeline. 
+
+---
+
+## 🔒 Administrative Access
+
+To configure admin privileges:
+1. Only predefined emails (`rabisavinghub@gmail.com` and `moneyace914@gmail.com`) are mapped to the Custom Claims Firebase architecture.
+2. If you need to add a new admin, the Firebase Admin SDK context inside your Node/Server-side function will need to be updated to assign the `{ admin: true }` token claim.
+
+---
+
+<div align="center">
+  <p><i>Ready for production. Built to scale. Welcome to the new era of Susu.</i></p>
+</div>

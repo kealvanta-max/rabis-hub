@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Image from "next/image";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 
 interface ImageUploadProps {
@@ -44,9 +45,11 @@ export default function ImageUpload({ label, value, onUpload, accept = "image/*"
 
       {value ? (
         <div className="relative group">
-          <img
+          <Image
             src={value}
             alt={label}
+            width={400}
+            height={160}
             className="w-full h-40 object-cover rounded-xl border border-gray-700"
           />
           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">

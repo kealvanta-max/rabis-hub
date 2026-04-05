@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useAuth } from "@/context/auth-context";
 import { doc, setDoc, Timestamp, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -177,16 +178,16 @@ export default function DashboardPage() {
                     { label: "Ghana Card Front", url: userData.ghanaCardFront },
                     { label: "Ghana Card Back", url: userData.ghanaCardBack },
                     { label: "Passport Photo", url: userData.passportPhoto },
-                  ].map((doc) => (
-                    <div key={doc.label} className="text-center">
-                      {doc.url ? (
-                        <img src={doc.url} alt={doc.label} className="w-full h-20 object-cover rounded-lg border border-white/10 mb-1" />
+                  ].map((docItem) => (
+                    <div key={docItem.label} className="text-center">
+                      {docItem.url ? (
+                        <Image src={docItem.url} alt={docItem.label} width={200} height={80} className="w-full h-20 object-cover rounded-lg border border-white/10 mb-1" />
                       ) : (
                         <div className="w-full h-20 bg-white/5 rounded-lg border border-white/10 flex items-center justify-center mb-1">
                           <span className="text-xs text-gray-600">N/A</span>
                         </div>
                       )}
-                      <p className="text-xs text-gray-500">{doc.label}</p>
+                      <p className="text-xs text-gray-500">{docItem.label}</p>
                     </div>
                   ))}
                 </div>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Facebook, Instagram } from "lucide-react";
 
 export default function Footer() {
@@ -9,9 +10,11 @@ export default function Footer() {
           {/* Brand */}
           <div className="lg:col-span-2">
             <div className="flex items-center gap-3 mb-4 group">
-              <img 
+              <Image 
                 src="/brand_logo.png" 
                 alt="Rabi's Saving Hub Logo" 
+                width={160}
+                height={40}
                 className="h-10 w-auto object-contain drop-shadow-md group-hover:scale-105 transition-transform"
               />
               <span className="font-display text-xl gold-text-gradient font-bold tracking-tight">Rabi&apos;s Saving Hub</span>
@@ -21,13 +24,13 @@ export default function Footer() {
             </p>
             {/* Social Media Links */}
             <div className="flex items-center gap-4">
-              <a href="https://www.tiktok.com/@rabissavinghub" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-primary/20 hover:border-primary/30 transition-all group">
+              <a href="https://www.tiktok.com/@rabissavinghub" target="_blank" rel="noopener noreferrer" aria-label="Follow us on TikTok" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-primary/20 hover:border-primary/30 transition-all group">
                 <TikTokIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </a>
-              <a href="https://www.instagram.com/rabisavinghub" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-primary/20 hover:border-primary/30 transition-all group">
+              <a href="https://www.instagram.com/rabisavinghub" target="_blank" rel="noopener noreferrer" aria-label="Follow us on Instagram" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-primary/20 hover:border-primary/30 transition-all group">
                 <Instagram className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </a>
-              <a href="https://www.facebook.com/profile.php?id=61576456847439" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-primary/20 hover:border-primary/30 transition-all group">
+              <a href="https://www.facebook.com/profile.php?id=61576456847439" target="_blank" rel="noopener noreferrer" aria-label="Follow us on Facebook" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-primary/20 hover:border-primary/30 transition-all group">
                 <Facebook className="w-5 h-5 group-hover:scale-110 transition-transform" />
               </a>
             </div>

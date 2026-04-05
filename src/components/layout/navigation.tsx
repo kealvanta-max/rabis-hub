@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/context/auth-context";
 import { useTranslation } from "@/context/i18n-context";
 import LanguageSwitcher from "@/components/layout/language-switcher";
@@ -30,9 +31,12 @@ export default function Navigation() {
         <div className="flex items-center justify-between h-16 sm:h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group" onClick={() => setMenuOpen(false)}>
-            <img 
+            <Image 
               src="/brand_logo.png" 
               alt="Rabi's Saving Hub Logo" 
+              width={160}
+              height={40}
+              priority
               className="h-10 w-auto object-contain group-hover:scale-105 transition-transform drop-shadow-md"
             />
             <span className="font-display text-lg sm:text-xl gold-text-gradient font-bold tracking-tight">
