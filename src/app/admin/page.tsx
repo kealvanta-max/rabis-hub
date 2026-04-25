@@ -513,7 +513,18 @@ export default function AdminPage() {
               <div><span className="text-gray-500">Plan:</span> <span className="text-white ml-1">{planLabels[selectedUser.plan] || selectedUser.plan}</span></div>
               <div><span className="text-gray-500">Status:</span> <Badge status={selectedUser.status} /></div>
               <div className="col-span-2"><span className="text-gray-500">Location:</span> <span className="text-white ml-1">{selectedUser.gpsAddress || selectedUser.location}</span></div>
-              <div className="col-span-2"><span className="text-gray-500">GPS:</span> <span className="text-white ml-1">{selectedUser.gpsLat?.toFixed(6)}, {selectedUser.gpsLng?.toFixed(6)}</span></div>
+              <div className="col-span-2">
+                <span className="text-gray-500">GPS:</span> 
+                <a 
+                  href={`https://www.google.com/maps/search/?api=1&query=${selectedUser.gpsLat},${selectedUser.gpsLng}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-primary hover:text-emerald-400 ml-1 underline underline-offset-2 flex inline-flex items-center gap-1"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  {selectedUser.gpsLat?.toFixed(6)}, {selectedUser.gpsLng?.toFixed(6)}
+                </a>
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/10">
               {[

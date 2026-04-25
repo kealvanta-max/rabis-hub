@@ -122,9 +122,11 @@ const PlanList = ({ plans, category }: { plans: any[]; category: string }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-2">
       {plans.map((plan) => (
-        <div
+        <motion.div
           key={plan.id}
-          className="group relative p-8 rounded-[2.5rem] bg-navy-dark/40 backdrop-blur-xl border border-white/5 hover:border-primary/20 transition-all duration-700 overflow-hidden"
+          whileHover={{ scale: 1.03, y: -5 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="group relative p-8 rounded-[2.5rem] bg-navy-dark/40 backdrop-blur-xl border border-white/5 hover:border-primary/40 transition-all duration-300 overflow-hidden shadow-lg hover:shadow-primary/20"
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
           
@@ -159,7 +161,7 @@ const PlanList = ({ plans, category }: { plans: any[]; category: string }) => {
               <MoveRight className="w-5 h-5 text-gray-400 group-hover:text-navy-dark transition-colors" />
             </div>
           </div>
-        </div>
+        </motion.div>
       ))}
     </div>
   );
@@ -169,9 +171,11 @@ const AchieverList = ({ tiers }: { tiers: any[] }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-2">
       {tiers.map((tier) => (
-        <div
+        <motion.div
           key={tier.days}
-          className="group relative p-8 rounded-[2.5rem] bg-navy-dark/40 backdrop-blur-xl border border-white/5 hover:border-gold-accent/20 transition-all duration-700 overflow-hidden"
+          whileHover={{ scale: 1.03, y: -5 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className="group relative p-8 rounded-[2.5rem] bg-navy-dark/40 backdrop-blur-xl border border-white/5 hover:border-gold-accent/40 transition-all duration-300 overflow-hidden shadow-lg hover:shadow-gold-accent/20"
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-gold-accent/5 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
           
@@ -199,7 +203,7 @@ const AchieverList = ({ tiers }: { tiers: any[] }) => {
               <MoveRight className="w-5 h-5 text-gray-400 group-hover:text-navy-dark transition-colors" />
             </div>
           </div>
-        </div>
+        </motion.div>
       ))}
     </div>
   );

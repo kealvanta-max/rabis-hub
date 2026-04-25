@@ -145,7 +145,7 @@ export default function Navigation() {
                 <div className="px-4 py-2 flex justify-start">
                   <LanguageSwitcher />
                 </div>
-                <div className="pt-3 flex gap-3">
+                <div className="pt-3 flex flex-col sm:flex-row gap-3">
                   <Link
                     href="/auth?mode=signin"
                     onClick={() => setMenuOpen(false)}
@@ -186,7 +186,7 @@ function MobileLink({ href, onClick, children }: { href: string; onClick: () => 
     <Link
       href={href}
       onClick={onClick}
-      className="block px-4 py-3 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-xl transition-colors"
+      className="block px-4 py-3 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-xl transition-colors whitespace-normal break-words"
     >
       {children}
     </Link>

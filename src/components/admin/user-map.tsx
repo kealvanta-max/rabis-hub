@@ -53,7 +53,10 @@ export default function UserMapView({ users }: UserMapViewProps) {
         <div style="font-family:Inter,sans-serif;min-width:180px;">
           <p style="font-weight:700;margin:0 0 4px;">${user.name}</p>
           <p style="font-size:12px;color:#666;margin:0 0 2px;">${user.email}</p>
-          <p style="font-size:12px;color:#666;margin:0 0 2px;">${user.gpsAddress || user.location || "N/A"}</p>
+          <a href="https://www.google.com/maps/search/?api=1&query=${user.gpsLat},${user.gpsLng}" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:#3b82f6;margin:0 0 2px;text-decoration:none;display:flex;align-items:center;gap:4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            ${user.gpsAddress || user.location || "Open in Maps"}
+          </a>
           <p style="font-size:11px;margin:4px 0 0;padding:2px 6px;display:inline-block;border-radius:8px;background:${color}20;color:${color};font-weight:600;text-transform:capitalize;">${user.status}</p>
         </div>
       `);

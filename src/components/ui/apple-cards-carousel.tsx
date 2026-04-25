@@ -257,11 +257,18 @@ export const Card = ({
             {card.title}
           </motion.p>
         </div>
-        <BlurImage
-          src={card.src}
-          alt={card.title}
-          fill
-          className="object-cover absolute z-10 inset-0 transition duration-300 group-hover:scale-110"
+        <div
+          className="absolute inset-0 z-10 transition-transform duration-500 group-hover:scale-110 opacity-60"
+          style={{
+            background: `radial-gradient(circle at top right, var(--tw-gradient-stops))`,
+            backgroundImage: `radial-gradient(circle at top right, ${
+              index % 3 === 0 
+                ? '#10b981, #064e3b' 
+                : index % 3 === 1 
+                  ? '#3b82f6, #1e3a8a' 
+                  : '#f59e0b, #78350f'
+            })`
+          }}
         />
       </motion.button>
     </>

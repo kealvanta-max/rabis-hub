@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield } from "lucide-react";
 import { useTranslation } from "@/context/i18n-context";
+import Image from "next/image";
 
 export default function LoadingScreen() {
   const [isVisible, setIsVisible] = useState(true);
@@ -66,14 +67,14 @@ export default function LoadingScreen() {
             <div className="relative mb-6">
               <div className="absolute -inset-10 bg-primary/20 blur-3xl rounded-full animate-pulse"></div>
               <div className="relative transform hover:scale-105 transition-transform duration-500 flex items-center justify-center">
-                {/* @ts-ignore */}
-                <lord-icon
-                    src="https://cdn.lordicon.com/eaegfqtv.json"
-                    trigger="hover"
-                    colors="primary:#10B981,secondary:#ffffff"
-                    style={{ width: "250px", height: "250px" }}>
-                {/* @ts-ignore */}
-                </lord-icon>
+                <Image
+                  src="/images/business-card.png"
+                  alt="Rabi's Saving Hub"
+                  width={300}
+                  height={180}
+                  className="rounded-xl shadow-2xl object-cover hover:scale-105 transition-transform duration-500"
+                  priority
+                />
               </div>
             </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export const InfiniteMovingCards = ({
   items,
@@ -20,50 +20,36 @@ export const InfiniteMovingCards = ({
   pauseOnHover?: boolean;
   className?: string;
 }) => {
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const scrollerRef = React.useRef<HTMLUListElement>(null);
-
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLUListElement>(null);
   const [start, setStart] = useState(false);
 
   const getDirection = React.useCallback(() => {
     if (containerRef.current) {
-      if (direction === "left") {
-        containerRef.current.style.setProperty(
-          "--animation-direction",
-          "forwards"
-        );
-      } else {
-        containerRef.current.style.setProperty(
-          "--animation-direction",
-          "reverse"
-        );
-      }
+      containerRef.current.style.setProperty(
+        "--animation-direction",
+        direction === "left" ? "forwards" : "reverse"
+      );
     }
   }, [direction]);
 
   const getSpeed = React.useCallback(() => {
     if (containerRef.current) {
-      if (speed === "fast") {
-        containerRef.current.style.setProperty("--animation-duration", "15s");
-      } else if (speed === "normal") {
-        containerRef.current.style.setProperty("--animation-duration", "25s");
-      } else {
-        containerRef.current.style.setProperty("--animation-duration", "35s");
-      }
+      const dur = speed === "fast" ? "15s" : speed === "normal" ? "25s" : "40s";
+      containerRef.current.style.setProperty("--animation-duration", dur);
     }
   }, [speed]);
 
   const addAnimation = React.useCallback(() => {
     if (containerRef.current && scrollerRef.current) {
       const scrollerContent = Array.from(scrollerRef.current.children);
-
+      // Clone items to create seamless infinite loop
       scrollerContent.forEach((item) => {
         const duplicatedItem = item.cloneNode(true);
         if (scrollerRef.current) {
           scrollerRef.current.appendChild(duplicatedItem);
         }
       });
-
       getDirection();
       getSpeed();
       setStart(true);
@@ -73,45 +59,66 @@ export const InfiniteMovingCards = ({
   useEffect(() => {
     addAnimation();
   }, [addAnimation]);
+
   return (
     <div
       ref={containerRef}
+      // Use style tag for -webkit-mask-image for better Android Chrome compat
       className={cn(
-        "scroller relative z-20  max-w-7xl overflow-hidden [mask-image:linear-gradient(to_right,transparent,white_20%,white_80%,transparent)]",
+        "scroller relative z-20 max-w-7xl overflow-hidden",
         className
       )}
+      style={{
+        // Webkit prefix critical for Android Chrome mask support
+        WebkitMaskImage:
+          "linear-gradient(to right, transparent, white 15%, white 85%, transparent)",
+        maskImage:
+          "linear-gradient(to right, transparent, white 15%, white 85%, transparent)",
+      }}
     >
       <ul
         ref={scrollerRef}
         className={cn(
-          " flex min-w-full shrink-0 gap-4 py-4 w-fit flex-nowrap",
-          start && "animate-scroll ",
-          pauseOnHover && "hover:[animation-play-state:paused]"
+          "flex min-w-full shrink-0 gap-4 py-4 w-fit flex-nowrap",
+          start && "animate-scroll",
+          // ✅ Key fix: only pause on DESKTOP hover (md:), not on mobile touch
+          pauseOnHover && "md:hover:[animation-play-state:paused]"
         )}
+        // ✅ touch-action: pan-y prevents the marquee from swallowing scroll gestures on Android
+        style={{ touchAction: "pan-y" }}
       >
         {items.map((item, idx) => (
           <li
-            className="w-[350px] max-w-full relative rounded-2xl border border-b-0 flex-shrink-0 border-slate-700 px-8 py-6 md:w-[450px]"
+            key={`${item.name}-${idx}`}
+            className="w-[320px] sm:w-[380px] md:w-[450px] max-w-full relative rounded-2xl border border-b-0 flex-shrink-0 border-[#065F46]/60 px-6 py-6"
             style={{
               background:
-                "linear-gradient(180deg, var(--navy-light), var(--navy-dark))",
+                "linear-gradient(180deg, #051A10, #020c06)",
             }}
-            key={item.name}
           >
             <blockquote>
+              {/* Decorative quote mark */}
               <div
                 aria-hidden="true"
-                className="user-select-none -z-10 pointer-events-none absolute -left-0.5 -top-0.5 h-[calc(100%_+_4px)] w-[calc(100%_+_4px)]"
-              ></div>
-              <span className=" relative z-20 text-sm leading-[1.6] text-gray-100 font-normal italic">
+                className="absolute top-4 right-5 text-5xl text-primary/20 font-display leading-none select-none"
+              >
+                &ldquo;
+              </div>
+              <span className="relative z-20 text-sm leading-[1.8] text-gray-300 font-normal italic block mb-6">
                 &ldquo;{item.quote}&rdquo;
               </span>
-              <div className="relative z-20 mt-6 flex flex-row items-center">
-                <span className="flex flex-col gap-1">
-                  <span className=" text-sm leading-[1.6] text-primary font-bold">
+              <div className="relative z-20 flex flex-row items-center gap-3">
+                {/* Avatar initial circle */}
+                <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+                  <span className="text-primary font-bold text-sm">
+                    {item.name.charAt(0)}
+                  </span>
+                </div>
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-sm leading-[1.6] text-primary font-bold">
                     {item.name}
                   </span>
-                  <span className=" text-xs leading-[1.6] text-gray-400 font-normal">
+                  <span className="text-xs leading-[1.6] text-gray-500 font-normal">
                     {item.title}
                   </span>
                 </span>

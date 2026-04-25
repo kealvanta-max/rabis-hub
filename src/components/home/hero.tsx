@@ -34,7 +34,7 @@ export default function HeroSection() {
                 className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/30 bg-primary/10 mb-6 md:mb-8 glass-card"
               >
                 <span className="w-2 h-2 rounded-full bg-gold animate-pulse shadow-[0_0_10px_#FACC15]" />
-                <span className="text-[10px] md:text-xs font-semibold text-primary tracking-widest uppercase font-grotesk whitespace-nowrap">
+                <span className="text-[10px] md:text-xs font-semibold text-primary tracking-widest uppercase font-grotesk whitespace-normal text-center">
                   {t.hero_badge}
                 </span>
               </motion.div>
@@ -74,7 +74,7 @@ export default function HeroSection() {
               >
                 <Link href="/auth?mode=signup" className="w-full sm:w-auto">
                   <ShimmerButton className="shadow-[0_0_40px_-10px_rgba(250,204,21,0.4)] w-full sm:w-auto">
-                    <span className="whitespace-nowrap text-center text-sm md:text-base font-bold leading-none tracking-tighter text-white">
+                    <span className="whitespace-normal text-center text-sm md:text-base font-bold leading-none tracking-tighter text-white">
                       {t.hero_cta}
                     </span>
                   </ShimmerButton>

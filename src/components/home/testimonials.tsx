@@ -89,19 +89,51 @@ export default function TestimonialsSection() {
               </div>
           </div>
         ) : (
-          <div className="relative flex flex-col antialiased bg-navy-dark items-center justify-center overflow-hidden">
-            <InfiniteMovingCards
-              items={marqueeItems}
-              direction="right"
-              speed="slow"
-              className="mt-4"
-            />
-             <InfiniteMovingCards
-              items={[...marqueeItems].reverse()}
-              direction="left"
-              speed="normal"
-              className="mt-10 opacity-50 blur-[1px] hover:blur-none transition-all duration-500"
-            />
+          <div className="relative w-full">
+            {/* Desktop Marquee */}
+            <div className="hidden md:flex flex-col antialiased bg-navy-dark items-center justify-center overflow-hidden">
+              <InfiniteMovingCards
+                items={marqueeItems}
+                direction="right"
+                speed="slow"
+                className="mt-4"
+              />
+              <InfiniteMovingCards
+                items={[...marqueeItems].reverse()}
+                direction="left"
+                speed="normal"
+                className="mt-10 opacity-50 blur-[1px] hover:blur-none transition-all duration-500"
+              />
+            </div>
+            
+            {/* Mobile Swipeable Cards */}
+            <div className="md:hidden flex overflow-x-auto snap-x snap-mandatory gap-4 pb-8 pt-4 px-4 hide-scrollbar">
+              {displayData.map((t, idx) => (
+                <div key={t.id || idx} className="snap-center shrink-0 w-[85vw] max-w-[320px] bg-white/[0.04] border border-white/10 rounded-2xl p-6">
+                  <div className="flex gap-1 mb-4">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <svg key={i} className={`w-4 h-4 ${i < t.rating ? "text-primary" : "text-gray-700"}`} fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
+                  </div>
+                  <p className="text-gray-300 text-sm italic mb-6 relative">
+                    <span className="text-primary text-2xl absolute -left-2 -top-2 opacity-50">&quot;</span>
+                    {t.review}
+                    <span className="text-primary text-2xl absolute -right-2 bottom-0 opacity-50">&quot;</span>
+                  </p>
+                  <div className="flex items-center gap-3 border-t border-white/5 pt-4">
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                      {t.userName.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="text-white font-semibold text-sm">{t.userName}</p>
+                      <p className="text-primary/80 text-xs">{t.planName}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
