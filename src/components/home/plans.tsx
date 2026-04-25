@@ -1,47 +1,39 @@
 "use client";
 
 import React from "react";
-import { Carousel, Card, CarouselContext } from "@/components/ui/apple-cards-carousel";
-import { plans, achieverTiers, categoryImages } from "@/lib/plans-data";
+import { plans, achieverTiers } from "@/lib/plans-data";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { MoveRight } from "lucide-react";
 
 export default function PlansSection() {
-  const cards = [
+  const categories = [
     {
       category: "Daily Starter",
       title: "Daily Savings Plans",
-      src: categoryImages.daily,
       content: <PlanList plans={plans.daily} category="Daily" />,
     },
     {
       category: "Steady Grower",
       title: "Weekly Savings Plans",
-      src: categoryImages.weekly,
       content: <PlanList plans={plans.weekly} category="Weekly" />,
     },
     {
       category: "Big Dreamer",
       title: "6-Month Savings Plans",
-      src: categoryImages.months,
       content: <PlanList plans={plans.months} category="6 Months" />,
     },
     {
       category: "High Achiever",
       title: "Incremental Savings",
-      src: categoryImages.achiever,
       content: <AchieverList tiers={achieverTiers} />,
     },
     {
       category: "Long Term",
       title: "Monthly Savings Plans",
-      src: categoryImages.longterm,
       content: <PlanList plans={plans.longterm} category="Monthly" />,
     },
-  ].map((card, index) => (
-    <Card key={card.src} card={card} index={index} />
-  ));
+  ];
 
   return (
     <section id="plans" className="py-28 bg-shader-gradient relative overflow-hidden">
@@ -85,14 +77,21 @@ export default function PlansSection() {
         </div>
       </div>
 
-      {/* Cards Grid */}
-      <CarouselContext.Provider value={{ onCardClose: () => { }, currentIndex: -1 }}>
-        <div className="max-w-full mx-auto px-4 relative z-10">
-          <div className="flex flex-wrap justify-center gap-10 lg:gap-14">
-            {cards}
+      {/* Plan Categories */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-24">
+        {categories.map((cat, idx) => (
+          <div key={idx} className="space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-2 rounded-full bg-primary"></div>
+              <div>
+                <h3 className="text-3xl font-display font-bold text-white tracking-tight">{cat.category}</h3>
+                <p className="text-gray-400 text-sm mt-1">{cat.title}</p>
+              </div>
+            </div>
+            {cat.content}
           </div>
-        </div>
-      </CarouselContext.Provider>
+        ))}
+      </div>
 
       {/* Final CTA Overlay */}
       <div className="max-w-7xl mx-auto px-4 text-center mt-24 relative z-10">

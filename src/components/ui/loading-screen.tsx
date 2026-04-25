@@ -68,7 +68,7 @@ export default function LoadingScreen() {
               <div className="absolute -inset-10 bg-primary/20 blur-3xl rounded-full animate-pulse"></div>
               <div className="relative transform hover:scale-105 transition-transform duration-500 flex items-center justify-center">
                 <Image
-                  src="/images/business-card.png"
+                  src="/images/business-card.png.jpg"
                   alt="Rabi's Saving Hub"
                   width={300}
                   height={180}
