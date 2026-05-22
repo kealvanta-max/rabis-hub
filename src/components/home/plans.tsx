@@ -5,8 +5,124 @@ import { plans, achieverTiers } from "@/lib/plans-data";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { MoveRight } from "lucide-react";
+import { useAuth } from "@/context/auth-context";
+
+const PlanList = ({ plans, category }: { plans: any[]; category: string }) => {
+  const { user } = useAuth();
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-2">
+      {plans.map((plan) => {
+        const href = user ? `/dashboard?addPlan=${plan.id}` : `/auth?mode=signup&planId=${plan.id}`;
+        
+        return (
+          <Link 
+            key={plan.id} 
+            href={href}
+            className="block group"
+          >
+            <motion.div
+              whileHover={{ scale: 1.03, y: -5 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="relative p-8 rounded-[2.5rem] bg-navy-dark/40 backdrop-blur-xl border border-white/5 hover:border-primary/40 transition-all duration-300 overflow-hidden shadow-lg hover:shadow-primary/20 cursor-pointer h-full"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+              
+              <div className="flex justify-between items-start mb-10">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-primary/60 font-black uppercase tracking-[0.2em]">{category}</span>
+                  <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">{plan.name.replace(category, '').trim()}</h3>
+                </div>
+                {plan.slots && (
+                  <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/10">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">{plan.slots} LEFT</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-10">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-bold font-display text-white italic">₵{plan.amt}</span>
+                  <span className="text-gray-500 text-sm font-medium">/ {plan.freq === '5 Days' ? 'daily' : plan.freq.toLowerCase()}</span>
+                </div>
+              </div>
+
+              <div className="pt-8 border-t border-white/5 flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Estimated Net</p>
+                  <p className="text-3xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">
+                    ₵{plan.ret.toLocaleString()}
+                  </p>
+                </div>
+                <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-primary transition-all duration-500">
+                  <MoveRight className="w-5 h-5 text-gray-400 group-hover:text-navy-dark transition-colors" />
+                </div>
+              </div>
+            </motion.div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+};
+
+const AchieverList = ({ tiers }: { tiers: any[] }) => {
+  const { user } = useAuth();
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-2">
+      {tiers.map((tier) => {
+        const planId = `achiever-${tier.days}`;
+        const href = user ? `/dashboard?addPlan=${planId}` : `/auth?mode=signup&planId=${planId}`;
+
+        return (
+          <Link 
+            key={tier.days} 
+            href={href}
+            className="block group"
+          >
+            <motion.div
+              whileHover={{ scale: 1.03, y: -5 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="relative p-8 rounded-[2.5rem] bg-navy-dark/40 backdrop-blur-xl border border-white/5 hover:border-gold-accent/40 transition-all duration-300 overflow-hidden shadow-lg hover:shadow-gold-accent/20 cursor-pointer h-full"
+            >
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gold-accent/5 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+              
+              <div className="flex justify-between items-start mb-10">
+                <div className="space-y-1">
+                  <span className="text-[10px] text-gold-accent/60 font-black uppercase tracking-[0.2em]">HIGH ACHIEVER</span>
+                  <h3 className="text-xl font-bold text-white group-hover:text-gold-accent transition-colors">{tier.days} Days</h3>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-gold-accent shadow-[0_0_10px_#FACC15]" />
+              </div>
+
+              <p className="text-lg font-medium text-gray-300 leading-snug mb-10">
+                ₵1 Daily Increment. <br />
+                <span className="text-sm text-gray-500 italic leading-relaxed">Start at ₵1, scale to ₵{tier.days}.</span>
+              </p>
+
+              <div className="pt-8 border-t border-white/5 flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Final Bonus</p>
+                  <p className="text-3xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-gold-accent to-yellow-600">
+                    ₵{tier.ret.toLocaleString()}
+                  </p>
+                </div>
+                <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-gold-accent transition-all duration-500">
+                  <MoveRight className="w-5 h-5 text-gray-400 group-hover:text-navy-dark transition-colors" />
+                </div>
+              </div>
+            </motion.div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+};
 
 export default function PlansSection() {
+  const { user } = useAuth();
   const categories = [
     {
       category: "Daily Starter",
@@ -116,95 +232,4 @@ export default function PlansSection() {
     </section>
   );
 }
-
-const PlanList = ({ plans, category }: { plans: any[]; category: string }) => {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-2">
-      {plans.map((plan) => (
-        <motion.div
-          key={plan.id}
-          whileHover={{ scale: 1.03, y: -5 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="group relative p-8 rounded-[2.5rem] bg-navy-dark/40 backdrop-blur-xl border border-white/5 hover:border-primary/40 transition-all duration-300 overflow-hidden shadow-lg hover:shadow-primary/20"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-          
-          <div className="flex justify-between items-start mb-10">
-            <div className="space-y-1">
-              <span className="text-[10px] text-primary/60 font-black uppercase tracking-[0.2em]">{category}</span>
-              <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">{plan.name.replace(category, '').trim()}</h3>
-            </div>
-            {plan.slots && (
-              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/10">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">{plan.slots} LEFT</span>
-              </div>
-            )}
-          </div>
-
-          <div className="mb-10">
-            <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-bold font-display text-white italic">₵{plan.amt}</span>
-              <span className="text-gray-500 text-sm font-medium">/ {plan.freq === '5 Days' ? 'daily' : plan.freq.toLowerCase()}</span>
-            </div>
-          </div>
-
-          <div className="pt-8 border-t border-white/5 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Estimated Net</p>
-              <p className="text-3xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">
-                ₵{plan.ret.toLocaleString()}
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-primary transition-all duration-500">
-              <MoveRight className="w-5 h-5 text-gray-400 group-hover:text-navy-dark transition-colors" />
-            </div>
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  );
-};
-
-const AchieverList = ({ tiers }: { tiers: any[] }) => {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-2">
-      {tiers.map((tier) => (
-        <motion.div
-          key={tier.days}
-          whileHover={{ scale: 1.03, y: -5 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="group relative p-8 rounded-[2.5rem] bg-navy-dark/40 backdrop-blur-xl border border-white/5 hover:border-gold-accent/40 transition-all duration-300 overflow-hidden shadow-lg hover:shadow-gold-accent/20"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-gold-accent/5 blur-[50px] rounded-full -translate-y-1/2 translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-          
-          <div className="flex justify-between items-start mb-10">
-            <div className="space-y-1">
-              <span className="text-[10px] text-gold-accent/60 font-black uppercase tracking-[0.2em]">HIGH ACHIEVER</span>
-              <h3 className="text-xl font-bold text-white group-hover:text-gold-accent transition-colors">{tier.days} Days</h3>
-            </div>
-            <div className="w-2 h-2 rounded-full bg-gold-accent shadow-[0_0_10px_#FACC15]" />
-          </div>
-
-          <p className="text-lg font-medium text-gray-300 leading-snug mb-10">
-            ₵1 Daily Increment. <br />
-            <span className="text-sm text-gray-500 italic leading-relaxed">Start at ₵1, scale to ₵{tier.days}.</span>
-          </p>
-
-          <div className="pt-8 border-t border-white/5 flex items-center justify-between">
-            <div>
-              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Final Bonus</p>
-              <p className="text-3xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-gold-accent to-yellow-600">
-                ₵{tier.ret.toLocaleString()}
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-gold-accent transition-all duration-500">
-              <MoveRight className="w-5 h-5 text-gray-400 group-hover:text-navy-dark transition-colors" />
-            </div>
-          </div>
-        </motion.div>
-      ))}
-    </div>
-  );
-};
 

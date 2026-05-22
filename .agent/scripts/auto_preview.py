@@ -131,6 +131,11 @@ def status_server():
     print("===================\n")
 
 def main():
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass  # In case stdout/stderr don't support reconfigure
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=["start", "stop", "status"])
     parser.add_argument("port", nargs="?", default="3000")

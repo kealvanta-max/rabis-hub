@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/auth-context";
-import { doc, setDoc, Timestamp, collection, addDoc, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { doc, setDoc, Timestamp, collection, addDoc, getDocs, query, orderBy, limit, updateDoc, arrayUnion } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToastContext } from "@/components/layout/toast-provider";
 import Navigation from "@/components/layout/navigation";
@@ -13,17 +13,42 @@ import Badge from "@/components/ui/badge";
 import Card from "@/components/ui/card";
 import Button from "@/components/ui/button";
 import { planLabels } from "@/lib/plans-data";
+import { useSearchParams } from "next/navigation";
+import { PlanItem } from "@/lib/types";
+import { MoveRight, Plus, CheckCircle2 } from "lucide-react";
 
 export default function DashboardPage() {
   const { user, userData, loading, logout } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { addToast } = useToastContext();
   const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [addingPlan, setAddingPlan] = useState(false);
+
+  const addPlanId = searchParams.get("addPlan");
+  const userPlans = userData?.plans || (userData?.plan ? [userData.plan] : []);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/auth?mode=signin");
     }
   }, [user, loading, router]);
+
+  const handleAddPlan = async (planId: string) => {
+    if (!user) return;
+    setAddingPlan(true);
+    try {
+      await updateDoc(doc(db, "users", user.uid), {
+        plans: arrayUnion(planId)
+      });
+      addToast(`Plan ${planLabels[planId] || planId} added successfully!`, "success");
+      router.replace("/dashboard");
+    } catch (err) {
+      addToast("Failed to add plan.", "error");
+    } finally {
+      setAddingPlan(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -87,6 +112,28 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* Add Plan Confirmation */}
+          {addPlanId && !userPlans.includes(addPlanId) && (
+            <div className="mb-8 p-6 rounded-2xl bg-primary/10 border border-primary/30 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2" />
+              <div className="flex items-center gap-5 relative z-10">
+                <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center text-primary">
+                  <Plus className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-1">Add New Plan?</h3>
+                  <p className="text-sm text-gray-400">You are about to add <span className="text-primary font-bold">{planLabels[addPlanId] || addPlanId}</span> to your account.</p>
+                </div>
+              </div>
+              <div className="flex gap-3 relative z-10 w-full md:w-auto">
+                <Button variant="secondary" size="sm" onClick={() => router.replace("/dashboard")} className="flex-1 md:flex-none">Cancel</Button>
+                <Button onClick={() => handleAddPlan(addPlanId)} loading={addingPlan} size="sm" className="flex-1 md:flex-none">
+                  Confirm & Join
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Status Banner */}
           {userData && (
             <div className={`mb-8 p-5 rounded-2xl border ${
@@ -111,25 +158,58 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
-            {/* Plan Card */}
-            <Card>
-              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Active Plan</p>
-              <p className="text-xl font-bold text-white">
-                {userData?.plan ? planLabels[userData.plan] || userData.plan : "—"}
-              </p>
-            </Card>
+          {/* My Plans Section */}
+          <div className="mb-12">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                My Savings Hub
+                <span className="text-xs bg-white/5 px-3 py-1 rounded-full text-gray-500 font-normal">{userPlans.length} Active</span>
+              </h2>
+              <Button variant="secondary" size="sm" onClick={() => router.push("/#plans")} className="gap-2">
+                <Plus className="w-4 h-4" /> Join Another
+              </Button>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {userPlans.length > 0 ? userPlans.map((pId) => (
+                <Card key={pId} className="group hover:border-primary/40 transition-all duration-300">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="p-3 rounded-xl bg-primary/10 text-primary">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <Badge status={userData?.status || "pending"} />
+                  </div>
+                  <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors mb-2">
+                    {planLabels[pId] || pId}
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-6 uppercase tracking-widest font-medium">Active Subscription</p>
+                  <div 
+                    className="pt-4 border-t border-white/5 flex items-center justify-between text-xs cursor-pointer group/link"
+                    onClick={() => router.push(`/dashboard/payments`)}
+                  >
+                    <span className="text-primary font-bold group-hover/link:underline">Track & Report Payments</span>
+                    <MoveRight className="w-4 h-4 text-primary transition-all group-hover/link:translate-x-1" />
+                  </div>
+                </Card>
+              )) : (
+                <div className="col-span-full py-12 text-center bg-white/[0.02] rounded-3xl border border-dashed border-white/10">
+                   <p className="text-gray-500">No active plans found. Start your journey today!</p>
+                   <Button onClick={() => router.push("/#plans")} className="mt-4" size="sm">Browse Plans</Button>
+                </div>
+              )}
+            </div>
+          </div>
 
-            {/* Status Card */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
+            {/* Account Status Card */}
             <Card>
-              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Account Status</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Account Verification</p>
               {userData && <Badge status={userData.status} size="md" />}
             </Card>
 
             {/* Location Card */}
             <Card>
-              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Location</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Primary Location</p>
               <p className="text-sm text-white">{userData?.gpsAddress || userData?.location || "Not set"}</p>
             </Card>
           </div>
@@ -166,7 +246,8 @@ export default function DashboardPage() {
               <div><span className="text-gray-500">Name:</span> <span className="text-white ml-2">{userData?.name}</span></div>
               <div><span className="text-gray-500">Email:</span> <span className="text-white ml-2">{userData?.email}</span></div>
               <div><span className="text-gray-500">Phone:</span> <span className="text-white ml-2">{userData?.phone}</span></div>
-              <div><span className="text-gray-500">Plan:</span> <span className="text-white ml-2">{planLabels[userData?.plan || ""] || userData?.plan}</span></div>
+              <div><span className="text-gray-500">Main Plan:</span> <span className="text-white ml-2">{planLabels[userData?.plan || ""] || userData?.plan}</span></div>
+              <div className="sm:col-span-2"><span className="text-gray-500">All Active Plans:</span> <span className="text-primary ml-2 font-bold">{userPlans.map(p => planLabels[p] || p).join(", ")}</span></div>
             </div>
 
             {/* Document Thumbnails */}

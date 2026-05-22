@@ -84,7 +84,6 @@ export default function RootLayout({
             </AuthProvider>
           </I18nProvider>
         </SmoothScroll>
-        <script src="https://cdn.lordicon.com/lordicon.js" async></script>
       </body>
     </html>
   );

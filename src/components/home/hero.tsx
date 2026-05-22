@@ -8,7 +8,8 @@ import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { motion } from "framer-motion";
 import { useTranslation } from "@/context/i18n-context";
-import { SplineScene } from "@/components/ui/splite";
+import { LottiePlayer } from "@/components/ui/lottie-player";
+import savingsAnimation from "../../../public/animations/savings-hero.json";
 import { Spotlight } from "@/components/ui/spotlight";
 
 export default function HeroSection() {
@@ -111,9 +112,9 @@ export default function HeroSection() {
                 transition={{ delay: 0.5, duration: 1.5 }}
                 className="hidden md:block w-full h-full relative z-20 mix-blend-screen"
               >
-                 <SplineScene 
-                  scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-                  className="w-full h-full"
+                 <LottiePlayer 
+                  animationData={savingsAnimation}
+                  className="w-full h-full max-h-[500px] object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.4)]"
                 />
               </motion.div>
 

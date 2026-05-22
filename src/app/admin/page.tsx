@@ -15,6 +15,7 @@ import Input from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { planLabels } from "@/lib/plans-data";
 import type { UserDoc, TestimonialDoc } from "@/lib/types";
+import { notifyUserApproval, notifyUserRejection, notifyAdminNewRegistration } from "@/lib/notifications";
 import dynamic from "next/dynamic";
 
 const UserMapView = dynamic(() => import("@/components/admin/user-map"), { ssr: false });
@@ -42,6 +43,8 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"users" | "map" | "testimonials" | "whatsapp" | "announcements" | "plans">("users");
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -84,11 +87,11 @@ export default function AdminPage() {
     if (user && isAdmin) fetchData();
   }, [user, isAdmin, authLoading, router, fetchData]);
 
-  const setStatus = async (userId: string, status: "approved" | "rejected" | "pending") => {
+  const setStatus = async (userId: string, status: "approved" | "rejected" | "pending", reason?: string) => {
     try {
       const updates: Record<string, string> = { status };
+      const u = users.find((x) => x.id === userId);
       if (status === "approved") {
-        const u = users.find((x) => x.id === userId);
         if (u) updates.whatsappLink = waLinks[u.plan] || "";
       }
       if (status === "pending" || status === "rejected") {
@@ -101,6 +104,15 @@ export default function AdminPage() {
         )
       );
       addToast(`User ${status}`, "success");
+
+      // Send email notification
+      if (u) {
+        if (status === "approved") {
+          notifyUserApproval(u.email, u.name, planLabels[u.plan] || u.plan).catch(console.error);
+        } else if (status === "rejected") {
+          notifyUserRejection(u.email, u.name, reason || "").catch(console.error);
+        }
+      }
     } catch {
       addToast("Failed to update user status", "error");
     }
@@ -226,17 +238,23 @@ export default function AdminPage() {
 
           {/* Tabs */}
           <div className="flex gap-1 mb-6 bg-white/[0.03] rounded-xl p-1 overflow-x-auto">
-            {(["users", "map", "testimonials", "whatsapp", "announcements", "plans"] as const).map((tab) => (
+            {(["users", "map", "testimonials", "whatsapp", "announcements", "plans", "payments"] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab as any)}
+                onClick={() => {
+                  if (tab === "payments") {
+                    router.push("/admin/payments");
+                  } else {
+                    setActiveTab(tab as any);
+                  }
+                }}
                 className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === tab
                     ? "bg-primary text-navy-dark"
                     : "text-gray-400 hover:text-white hover:bg-white/5"
                 }`}
               >
-                {tab === "users" ? "Users" : tab === "map" ? "Map View" : tab === "testimonials" ? "Reviews" : tab === "whatsapp" ? "WhatsApp Links" : tab === "announcements" ? "Announcements" : "Custom Plans"}
+                {tab === "users" ? "Users" : tab === "map" ? "Map View" : tab === "testimonials" ? "Reviews" : tab === "whatsapp" ? "WhatsApp Links" : tab === "announcements" ? "Announcements" : tab === "payments" ? "Susu Payments" : "Custom Plans"}
               </button>
             ))}
           </div>
@@ -314,7 +332,7 @@ export default function AdminPage() {
                           )}
                           {u.status !== "rejected" && (
                             <button
-                              onClick={() => setStatus(u.id, "rejected")}
+                              onClick={() => setShowRejectModal(u.id)}
                               className="px-3 py-1.5 text-xs bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors cursor-pointer"
                             >
                               Reject
@@ -512,6 +530,19 @@ export default function AdminPage() {
               <div><span className="text-gray-500">Phone:</span> <span className="text-white ml-1">{selectedUser.phone}</span></div>
               <div><span className="text-gray-500">Plan:</span> <span className="text-white ml-1">{planLabels[selectedUser.plan] || selectedUser.plan}</span></div>
               <div><span className="text-gray-500">Status:</span> <Badge status={selectedUser.status} /></div>
+              
+              <div className="col-span-2 flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/10">
+                <div>
+                  <span className="text-gray-500 block text-xs">Ghana Card PIN</span>
+                  <span className="text-white font-mono">{selectedUser.ghanaCardNumber || "N/A"}</span>
+                </div>
+                {selectedUser.ghanaCardValid ? (
+                  <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">FORMAT VALID</span>
+                ) : (
+                  <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">INVALID FORMAT</span>
+                )}
+              </div>
+
               <div className="col-span-2"><span className="text-gray-500">Location:</span> <span className="text-white ml-1">{selectedUser.gpsAddress || selectedUser.location}</span></div>
               <div className="col-span-2">
                 <span className="text-gray-500">GPS:</span> 
@@ -526,26 +557,80 @@ export default function AdminPage() {
                 </a>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3 pt-4 border-t border-white/10">
-              {[
-                { label: "Ghana Card Front", url: selectedUser.ghanaCardFront },
-                { label: "Ghana Card Back", url: selectedUser.ghanaCardBack },
-                { label: "Passport Photo", url: selectedUser.passportPhoto },
-              ].map((d) => (
-                <div key={d.label}>
-                  <p className="text-xs text-gray-500 mb-1">{d.label}</p>
-                  {d.url ? (
-                    <a href={d.url} target="_blank" rel="noopener noreferrer">
-                      <Image src={d.url} alt={d.label} width={400} height={128} className="w-full h-32 object-cover rounded-lg border border-white/10 hover:border-primary/30 transition-colors" />
-                    </a>
-                  ) : (
-                    <div className="w-full h-32 bg-white/5 rounded-lg flex items-center justify-center text-xs text-gray-600">Not uploaded</div>
+            
+            <div className="pt-4 border-t border-white/10 space-y-4">
+              {/* Liveness Video */}
+              <div>
+                <p className="text-xs text-gray-500 mb-1 flex items-center gap-2">
+                  KYC Liveness Scan
+                  {selectedUser.faceScanVideo && (
+                    <span className="text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/30">VERIFIED</span>
                   )}
-                </div>
-              ))}
+                </p>
+                {selectedUser.faceScanVideo ? (
+                  <div className="relative rounded-lg overflow-hidden border border-white/10 bg-black aspect-video max-h-48">
+                    <video src={selectedUser.faceScanVideo} controls className="w-full h-full object-contain" />
+                    <a href={selectedUser.faceScanVideo} download className="absolute top-2 right-2 bg-black/60 hover:bg-primary text-white p-2 rounded-lg transition-colors backdrop-blur-sm" title="Download Video">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                    </a>
+                  </div>
+                ) : (
+                  <div className="w-full h-16 bg-white/5 rounded-lg flex items-center justify-center text-xs text-gray-600">No liveness video available</div>
+                )}
+              </div>
+
+              {/* Documents Grid */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Ghana Card Front", url: selectedUser.ghanaCardFront },
+                  { label: "Ghana Card Back", url: selectedUser.ghanaCardBack },
+                  { label: "Passport Photo", url: selectedUser.passportPhoto },
+                ].map((d) => (
+                  <div key={d.label}>
+                    <p className="text-xs text-gray-500 mb-1">{d.label}</p>
+                    {d.url ? (
+                      <a href={d.url} target="_blank" rel="noopener noreferrer">
+                        <Image src={d.url} alt={d.label} width={400} height={128} className="w-full h-24 object-cover rounded-lg border border-white/10 hover:border-primary/30 transition-colors" />
+                      </a>
+                    ) : (
+                      <div className="w-full h-24 bg-white/5 rounded-lg flex items-center justify-center text-xs text-gray-600">Not uploaded</div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Rejection Reason Modal */}
+      <Modal isOpen={!!showRejectModal} onClose={() => setShowRejectModal(null)} title="Reason for Rejection">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-400">Please provide a reason for rejecting this application. This will be emailed to the user.</p>
+          <textarea
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+            placeholder="e.g. Invalid document, blurry photo, etc."
+            className="w-full h-32 px-3 py-2 bg-navy-dark/60 border border-gray-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
+          />
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setShowRejectModal(null)}>Cancel</Button>
+            <Button 
+              className="flex-1 bg-red-600 hover:bg-red-700" 
+              onClick={() => {
+                if (showRejectModal) {
+                  setStatus(showRejectModal, "rejected", rejectionReason);
+                  setShowRejectModal(null);
+                  setRejectionReason("");
+                }
+              }}
+            >
+              Confirm Rejection
+            </Button>
+          </div>
+        </div>
       </Modal>
     </>
   );

@@ -6,6 +6,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "fire
 import { doc, setDoc, Timestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useToastContext } from "@/components/layout/toast-provider";
+import { useAuth } from "@/context/auth-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { getPlanOptions } from "@/lib/plans-data";
 import { uploadToCloudinary } from "@/lib/cloudinary";
@@ -13,7 +14,10 @@ import { getDoc } from "firebase/firestore";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import ImageUpload from "@/components/ui/image-upload";
+import FaceScan from "@/components/ui/face-scan";
 import Navigation from "@/components/layout/navigation";
+import { formatGhanaCardInput, validateGhanaCardFormat } from "@/lib/ghana-card";
+import { notifyAdminNewRegistration } from "@/lib/notifications";
 import type { RegistrationData } from "@/lib/types";
 
 export default function AuthPage() {
@@ -37,16 +41,30 @@ export default function AuthPage() {
 }
 
 function AuthContent() {
+  const router = useRouter();
+  const { user, loading } = useAuth();
   const params = useSearchParams();
   const mode = params.get("mode") || "signup";
   const [isSignup, setIsSignup] = useState(mode === "signup");
 
+  useEffect(() => {
+    setIsSignup(mode === "signup");
+  }, [mode]);
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.push("/dashboard");
+    }
+  }, [user, loading, router]);
+
+  if (loading) return null;
+
   return (
     <div className="w-full max-w-md">
       {isSignup ? (
-        <SignupForm onSwitch={() => setIsSignup(false)} />
+        <SignupForm onSwitch={() => router.push("/auth?mode=signin")} />
       ) : (
-        <SigninForm onSwitch={() => setIsSignup(true)} />
+        <SigninForm onSwitch={() => router.push("/auth?mode=signup")} />
       )}
     </div>
   );
@@ -98,6 +116,7 @@ function SigninForm({ onSwitch }: { onSwitch: () => void }) {
 
 function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const router = useRouter();
+  const params = useSearchParams();
   const { addToast } = useToastContext();
   const { status: gpsStatus, gpsData, error: gpsError, requestLocation } = useGeolocation();
   const [step, setStep] = useState(1);
@@ -108,10 +127,19 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   // Math Captcha State
   const [mathObj, setMathObj] = useState({ a: 0, b: 0 });
   const [mathAns, setMathAns] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   useEffect(() => {
     setMathObj({ a: Math.floor(Math.random() * 5) + 1, b: Math.floor(Math.random() * 5) + 1 });
   }, []);
+
+  // Handle planId from URL
+  useEffect(() => {
+    const planId = params.get("planId");
+    if (planId) {
+      update("plan", planId);
+    }
+  }, [params]);
 
   // Fetch customizable plans from Admin
   useEffect(() => {
@@ -130,7 +158,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
 
   const [form, setForm] = useState<RegistrationData>({
     firstName: "", lastName: "", email: "", phone: "", location: "", password: "",
-    plan: "", ghanaCardFront: "", ghanaCardBack: "", passportPhoto: "",
+    plan: "", ghanaCardNumber: "", ghanaCardValid: false, ghanaCardFront: "", ghanaCardBack: "", passportPhoto: "",
     gpsLat: 0, gpsLng: 0, gpsAddress: "",
   });
 
@@ -138,11 +166,13 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const canStep2 = form.firstName && form.lastName && form.email && form.phone && form.password && form.plan;
-  const canStep3 = form.ghanaCardFront && form.ghanaCardBack && form.passportPhoto;
-  const canStep4 = gpsStatus === "success";
+  const canStep3 = form.ghanaCardNumber && form.ghanaCardValid && form.ghanaCardFront && form.ghanaCardBack && form.passportPhoto;
+  const canStep4 = !!form.faceScanVideo;
+  const canStep5 = gpsStatus === "success";
   const mathPassed = mathAns.trim() === (mathObj.a + mathObj.b).toString();
 
   const handleSubmit = async () => {
+    if (!mathPassed || !termsAccepted) return;
     setLoading(true);
     try {
       const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
@@ -152,9 +182,13 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         phone: form.phone,
         location: form.location,
         plan: form.plan,
+        plans: [form.plan],
+        ghanaCardNumber: form.ghanaCardNumber || "",
+        ghanaCardValid: form.ghanaCardValid || false,
         ghanaCardFront: form.ghanaCardFront,
         ghanaCardBack: form.ghanaCardBack,
         passportPhoto: form.passportPhoto,
+        faceScanVideo: form.faceScanVideo || "",
         gpsLat: gpsData?.lat || 0,
         gpsLng: gpsData?.lng || 0,
         gpsAddress: gpsData?.address || "",
@@ -162,6 +196,15 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         whatsappLink: "",
         createdAt: Timestamp.now(),
       });
+
+      // Notify Admin
+      notifyAdminNewRegistration({
+        name: `${form.firstName} ${form.lastName}`,
+        email: form.email,
+        phone: form.phone,
+        plan: form.plan
+      }).catch(console.error);
+
       addToast("Account created! Your application is under review.", "success");
       router.push("/dashboard");
     } catch (err) {
@@ -175,12 +218,12 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-8">
       <div className="text-center mb-6">
         <h1 className="font-display text-2xl text-white mb-2">Join Rabi&apos;s Saving Hub</h1>
-        <p className="text-sm text-gray-400">Step {step} of 4</p>
+        <p className="text-sm text-gray-400">Step {step} of 5</p>
       </div>
 
       {/* Progress */}
       <div className="flex gap-1.5 mb-8">
-        {[1, 2, 3, 4].map((s) => (
+        {[1, 2, 3, 4, 5].map((s) => (
           <div key={s} className={`h-1 flex-1 rounded-full transition-all ${s <= step ? "bg-primary" : "bg-gray-700"}`} />
         ))}
       </div>
@@ -233,7 +276,31 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       {/* STEP 2 — Documents */}
       {step === 2 && (
         <div className="space-y-5">
-          <p className="text-sm text-gray-400 mb-2">Upload clear photos of your identification documents.</p>
+          <p className="text-sm text-gray-400 mb-2">Provide your Ghana Card details and upload clear photos.</p>
+          
+          <div className="relative">
+            <Input 
+              label="Ghana Card Number (GHA-XXXXXXXXX-X)" 
+              value={form.ghanaCardNumber || ""} 
+              onChange={(e) => {
+                const formatted = formatGhanaCardInput(e.target.value);
+                const isValid = validateGhanaCardFormat(formatted);
+                setForm(prev => ({ ...prev, ghanaCardNumber: formatted, ghanaCardValid: isValid }));
+              }} 
+              placeholder="GHA-123456789-0"
+              required 
+            />
+            {form.ghanaCardNumber && form.ghanaCardNumber.length > 3 && (
+              <div className="absolute right-3 top-9">
+                {form.ghanaCardValid ? (
+                  <span className="text-emerald-400 font-bold">✓</span>
+                ) : (
+                  <span className="text-red-400 font-bold text-xs uppercase tracking-widest">Invalid</span>
+                )}
+              </div>
+            )}
+          </div>
+
           <ImageUpload label="Ghana Card (Front)" value={form.ghanaCardFront} onUpload={(url) => update("ghanaCardFront", url)} />
           <ImageUpload label="Ghana Card (Back)" value={form.ghanaCardBack} onUpload={(url) => update("ghanaCardBack", url)} />
           <ImageUpload label="Passport Photo / Clear Selfie" value={form.passportPhoto} onUpload={(url) => update("passportPhoto", url)} />
@@ -245,8 +312,22 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         </div>
       )}
 
-      {/* STEP 3 — GPS Location (MANDATORY) */}
+      {/* STEP 3 — Liveness Face Scan */}
       {step === 3 && (
+        <div className="space-y-5">
+          <p className="text-sm text-gray-400 mb-2">To prevent fake accounts, please complete a quick liveness check.</p>
+          
+          <FaceScan onComplete={(url) => setForm(prev => ({ ...prev, faceScanVideo: url }))} />
+
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setStep(2)} className="flex-1">Back</Button>
+            <Button onClick={() => setStep(4)} disabled={!canStep4} className="flex-1">Continue</Button>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 4 — GPS Location (MANDATORY) */}
+      {step === 4 && (
         <div className="space-y-5">
           <div className="text-center py-6">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
@@ -302,17 +383,19 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                 </Button>
               </div>
             )}
+
+
           </div>
 
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => setStep(2)} className="flex-1">Back</Button>
-            <Button onClick={() => setStep(4)} disabled={!canStep4} className="flex-1">Continue</Button>
+            <Button variant="secondary" onClick={() => setStep(3)} className="flex-1">Back</Button>
+            <Button onClick={() => setStep(5)} disabled={!canStep5} className="flex-1">Continue</Button>
           </div>
         </div>
       )}
 
-      {/* STEP 4 — Confirmation */}
-      {step === 4 && (
+      {/* STEP 5 — Confirmation */}
+      {step === 5 && (
         <div className="space-y-5">
           <div className="bg-white/[0.03] rounded-xl p-4 space-y-2 text-sm">
             <p className="text-gray-400">Name: <span className="text-white">{form.firstName} {form.lastName}</span></p>
@@ -320,7 +403,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <p className="text-gray-400">Phone: <span className="text-white">{form.phone}</span></p>
             <p className="text-gray-400">Plan: <span className="text-white">{form.plan}</span></p>
             <p className="text-gray-400">Location: <span className="text-white">{gpsData?.address}</span></p>
-            <p className="text-gray-400">Documents: <span className="text-emerald-400">3 uploaded</span></p>
+            <p className="text-gray-400">Documents: <span className="text-emerald-400">3 uploaded + Verified Face Scan</span></p>
           </div>
 
           <div className="bg-[#051A10]/60 border border-[#065F46] rounded-xl p-5 mt-4">
@@ -339,15 +422,15 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           </div>
 
           <label className="flex items-start gap-4 cursor-pointer mt-4 bg-primary/5 p-4 rounded-xl border border-primary/20">
-            <input type="checkbox" id="terms" className="mt-1 accent-primary w-5 h-5 flex-shrink-0" required />
+            <input type="checkbox" id="terms" className="mt-1 accent-primary w-5 h-5 flex-shrink-0" required checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} />
             <span className="text-sm text-gray-300 leading-relaxed">
               I, <strong className="text-primary tracking-wide text-base">{form.firstName || "[Name]"} {form.lastName || ""}</strong>, agree to join Rabi&apos;s Saving Hub. I confirm that I will abide by the strict Susu rules, understand that funds are non-refundable, and will fill out all mandatory forms before any cashout.
             </span>
           </label>
 
           <div className="flex gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setStep(3)} className="flex-1">Back</Button>
-            <Button onClick={handleSubmit} loading={loading} disabled={!mathPassed} className="flex-1">
+            <Button variant="secondary" onClick={() => setStep(4)} className="flex-1">Back</Button>
+            <Button onClick={handleSubmit} loading={loading} disabled={!mathPassed || !termsAccepted} className="flex-1">
               Create Account
             </Button>
           </div>

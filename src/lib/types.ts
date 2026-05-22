@@ -9,9 +9,13 @@ export interface UserDoc {
   gpsLng: number;
   gpsAddress: string;
   plan: string;
+  plans?: string[];
+  ghanaCardNumber?: string;
+  ghanaCardValid?: boolean;
   ghanaCardFront: string;
   ghanaCardBack: string;
   passportPhoto: string;
+  faceScanVideo?: string;
   status: "pending" | "approved" | "rejected";
   whatsappLink: string;
   createdAt: Timestamp;
@@ -52,9 +56,12 @@ export interface RegistrationData {
   location: string;
   password: string;
   plan: string;
+  ghanaCardNumber?: string;
+  ghanaCardValid?: boolean;
   ghanaCardFront: string;
   ghanaCardBack: string;
   passportPhoto: string;
+  faceScanVideo?: string;
   gpsLat: number;
   gpsLng: number;
   gpsAddress: string;
