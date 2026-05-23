@@ -192,6 +192,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         gpsLat: gpsData?.lat || 0,
         gpsLng: gpsData?.lng || 0,
         gpsAddress: gpsData?.address || "",
+        ghanaCardOcrResult: form.ghanaCardOcrResult || "",
         status: "pending",
         whatsappLink: "",
         createdAt: Timestamp.now(),
@@ -301,9 +302,22 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             )}
           </div>
 
-          <ImageUpload label="Ghana Card (Front)" value={form.ghanaCardFront} onUpload={(url) => update("ghanaCardFront", url)} />
+          <ImageUpload 
+            label="Ghana Card (Front)" 
+            value={form.ghanaCardFront} 
+            onUpload={(url) => update("ghanaCardFront", url)}
+            enableOcr={true}
+            declaredCardNumber={form.ghanaCardNumber || ""}
+            onOcrResult={(r) => update("ghanaCardOcrResult", JSON.stringify(r))}
+          />
           <ImageUpload label="Ghana Card (Back)" value={form.ghanaCardBack} onUpload={(url) => update("ghanaCardBack", url)} />
-          <ImageUpload label="Passport Photo / Clear Selfie" value={form.passportPhoto} onUpload={(url) => update("passportPhoto", url)} />
+          <ImageUpload 
+            label="Passport Photo / Clear Selfie" 
+            value={form.passportPhoto} 
+            onUpload={(url) => update("passportPhoto", url)}
+            enableFaceDetection={true}
+            onFaceDetectionResult={(r) => { if (!r.isHuman) addToast(r.message, "error"); }}
+          />
 
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => setStep(1)} className="flex-1">Back</Button>

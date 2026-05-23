@@ -3,7 +3,7 @@ import type { PlanItem, AchieverTier } from "./types";
 export const plans: Record<string, PlanItem[]> = {
   daily: [
     { id: "daily-6", name: "Daily GH₵6", amt: 6, freq: "5 Days", ret: 400, slots: 15 },
-    { id: "daily-23", name: "Daily GH₵23", amt: 23, freq: "5 Days", ret: 1500, slots: 14 },
+    { id: "daily-23", name: "Daily GH₵23", amt: 23, freq: "5 Days", ret: 1600, slots: 15 },
     { id: "daily-26", name: "Daily GH₵26", amt: 26, freq: "5 Days", ret: 1850, slots: 15 },
     { id: "daily-18", name: "Daily GH₵18", amt: 18, freq: "5 Days", ret: 1250, slots: 15 },
     { id: "daily-12", name: "Daily GH₵12", amt: 12, freq: "4 Days", ret: 660, slots: 15 },
@@ -36,9 +36,9 @@ export const categoryImages = {
 
 
 export const achieverTiers: AchieverTier[] = [
-  { days: 100, ret: 4800 },
-  { days: 200, ret: 19500 },
-  { days: 300, ret: 44500 },
+  { days: 100, ret: 4700 },
+  { days: 200, ret: 19000 },
+  { days: 300, ret: 44000 },
 ];
 
 export const allPlanIds = [

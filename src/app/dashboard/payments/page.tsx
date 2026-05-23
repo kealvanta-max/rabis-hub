@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { getUserRounds, reportPayment, SusuRound } from "@/lib/payment-tracker";
@@ -18,27 +18,17 @@ export default function UserPaymentsPage() {
   const [rounds, setRounds] = useState<SusuRound[]>([]);
   const [loading, setLoading] = useState(true);
   const [reportingRound, setReportingRound] = useState<string | null>(null);
-  const [momoRef, setMomoRef] = useState("");
+  const [momoRef, setMomoRef] = useState<Record<string, string>>({});
   const [userData, setUserData] = useState<any>(null);
   const [customPlans, setCustomPlans] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/auth/login");
-      return;
-    }
-
-    if (user) {
-      loadData();
-    }
-  }, [user, authLoading, router]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    if (!user) return;
     try {
-      const activeRounds = await getUserRounds(user!.uid);
+      const activeRounds = await getUserRounds(user.uid);
       setRounds(activeRounds);
       
-      const userSnap = await getDoc(doc(db, "users", user!.uid));
+      const userSnap = await getDoc(doc(db, "users", user.uid));
       if (userSnap.exists()) {
         setUserData(userSnap.data());
       }
@@ -52,7 +42,18 @@ export default function UserPaymentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/auth?mode=signin");
+      return;
+    }
+
+    if (user) {
+      loadData();
+    }
+  }, [user, authLoading, router, loadData]);
 
   const handleReport = async (roundId: string) => {
     if (!userData || !user) return;
@@ -75,8 +76,8 @@ export default function UserPaymentsPage() {
         }
       }
 
-      await reportPayment(roundId, user.uid, userData.name, amount, momoRef);
-      setMomoRef("");
+      await reportPayment(roundId, user.uid, userData.name, amount, momoRef[roundId]);
+      setMomoRef(prev => ({ ...prev, [roundId]: "" }));
       await loadData();
     } catch (err) {
       console.error(err);
@@ -104,8 +105,9 @@ export default function UserPaymentsPage() {
         </div>
 
         {rounds.length === 0 ? (
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center text-gray-400">
-            You are not part of any active Susu rounds yet.
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-12 text-center">
+            <p className="text-gray-400 mb-4">You are not enrolled in any active Susu rounds yet. Once the admin creates a round for your plan, it will appear here.</p>
+            <Button onClick={() => router.push("/dashboard")}>Back to Dashboard</Button>
           </div>
         ) : (
           <div className="space-y-6">
@@ -149,8 +151,8 @@ export default function UserPaymentsPage() {
                       <div className="flex-1 w-full">
                         <Input 
                           label="Mobile Money Reference (Optional)" 
-                          value={momoRef} 
-                          onChange={(e) => setMomoRef(e.target.value)} 
+                          value={momoRef[round.id] || ""} 
+                          onChange={(e) => setMomoRef(prev => ({ ...prev, [round.id]: e.target.value }))} 
                           placeholder="e.g. 123456789"
                         />
                       </div>

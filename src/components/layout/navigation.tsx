@@ -49,6 +49,7 @@ export default function Navigation() {
             <NavLink href="/#plans">{t.nav_plans}</NavLink>
             <NavLink href="/#calculator">{t.nav_calculator}</NavLink>
             <NavLink href="/#testimonials">{t.nav_reviews}</NavLink>
+            <NavLink href="/guide">Guide</NavLink>
             <NavLink href="/#contact">{t.nav_contact}</NavLink>
 
             {user ? (
@@ -121,6 +122,7 @@ export default function Navigation() {
             <MobileLink href="/#plans" onClick={() => setMenuOpen(false)}>{t.nav_plans}</MobileLink>
             <MobileLink href="/#calculator" onClick={() => setMenuOpen(false)}>{t.nav_calculator}</MobileLink>
             <MobileLink href="/#testimonials" onClick={() => setMenuOpen(false)}>{t.nav_reviews}</MobileLink>
+            <MobileLink href="/guide" onClick={() => setMenuOpen(false)}>Guide</MobileLink>
             <MobileLink href="/#contact" onClick={() => setMenuOpen(false)}>{t.nav_contact}</MobileLink>
 
             {user ? (

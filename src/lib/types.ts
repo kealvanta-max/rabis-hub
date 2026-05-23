@@ -19,6 +19,7 @@ export interface UserDoc {
   status: "pending" | "approved" | "rejected";
   whatsappLink: string;
   createdAt: Timestamp;
+  ghanaCardOcrResult?: string;
 }
 
 export interface TestimonialDoc {
@@ -65,6 +66,8 @@ export interface RegistrationData {
   gpsLat: number;
   gpsLng: number;
   gpsAddress: string;
+  ghanaCardOcrResult?: string;
+  faceDetectionResult?: string;
 }
 
 export type ToastType = "success" | "error" | "info";

@@ -82,10 +82,10 @@ export default function HeroSection() {
                 </Link>
                 
                 <Link
-                  href="/#plans"
+                  href="/guide"
                   className="group relative px-8 py-3.5 text-sm md:text-base font-medium rounded-full text-white/80 hover:text-white transition-colors overflow-hidden text-center w-full sm:w-auto flex items-center justify-center border border-white/10 hover:border-primary/50 glass-card"
                 >
-                  <span className="relative z-10">{t.hero_view_plans}</span>
+                  <span className="relative z-10">How It Works</span>
                   <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </Link>
               </motion.div>

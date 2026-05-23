@@ -128,3 +128,43 @@ export async function getUserRounds(userId: string): Promise<SusuRound[]> {
   const rounds = await getActiveRounds();
   return rounds.filter(round => round.slots.some(slot => slot.userId === userId));
 }
+
+export async function advanceRound(roundId: string): Promise<void> {
+  const roundRef = doc(db, "susu-rounds", roundId);
+  const roundSnap = await getDoc(roundRef);
+  
+  if (roundSnap.exists()) {
+    const roundData = roundSnap.data() as SusuRound;
+    const newRoundNumber = roundData.roundNumber + 1;
+    const updatedSlots = roundData.slots.map(slot => ({
+      ...slot,
+      selfReported: false,
+      adminConfirmed: false,
+      nextToReceive: false
+    }));
+    
+    await updateDoc(roundRef, {
+      roundNumber: newRoundNumber,
+      slots: updatedSlots
+    });
+  }
+}
+
+export function exportRoundDataAsCSV(round: SusuRound): string {
+  const headers = ["Position", "User Name", "Paid Rounds", "Self Reported", "Admin Confirmed", "Next to Receive"];
+  const rows = round.slots.map(slot => [
+    slot.position,
+    slot.userName,
+    slot.paidRounds.join(";"),
+    slot.selfReported ? "Yes" : "No",
+    slot.adminConfirmed ? "Yes" : "No",
+    slot.nextToReceive ? "Yes" : "No"
+  ]);
+  
+  const csvContent = [
+    headers.join(","),
+    ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+  ].join("\n");
+  
+  return csvContent;
+}

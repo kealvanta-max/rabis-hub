@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
-import { getActiveRounds, createRound, confirmPayment, SusuRound } from "@/lib/payment-tracker";
+import { getActiveRounds, createRound, confirmPayment, SusuRound, advanceRound, exportRoundDataAsCSV } from "@/lib/payment-tracker";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Navigation from "@/components/layout/navigation";
@@ -27,7 +27,7 @@ export default function AdminPaymentsPage() {
   
   useEffect(() => {
     if (!authLoading && (!user || !isAdmin)) {
-      router.push("/auth/login");
+      router.push("/auth?mode=signin");
       return;
     }
 
@@ -136,8 +136,24 @@ export default function AdminPaymentsPage() {
                   <p className="text-sm text-gray-400 mt-1">Payment MoMo: {round.momoNumber} ({round.momoName})</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="secondary" size="sm">Export Report</Button>
-                  <Button variant="secondary" size="sm">Advance Round</Button>
+                  <Button variant="secondary" size="sm" onClick={() => {
+                    const csv = exportRoundDataAsCSV(round);
+                    const blob = new Blob([csv], { type: "text/csv" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `susu-round-${round.planId}-${round.roundNumber}.csv`;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 100);
+                  }}>Export Report</Button>
+                  <Button variant="secondary" size="sm" onClick={async () => {
+                    try {
+                      await advanceRound(round.id);
+                      loadRounds();
+                    } catch (err) {
+                      console.error("Failed to advance round:", err);
+                    }
+                  }}>Advance Round</Button>
                 </div>
               </div>
 
