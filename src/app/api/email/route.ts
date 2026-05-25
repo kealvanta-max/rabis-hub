@@ -1,34 +1,68 @@
 import { NextResponse } from 'next/server';
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 
-// Only initialize if API key exists
-const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+async function sendWithGmail(to: string, subject: string, html: string) {
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.EMAIL_USER || 'rabisavinghub@gmail.com',
+      pass: process.env.EMAIL_PASSWORD,
+    },
+  });
+  return transporter.sendMail({
+    from: `Rabi's Saving Hub <${process.env.EMAIL_USER || 'rabisavinghub@gmail.com'}>`,
+    to, subject, html,
+  });
+}
+
+async function sendWithBrevo(to: string, subject: string, html: string) {
+  const transporter = nodemailer.createTransport({
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false,
+    auth: {
+      user: process.env.BACKUP_EMAIL_USER,
+      pass: process.env.BACKUP_EMAIL_PASSWORD,
+    },
+  });
+  return transporter.sendMail({
+    from: `Rabi's Saving Hub <${process.env.BACKUP_EMAIL_USER || 'noreply@rabis-hub.com'}>`,
+    to, subject, html,
+  });
+}
 
 export async function POST(request: Request) {
   try {
     const { to, subject, html } = await request.json();
-
-    if (!resend) {
-      console.warn("RESEND_API_KEY is not set. Email not sent.");
-      // Return success anyway so UI doesn't break during dev without a key
-      return NextResponse.json({ success: true, simulated: true });
+    if (!to || !subject || !html) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-
-    // Using the default onboarding email for free tier testing.
-    // In production, this should be replaced with a verified domain (e.g. notifications@rabis-hub.vercel.app)
-    const { data, error } = await resend.emails.send({
-      from: 'Rabis Saving Hub <onboarding@resend.dev>',
-      to: [to],
-      subject: subject,
-      html: html,
-    });
-
-    if (error) {
-      return NextResponse.json({ error }, { status: 400 });
+    let lastError: any = null;
+    try {
+      if (process.env.EMAIL_PASSWORD) {
+        const result = await sendWithGmail(to, subject, html);
+        return NextResponse.json({ success: true, provider: 'gmail', messageId: result.messageId });
+      }
+    } catch (gmailError) {
+      lastError = gmailError;
+      console.warn('Gmail SMTP failed, trying Brevo backup:', gmailError);
     }
-
-    return NextResponse.json(data);
+    try {
+      if (process.env.BACKUP_EMAIL_PASSWORD && process.env.BACKUP_EMAIL_USER) {
+        const result = await sendWithBrevo(to, subject, html);
+        return NextResponse.json({ success: true, provider: 'brevo', messageId: result.messageId });
+      }
+    } catch (brevoError) {
+      lastError = brevoError;
+      console.error('Brevo SMTP also failed:', brevoError);
+    }
+    if (lastError) {
+      return NextResponse.json({ error: 'All email providers failed', details: lastError.message }, { status: 500 });
+    }
+    return NextResponse.json({ error: 'Email providers not configured' }, { status: 503 });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to process email request' }, { status: 500 });
   }
 }

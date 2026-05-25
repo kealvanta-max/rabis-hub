@@ -7,6 +7,7 @@ import FloatingWhatsApp from "@/components/layout/floating-whatsapp";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
 import AudioPlayer from "@/components/ui/audio-player";
 import LoadingScreen from "@/components/ui/loading-screen";
+import AIAssistantButton from "@/components/ui/ai-assistant-button";
 import "./globals.css";
 
 const dmSerifDisplay = DM_Serif_Display({
@@ -80,6 +81,7 @@ export default function RootLayout({
                 {children}
                 <FloatingWhatsApp />
                 <AudioPlayer />
+                <AIAssistantButton />
               </ToastProvider>
             </AuthProvider>
           </I18nProvider>
