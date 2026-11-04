@@ -26,14 +26,6 @@ export const plans: Record<string, PlanItem[]> = {
   ],
 };
 
-export const categoryImages = {
-  daily: "/images/daily_ghana.png",
-  weekly: "/images/weekly_ghana.png",
-  months: "/images/months_ghana.png",
-  longterm: "/images/longterm_ghana.png",
-  achiever: "/images/achiever_ghana.png",
-};
-
 
 export const achieverTiers: AchieverTier[] = [
   { days: 100, ret: 4700 },

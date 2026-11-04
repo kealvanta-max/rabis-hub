@@ -32,7 +32,7 @@ export default function Navigation() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group" onClick={() => setMenuOpen(false)}>
             <Image 
-              src="/brand_logo.png" 
+              src="/brand-logo.webp" 
               alt="Rabi's Saving Hub Logo" 
               width={160}
               height={40}

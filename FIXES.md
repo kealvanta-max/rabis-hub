@@ -79,6 +79,22 @@ tells you what is missing. Full walkthrough: **`docs/FIREBASE_SETUP.md`**.
 - Skip-to-content link, `document.lang` follows the selected language, and JSON-LD `FinancialService` schema for search/social rich results.
 - The public map page re-renders markers when data arrives and escapes member names in popups (XSS hardening).
 
+## Performance & production readiness
+
+- **Landing page payload cut by ~32 MB**: five unused 4–7 MB plan images and five unused
+  "premium" mockups were deleted (they were only referenced by an unused export).
+- The two images that actually render were re-encoded to WebP: hero globe **603 KB → 31 KB**,
+  loading-screen card **81 KB → 37 KB**, brand mark **20 KB → 6 KB** (also fixes `.png` files
+  that were actually JPEGs).
+- Added **Vitest** with 32 unit tests covering phone normalisation, Firestore date handling,
+  the plan catalogue/labels/amounts and Ghana Card validation (`npm test`).
+- CI now runs **lint → typecheck → tests → build**.
+- Added production scaffolding: `vercel.json` (fra1 region), Firebase emulator config,
+  `firestore.indexes.json`, `.coderabbit.yaml` (AI review), PR/issue templates, `SECURITY.md`,
+  `LICENSE`, and `docs/PRODUCTION_HANDOVER.md` (ownership, deploy order, runbook, smoke test,
+  data model, costs, roadmap).
+- `scripts/publish-production-repo.sh` publishes a clean `v1.0.0` snapshot to a new GitHub repo.
+
 ## Housekeeping
 
 - `.env.example` documents every variable actually used (Firebase, Cloudinary, Resend, Gmail/Brevo, admin emails, service account).
@@ -93,6 +109,7 @@ tells you what is missing. Full walkthrough: **`docs/FIREBASE_SETUP.md`**.
 
 - `npm run lint` → clean
 - `npx tsc --noEmit` → clean
+- `npm test` → 32 tests passing
 - `npm run build` → 13 routes generated, no warnings
 - Smoke-tested `/`, `/auth`, `/guide`, `/terms`, `/privacy`, `/dashboard`, `/admin` (HTTP 200) and `/api/email` (400/503 handled gracefully)
 
