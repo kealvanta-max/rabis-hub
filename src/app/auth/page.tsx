@@ -1,22 +1,28 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  deleteUser,
+  signOut,
+} from "firebase/auth";
 import { doc, setDoc, Timestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 import { useToastContext } from "@/components/layout/toast-provider";
 import { useAuth } from "@/context/auth-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
-import { getPlanOptions } from "@/lib/plans-data";
-import { uploadToCloudinary } from "@/lib/cloudinary";
-import { getDoc } from "firebase/firestore";
+import { getPlanOptions, getPlanLabel } from "@/lib/plans-data";
+import { useCustomPlans } from "@/hooks/use-custom-plans";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import ImageUpload from "@/components/ui/image-upload";
 import FaceScan from "@/components/ui/face-scan";
 import Navigation from "@/components/layout/navigation";
 import { formatGhanaCardInput, validateGhanaCardFormat } from "@/lib/ghana-card";
+import { isValidGhanaPhone, normalizeGhanaPhone } from "@/lib/phone";
 import { notifyAdminNewRegistration } from "@/lib/notifications";
 import type { RegistrationData } from "@/lib/types";
 
@@ -61,6 +67,15 @@ function AuthContent() {
 
   return (
     <div className="w-full max-w-md">
+      {!isFirebaseConfigured && (
+        <div className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+          <p className="font-bold mb-1">Firebase is not configured</p>
+          <p className="text-amber-200/80">
+            Sign-up and sign-in cannot work until the <code>NEXT_PUBLIC_FIREBASE_*</code> environment
+            variables are set (see <code>.env.example</code>). You can still browse the site.
+          </p>
+        </div>
+      )}
       {isSignup ? (
         <SignupForm onSwitch={() => router.push("/auth?mode=signin")} />
       ) : (
@@ -76,18 +91,50 @@ function SigninForm({ onSwitch }: { onSwitch: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isFirebaseConfigured) {
+      addToast("Firebase isn't configured yet, so sign-in is unavailable.", "error");
+      return;
+    }
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
       addToast("Welcome back!", "success");
       router.push("/dashboard");
     } catch (err) {
-      addToast(err instanceof Error ? err.message : "Login failed", "error");
+      const code = (err as { code?: string })?.code;
+      const message =
+        code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found"
+          ? "Incorrect email or password."
+          : code === "auth/too-many-requests"
+          ? "Too many attempts. Please wait a moment and try again."
+          : code === "auth/network-request-failed"
+          ? "Network error. Check your internet connection."
+          : err instanceof Error
+          ? err.message
+          : "Login failed";
+      addToast(message, "error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!email.trim()) {
+      addToast("Enter your email address first.", "error");
+      return;
+    }
+    setResetting(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      addToast("Password reset link sent. Check your inbox.", "success");
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : "Could not send reset email", "error");
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -101,9 +148,17 @@ function SigninForm({ onSwitch }: { onSwitch: () => void }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        <Button type="submit" loading={loading} className="w-full">
+        <Button type="submit" loading={loading} disabled={!isFirebaseConfigured} className="w-full">
           Sign In
         </Button>
+        <button
+          type="button"
+          onClick={handleReset}
+          disabled={resetting}
+          className="w-full text-center text-xs text-gray-500 hover:text-primary transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {resetting ? "Sending reset link…" : "Forgot your password?"}
+        </button>
       </form>
 
       <p className="text-center text-sm text-gray-500 mt-6">
@@ -121,7 +176,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const { status: gpsStatus, gpsData, error: gpsError, requestLocation } = useGeolocation();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [customPlans, setCustomPlans] = useState<any[]>([]);
+  const { customPlans } = useCustomPlans();
   const basePlanOptions = getPlanOptions();
 
   // Math Captcha State
@@ -141,21 +196,6 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     }
   }, [params]);
 
-  // Fetch customizable plans from Admin
-  useEffect(() => {
-    async function loadCustomPlans() {
-      try {
-        const snap = await getDoc(doc(db, "settings", "customPlans"));
-        if (snap.exists() && snap.data().plans) {
-          setCustomPlans(snap.data().plans);
-        }
-      } catch (err) {
-        console.error("Error loading custom plans:", err);
-      }
-    }
-    loadCustomPlans();
-  }, []);
-
   const [form, setForm] = useState<RegistrationData>({
     firstName: "", lastName: "", email: "", phone: "", location: "", password: "",
     plan: "", ghanaCardNumber: "", ghanaCardValid: false, ghanaCardFront: "", ghanaCardBack: "", passportPhoto: "",
@@ -165,21 +205,45 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const update = (key: keyof RegistrationData, value: string | number) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const canStep2 = form.firstName && form.lastName && form.email && form.phone && form.password && form.plan;
-  const canStep3 = form.ghanaCardNumber && form.ghanaCardValid && form.ghanaCardFront && form.ghanaCardBack && form.passportPhoto;
-  const canStep4 = !!form.faceScanVideo;
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim());
+  const passwordValid = form.password.length >= 6;
+  const phoneValid = isValidGhanaPhone(form.phone);
+  const canStep2 =
+    Boolean(form.firstName.trim() && form.lastName.trim() && form.phone.trim() && form.plan) &&
+    emailValid &&
+    passwordValid &&
+    phoneValid;
+  const canStep3 = Boolean(
+    form.ghanaCardNumber && form.ghanaCardValid && form.ghanaCardFront && form.ghanaCardBack && form.passportPhoto
+  );
+  const canStep4 = Boolean(form.faceScanVideo);
   const canStep5 = gpsStatus === "success";
   const mathPassed = mathAns.trim() === (mathObj.a + mathObj.b).toString();
 
+  const handleFaceScanComplete = useCallback((url: string) => {
+    setForm((prev) => ({ ...prev, faceScanVideo: url }));
+  }, []);
+
   const handleSubmit = async () => {
     if (!mathPassed || !termsAccepted) return;
+    if (!isFirebaseConfigured) {
+      addToast("Firebase isn't configured yet, so accounts cannot be created.", "error");
+      return;
+    }
+    if (!emailValid || !passwordValid) {
+      addToast("Please use a valid email and a password with at least 6 characters.", "error");
+      setStep(1);
+      return;
+    }
     setLoading(true);
+    let createdUser: Awaited<ReturnType<typeof createUserWithEmailAndPassword>>["user"] | null = null;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
+      const cred = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
+      createdUser = cred.user;
       await setDoc(doc(db, "users", cred.user.uid), {
         name: `${form.firstName} ${form.lastName}`,
         email: form.email,
-        phone: form.phone,
+        phone: normalizeGhanaPhone(form.phone),
         location: form.location,
         plan: form.plan,
         plans: [form.plan],
@@ -195,21 +259,38 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         ghanaCardOcrResult: form.ghanaCardOcrResult || "",
         status: "pending",
         whatsappLink: "",
+        termsAccepted: true,
+        termsAcceptedAt: Timestamp.now(),
         createdAt: Timestamp.now(),
       });
 
-      // Notify Admin
+      // Notify Admin (non-blocking – never fails a signup)
       notifyAdminNewRegistration({
         name: `${form.firstName} ${form.lastName}`,
         email: form.email,
-        phone: form.phone,
-        plan: form.plan
+        phone: normalizeGhanaPhone(form.phone),
+        plan: getPlanLabel(form.plan, customPlans),
       }).catch(console.error);
 
       addToast("Account created! Your application is under review.", "success");
       router.push("/dashboard");
     } catch (err) {
-      addToast(err instanceof Error ? err.message : "Registration failed", "error");
+      // Never leave a half-registered auth account behind: without a users doc
+      // the dashboard would be permanently empty for that login.
+      if (createdUser) {
+        try {
+          await deleteUser(createdUser);
+        } catch {
+          await signOut(auth);
+        }
+      }
+      const message = err instanceof Error ? err.message : "Registration failed";
+      addToast(
+        message.includes("permission-denied")
+          ? "Your account was created but the profile could not be saved. Please contact support."
+          : message,
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -237,9 +318,27 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <Input label="Last Name" value={form.lastName} onChange={(e) => update("lastName", e.target.value)} required />
           </div>
           <Input label="Email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} required />
-          <Input label="Phone" type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+233..." required />
+          <Input
+            label="Phone / MoMo Number"
+            type="tel"
+            value={form.phone}
+            onChange={(e) => update("phone", e.target.value)}
+            onBlur={(e) => {
+              if (isValidGhanaPhone(e.target.value)) update("phone", normalizeGhanaPhone(e.target.value));
+            }}
+            placeholder="050 470 1032"
+            error={form.phone.length > 3 && !phoneValid ? "Enter a valid Ghana number (e.g. 050 470 1032)." : undefined}
+            required
+          />
           <Input label="Location (Area)" value={form.location} onChange={(e) => update("location", e.target.value)} placeholder="e.g. Madina, Accra" />
-          <Input label="Password" type="password" value={form.password} onChange={(e) => update("password", e.target.value)} required />
+          <Input
+            label="Password (min. 6 characters)"
+            type="password"
+            value={form.password}
+            onChange={(e) => update("password", e.target.value)}
+            error={form.password.length > 0 && !passwordValid ? "Password must be at least 6 characters." : undefined}
+            required
+          />
 
           {/* Plan Select */}
           <div>
@@ -331,7 +430,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         <div className="space-y-5">
           <p className="text-sm text-gray-400 mb-2">To prevent fake accounts, please complete a quick liveness check.</p>
           
-          <FaceScan onComplete={(url) => setForm(prev => ({ ...prev, faceScanVideo: url }))} />
+          <FaceScan onComplete={handleFaceScanComplete} />
 
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => setStep(2)} className="flex-1">Back</Button>
@@ -415,7 +514,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <p className="text-gray-400">Name: <span className="text-white">{form.firstName} {form.lastName}</span></p>
             <p className="text-gray-400">Email: <span className="text-white">{form.email}</span></p>
             <p className="text-gray-400">Phone: <span className="text-white">{form.phone}</span></p>
-            <p className="text-gray-400">Plan: <span className="text-white">{form.plan}</span></p>
+            <p className="text-gray-400">Plan: <span className="text-white">{getPlanLabel(form.plan, customPlans)}</span></p>
             <p className="text-gray-400">Location: <span className="text-white">{gpsData?.address}</span></p>
             <p className="text-gray-400">Documents: <span className="text-emerald-400">3 uploaded + Verified Face Scan</span></p>
           </div>
@@ -444,7 +543,12 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
 
           <div className="flex gap-3 pt-2">
             <Button variant="secondary" onClick={() => setStep(4)} className="flex-1">Back</Button>
-            <Button onClick={handleSubmit} loading={loading} disabled={!mathPassed || !termsAccepted} className="flex-1">
+            <Button
+              onClick={handleSubmit}
+              loading={loading}
+              disabled={!mathPassed || !termsAccepted || !isFirebaseConfigured}
+              className="flex-1"
+            >
               Create Account
             </Button>
           </div>

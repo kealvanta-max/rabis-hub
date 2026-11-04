@@ -109,3 +109,79 @@ export function getPlanOptions() {
     },
   ];
 }
+
+/** Every standard plan (daily, weekly, months, longterm) flattened. */
+export const allStandardPlans: PlanItem[] = Object.values(plans).flat();
+
+export interface CustomPlan {
+  id: string;
+  name: string;
+  amt: number;
+  freq: string;
+  ret: number;
+  slots?: number;
+}
+
+/** Human readable label for any plan id, including admin-created custom plans. */
+export function getPlanLabel(planId: string, customPlans: CustomPlan[] = []): string {
+  if (!planId) return "No plan selected";
+  const custom = customPlans.find((plan) => plan.id === planId);
+  if (custom) return custom.name;
+  if (planLabels[planId]) return planLabels[planId];
+
+  if (planId.startsWith("achiever-")) {
+    return `Achiever ${planId.replace("achiever-", "")}D`;
+  }
+
+  return planId;
+}
+
+/** Looks up the contribution amount for a plan id. */
+export function getPlanAmount(planId: string, customPlans: CustomPlan[] = []): number {
+  const standard = allStandardPlans.find((plan) => plan.id === planId);
+  if (standard) return standard.amt;
+
+  const custom = customPlans.find((plan) => plan.id === planId);
+  if (custom) return Number(custom.amt) || 0;
+
+  if (planId.startsWith("achiever-")) {
+    // Achiever plans increase by GH₵1 for every day of the cycle.
+    const days = Number(planId.replace("achiever-", ""));
+    return Number.isFinite(days) ? days : 1;
+  }
+
+  return 0;
+}
+
+/** Default number of slots advertised for a plan. */
+export function getPlanSlots(planId: string, customPlans: CustomPlan[] = []): number {
+  const standard = allStandardPlans.find((plan) => plan.id === planId);
+  if (standard?.slots) return standard.slots;
+
+  const custom = customPlans.find((plan) => plan.id === planId);
+  if (custom?.slots) return custom.slots;
+
+  return 10;
+}
+
+export interface PlanOptionGroup {
+  label: string;
+  options: { value: string; label: string }[];
+}
+
+/** Flat, grouped list of every plan an admin can open a round for. */
+export function getAdminPlanOptions(customPlans: CustomPlan[] = []): PlanOptionGroup[] {
+  const groups: PlanOptionGroup[] = getPlanOptions();
+
+  if (customPlans.length > 0) {
+    groups.unshift({
+      label: "Custom Plans",
+      options: customPlans.map((plan) => ({
+        value: plan.id,
+        label: `${plan.name} (GH₵${plan.amt} • ${plan.freq} • target GH₵${Number(plan.ret).toLocaleString()})`,
+      })),
+    });
+  }
+
+  return groups;
+}

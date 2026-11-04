@@ -35,13 +35,21 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     const saved = (typeof window !== "undefined" && localStorage.getItem("rabi-lang")) as Locale | null;
     if (saved && dictionaries[saved]) {
       setLocaleState(saved);
+      document.documentElement.lang = saved;
       dictionaries[saved]().then(setDict);
     }
   }, []);
 
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);
-    localStorage.setItem("rabi-lang", newLocale);
+    try {
+      localStorage.setItem("rabi-lang", newLocale);
+    } catch {
+      /* private mode – ignore */
+    }
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = newLocale;
+    }
     dictionaries[newLocale]().then(setDict);
   }, []);
 

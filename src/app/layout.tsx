@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Serif_Display, Inter, Space_Grotesk } from "next/font/google";
+import "@fontsource-variable/inter";
+import "@fontsource/dm-serif-display";
+import "@fontsource-variable/space-grotesk";
 import { AuthProvider } from "@/context/auth-context";
 import { I18nProvider } from "@/context/i18n-context";
 import { ToastProvider } from "@/components/layout/toast-provider";
@@ -9,22 +11,6 @@ import AudioPlayer from "@/components/ui/audio-player";
 import LoadingScreen from "@/components/ui/loading-screen";
 import AIAssistantButton from "@/components/ui/ai-assistant-button";
 import "./globals.css";
-
-const dmSerifDisplay = DM_Serif_Display({
-  subsets: ["latin"],
-  weight: "400",
-  variable: "--font-dm-serif",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-space-grotesk",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://rabissavinghub.com"),
@@ -50,9 +36,34 @@ export const metadata: Metadata = {
     description: "Ghana's Premium Susu Savings Platform",
     images: ["/brand_logo.png"],
   },
+  manifest: "/manifest.json",
   icons: {
     icon: "/brand_logo.png",
     apple: "/brand_logo.png",
+  },
+};
+
+const organizationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FinancialService",
+  name: "Rabi's Saving Hub",
+  url: "https://rabissavinghub.com",
+  logo: "https://rabissavinghub.com/brand_logo.png",
+  image: "https://rabissavinghub.com/brand_logo.png",
+  description:
+    "Ghana's premium digital Susu savings platform with daily, weekly and monthly community savings plans.",
+  areaServed: "Ghana",
+  telephone: "+233504701032",
+  email: "rabisavinghub@gmail.com",
+  sameAs: [
+    "https://www.tiktok.com/@rabissavinghub",
+    "https://www.instagram.com/rabisavinghub",
+    "https://www.facebook.com/profile.php?id=61576456847439",
+  ],
+  address: {
+    "@type": "PostalAddress",
+    addressLocality: "Accra",
+    addressCountry: "GH",
   },
 };
 
@@ -71,14 +82,24 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${dmSerifDisplay.variable} ${inter.variable} ${spaceGrotesk.variable} bg-[#020C06] font-sans antialiased text-gray-100 min-h-screen overflow-x-hidden`}
+        className="bg-[#020C06] font-sans antialiased text-gray-100 min-h-screen overflow-x-hidden"
       >
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100000] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-[#020C06] focus:font-bold"
+        >
+          Skip to content
+        </a>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
         <SmoothScroll>
           <I18nProvider>
             <AuthProvider>
               <ToastProvider>
                 <LoadingScreen />
-                {children}
+                <div id="main-content">{children}</div>
                 <FloatingWhatsApp />
                 <AudioPlayer />
                 <AIAssistantButton />

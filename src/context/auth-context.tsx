@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { onAuthStateChanged, User, signOut, getIdTokenResult } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 import type { UserDoc } from "@/lib/types";
 
 interface AuthState {
@@ -11,6 +11,8 @@ interface AuthState {
   userData: UserDoc | null;
   isAdmin: boolean;
   loading: boolean;
+  /** True while the Firestore user document is still loading after sign-in. */
+  profileLoading: boolean;
   logout: () => Promise<void>;
 }
 
@@ -19,75 +21,119 @@ const AuthContext = createContext<AuthState>({
   userData: null,
   isAdmin: false,
   loading: true,
+  profileLoading: false,
   logout: async () => { },
 });
 
-// Admin emails are now primarily handled via Firebase Custom Claims on the backend
-// Use environmental fallback for local development if claims haven't synced yet
-const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "").split(",").map(e => e.trim());
+// Admin emails are primarily handled via Firebase Custom Claims on the backend.
+// The env fallback covers local development before claims have synced.
+const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
+  .split(",")
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserDoc | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
+    // Without a Firebase project we must not call onAuthStateChanged: it would
+    // spam network errors and the app would stay stuck on the loading spinner.
+    if (!isFirebaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
     let unsubscribeDoc: (() => void) | null = null;
+    let cancelled = false;
 
-    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (unsubscribeDoc) {
-        unsubscribeDoc();
-        unsubscribeDoc = null;
-      }
+    const unsub = onAuthStateChanged(
+      auth,
+      async (firebaseUser) => {
+        if (cancelled) return;
 
-      setUser(firebaseUser);
+        if (unsubscribeDoc) {
+          unsubscribeDoc();
+          unsubscribeDoc = null;
+        }
 
-      if (firebaseUser) {
-        const tokenResult = await getIdTokenResult(firebaseUser, true);
-        const hasAdminClaim = !!tokenResult.claims.admin;
+        setUser(firebaseUser);
 
-        const userEmail = (firebaseUser.email || "").toLowerCase().trim();
-        const isEmailAdmin = ADMIN_EMAILS.some(e => e.toLowerCase().trim() === userEmail);
-
-        const adminStatus = hasAdminClaim || isEmailAdmin;
-        setIsAdmin(adminStatus);
-
-        unsubscribeDoc = onSnapshot(
-          doc(db, "users", firebaseUser.uid),
-          (snap) => {
-            if (snap.exists()) {
-              setUserData(snap.data() as UserDoc);
-            } else {
-              setUserData(null);
+        if (firebaseUser) {
+          setProfileLoading(true);
+          let hasAdminClaim = false;
+          try {
+            const tokenResult = await getIdTokenResult(firebaseUser, true);
+            hasAdminClaim = Boolean(tokenResult.claims.admin);
+          } catch (error) {
+            // Refresh can fail offline – fall back to the cached token.
+            try {
+              const cached = await getIdTokenResult(firebaseUser);
+              hasAdminClaim = Boolean(cached.claims.admin);
+            } catch {
+              hasAdminClaim = false;
             }
-          },
-          (err) => {
-            console.error("Error listening to user data:", err);
+            console.warn("Could not refresh auth token:", error);
           }
-        );
-      } else {
+
+          if (cancelled) return;
+
+          const userEmail = (firebaseUser.email || "").toLowerCase().trim();
+          setIsAdmin(hasAdminClaim || ADMIN_EMAILS.includes(userEmail));
+
+          unsubscribeDoc = onSnapshot(
+            doc(db, "users", firebaseUser.uid),
+            (snap) => {
+              setUserData(snap.exists() ? (snap.data() as UserDoc) : null);
+              setProfileLoading(false);
+            },
+            (error) => {
+              console.error("Error listening to user data:", error);
+              setUserData(null);
+              setProfileLoading(false);
+            }
+          );
+        } else {
+          setUserData(null);
+          setIsAdmin(false);
+          setProfileLoading(false);
+        }
+
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Auth state error:", error);
+        setUser(null);
         setUserData(null);
         setIsAdmin(false);
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    );
 
     return () => {
+      cancelled = true;
       if (unsubscribeDoc) unsubscribeDoc();
       unsub();
     };
   }, []);
 
   const logout = async () => {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Sign out failed:", error);
+    }
     setUser(null);
     setUserData(null);
     setIsAdmin(false);
+    setProfileLoading(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, userData, isAdmin, loading, logout }}>
+    <AuthContext.Provider value={{ user, userData, isAdmin, loading, profileLoading, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, query, where, getDocs, orderBy, limit, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { TestimonialDoc } from "@/lib/types";
 import { InfiniteMovingCards } from "@/components/ui/infinite-moving-cards";
@@ -14,14 +14,14 @@ export default function TestimonialsSection() {
   useEffect(() => {
     async function fetchTestimonials() {
       try {
-        const q = query(
-          collection(db, "testimonials"),
-          where("status", "==", "approved"),
-          orderBy("createdAt", "desc"),
-          limit(10)
-        );
+        // Only one equality filter here: combining it with orderBy("createdAt")
+        // requires a Firestore composite index and fails on fresh projects.
+        const q = query(collection(db, "testimonials"), where("status", "==", "approved"));
         const snap = await getDocs(q);
-        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as TestimonialDoc));
+        const data = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as TestimonialDoc))
+          .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0))
+          .slice(0, 10);
         setTestimonials(data);
       } catch (err) {
         console.error("Error fetching testimonials:", err);

@@ -70,7 +70,7 @@ const fr = {
   auth_no_account: "Vous n'avez pas de compte ?",
   auth_create_one: "En créer un",
   auth_join_title: "Rejoindre Rabi's Saving Hub",
-  auth_step_of: "Étape {step} sur 4",
+  auth_step_of: "Étape {step} sur 5",
   auth_first_name: "Prénom",
   auth_last_name: "Nom de famille",
   auth_phone: "Téléphone",

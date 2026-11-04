@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && (
+        request.auth.token.admin == true ||
+        request.auth.token.email in ['rabisavinghub@gmail.com', 'moneyace914@gmail.com']
+      );
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // ---------------------------------------------------------------
+    // Members
+    // ---------------------------------------------------------------
+    match /users/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+
+      allow create: if isSelf(uid)
+        && request.resource.data.email.lower() == request.auth.token.email.lower()
+        && request.resource.data.status == 'pending';
+
+      allow update: if isAdmin() || (
+        isSelf(uid)
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'phone', 'location', 'plan', 'plans',
+          'ghanaCardNumber', 'ghanaCardValid', 'ghanaCardFront', 'ghanaCardBack',
+          'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
+          'gpsLat', 'gpsLng', 'gpsAddress',
+          'termsAccepted', 'termsAcceptedAt'
+        ])
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Settings (custom plans are public, WhatsApp links are admin-only)
+    // ---------------------------------------------------------------
+    match /settings/customPlans {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /settings/{docId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Announcements
+    // ---------------------------------------------------------------
+    match /announcements/{announcementId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Testimonials / reviews
+    // ---------------------------------------------------------------
+    match /testimonials/{testimonialId} {
+      allow read: if resource.data.status == 'approved' || isAdmin();
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Susu rounds
+    // ---------------------------------------------------------------
+    match /susu-rounds/{roundId} {
+      allow read: if signedIn();
+
+      // Members may only flag their own slot as self-reported ("I have paid").
+      // Positions, confirmations and round numbers are admin-only.
+      allow update: if isAdmin() || (
+        signedIn()
+        && request.auth.uid in resource.data.memberIds
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['slots'])
+      );
+
+      allow create, delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // Payment reports
+    // ---------------------------------------------------------------
+    match /payment-reports/{reportId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.confirmed == false;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

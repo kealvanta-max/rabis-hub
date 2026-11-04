@@ -12,6 +12,15 @@ export default function LoadingScreen() {
   const { t } = useTranslation();
 
   useEffect(() => {
+    // Only show the "Akwaaba" gate once per browser session – returning users
+    // should never be blocked behind it when they reload the app.
+    try {
+      if (sessionStorage.getItem("rabi-entered") === "1") {
+        setIsVisible(false);
+      }
+    } catch {
+      /* private mode – ignore */
+    }
     setMounted(true);
     // Hide scrollbar while loading screen is active
     if (isVisible) {
@@ -26,6 +35,12 @@ export default function LoadingScreen() {
   }, [isVisible]);
 
   const handleEnter = () => {
+    try {
+      sessionStorage.setItem("rabi-entered", "1");
+    } catch {
+      /* private mode – ignore */
+    }
+
     // Play audio
     const audioEl = document.getElementById("welcomeAudio") as HTMLAudioElement | null;
     if (audioEl) {

@@ -9,6 +9,12 @@ export const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
 export const UPLOAD_PRESET = "rabi-user-docs";
 
 export async function uploadToCloudinary(file: File): Promise<string> {
+    if (!CLOUD_NAME) {
+        throw new Error(
+            "File uploads are not configured. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in your environment."
+        );
+    }
+
     const formData = new FormData();
     formData.append("file", file);
     formData.append("upload_preset", UPLOAD_PRESET);
@@ -25,7 +31,12 @@ export async function uploadToCloudinary(file: File): Promise<string> {
         const data: CloudinaryResponse = await res.json();
         
         if (!res.ok) {
-            throw new Error(data.error?.message || "Upload failed");
+            const message = data.error?.message || "Upload failed";
+            throw new Error(
+                /preset/i.test(message)
+                    ? `Cloudinary rejected the upload preset "${UPLOAD_PRESET}". Create it as an unsigned preset in your Cloudinary dashboard.`
+                    : message
+            );
         }
         
         return data.secure_url;

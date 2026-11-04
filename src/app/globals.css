@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Fonts are self-hosted through @fontsource so the app never depends on a
+ * runtime/build-time request to Google Fonts (which fails in offline builds
+ * and in restricted networks).
+ */
+:root {
+  --font-inter: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-dm-serif: "DM Serif Display", ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --font-space-grotesk: "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
