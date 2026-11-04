@@ -1,0 +1,52 @@
+name: Bug report
+description: Something on the site is broken
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please include enough detail for us to reproduce it.
+  - type: input
+    id: url
+    attributes:
+      label: Page / URL
+      placeholder: https://rabissavinghub.com/auth
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour (include console errors / screenshots)
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - Android phone
+        - iPhone
+        - Desktop
+        - Other
+  - type: input
+    id: account
+    attributes:
+      label: Account email (if relevant)
+      description: Never share your password or MoMo details.

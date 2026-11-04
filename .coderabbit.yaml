@@ -1,0 +1,45 @@
+# CodeRabbit AI configuration — https://docs.coderabbit.ai/reference/configuration
+# Install the CodeRabbit GitHub app on the repository to activate AI code review.
+language: "en-GB"
+early_access: false
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+  path_filters:
+    - "!**/*.lock"
+    - "!**/.next/**"
+    - "!**/node_modules/**"
+    - "!lighthouse-report.json"
+    - "!public/**"
+  path_instructions:
+    - path: "src/app/**/*.tsx"
+      instructions: >-
+        Review for React 18 / Next.js 14 App Router correctness: server vs client
+        component boundaries, useEffect dependencies, hydration mismatches,
+        and whether Firestore reads are guarded when Firebase is unconfigured.
+    - path: "src/lib/**/*.ts"
+      instructions: >-
+        Focus on Firebase security, correct Timestamp handling (never mix Date and
+        Timestamp), index-free Firestore queries, and error handling that cannot
+        throw into React render paths.
+    - path: "firestore.rules"
+      instructions: >-
+        Treat as security-critical. Verify users can never escalate their own
+        status/claim, cannot modify other members, and that only admins can write
+        rounds, settings and payment confirmations.
+    - path: "src/app/api/**/*.ts"
+      instructions: >-
+        Check input validation, rate limiting, origin checks, secrets exposure and
+        graceful degradation when providers are not configured.
+chat:
+  auto_reply: true

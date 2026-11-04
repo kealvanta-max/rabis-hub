@@ -114,6 +114,7 @@ Open `http://localhost:3000`.
 | `npm run build` / `npm start` | Production build / serve |
 | `npm run lint` | ESLint (`next lint`) |
 | `npm run typecheck` | TypeScript, no emit |
+| `npm test` | Unit tests (Vitest) |
 | `npm run admin:setup` | Grant the `admin` custom claim (needs `FIREBASE_SERVICE_ACCOUNT_KEY`) |
 | `npm run env:check` | Validate the service-account JSON in `.env.local` |
 
@@ -151,6 +152,20 @@ Only admin-claim holders (or allowlisted emails) can open `/admin`; everything e
 shows an "Admin access required" screen.
 
 ---
+
+## 🧪 Quality gates
+
+Every pull request must pass:
+
+```bash
+npm run lint && npx tsc --noEmit && npm test && npm run build
+```
+
+CodeRabbit AI review is pre-configured in `.coderabbit.yaml` — install the CodeRabbit
+GitHub app on the repository to enable automated review on pull requests.
+
+Production handover, runbook and client ownership checklist:
+**[docs/PRODUCTION_HANDOVER.md](docs/PRODUCTION_HANDOVER.md)**.
 
 ## 🧪 Troubleshooting
 

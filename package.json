@@ -9,7 +9,9 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "admin:setup": "node scripts/admin-setup.mjs",
-    "env:check": "node scripts/test-env.mjs"
+    "env:check": "node scripts/test-env.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -32,7 +34,7 @@
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.22",
-    "@types/node": "^20.0.0",
+    "@types/node": "^22.20.5",
     "@types/nodemailer": "^8.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
@@ -43,6 +45,10 @@
     "firebase-admin": "^14.5.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^3.4.19",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

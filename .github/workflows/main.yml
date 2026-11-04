@@ -28,6 +28,9 @@ jobs:
     - name: Type check
       run: npx tsc --noEmit
 
+    - name: Unit tests
+      run: npm test
+
     - name: Build
       # The app builds without Firebase env vars (it falls back to a clear
       # "not configured" state) so CI does not need project secrets.
