@@ -287,7 +287,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       const message = err instanceof Error ? err.message : "Registration failed";
       addToast(
         message.includes("permission-denied")
-          ? "Your account was created but the profile could not be saved. Please contact support."
+          ? "We could not save your profile (Firestore rules blocked the write), so the account was rolled back. Please try again or contact support."
           : message,
         "error"
       );
