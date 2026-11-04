@@ -2,15 +2,8 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  deleteUser,
-  signOut,
-} from "firebase/auth";
-import { doc, setDoc, Timestamp } from "firebase/firestore";
-import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { doc, updateDoc, Timestamp, db } from "@/lib/db";
 import { useToastContext } from "@/components/layout/toast-provider";
 import { useAuth } from "@/context/auth-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
@@ -67,12 +60,13 @@ function AuthContent() {
 
   return (
     <div className="w-full max-w-md">
-      {!isFirebaseConfigured && (
+      {!isSupabaseConfigured && (
         <div className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
-          <p className="font-bold mb-1">Firebase is not configured</p>
+          <p className="font-bold mb-1">Supabase is not configured</p>
           <p className="text-amber-200/80">
-            Sign-up and sign-in cannot work until the <code>NEXT_PUBLIC_FIREBASE_*</code> environment
-            variables are set (see <code>.env.example</code>). You can still browse the site.
+            Sign-up and sign-in cannot work until the <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+            <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> environment variables are set (see{" "}
+            <code>.env.example</code>). You can still browse the site.
           </p>
         </div>
       )}
@@ -95,23 +89,26 @@ function SigninForm({ onSwitch }: { onSwitch: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isFirebaseConfigured) {
-      addToast("Firebase isn't configured yet, so sign-in is unavailable.", "error");
+    if (!isSupabaseConfigured) {
+      addToast("Supabase isn't configured yet, so sign-in is unavailable.", "error");
       return;
     }
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw error;
       addToast("Welcome back!", "success");
       router.push("/dashboard");
     } catch (err) {
-      const code = (err as { code?: string })?.code;
+      const raw = (err instanceof Error ? err.message : String(err ?? "")).toLowerCase();
       const message =
-        code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found"
+        raw.includes("invalid login") || raw.includes("invalid credentials")
           ? "Incorrect email or password."
-          : code === "auth/too-many-requests"
+          : raw.includes("email not confirmed")
+          ? "Please confirm your email address before signing in."
+          : raw.includes("rate limit") || raw.includes("too many")
           ? "Too many attempts. Please wait a moment and try again."
-          : code === "auth/network-request-failed"
+          : raw.includes("fetch") || raw.includes("network")
           ? "Network error. Check your internet connection."
           : err instanceof Error
           ? err.message
@@ -129,7 +126,11 @@ function SigninForm({ onSwitch }: { onSwitch: () => void }) {
     }
     setResetting(true);
     try {
-      await sendPasswordResetEmail(auth, email.trim());
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo:
+          typeof window !== "undefined" ? `${window.location.origin}/auth?mode=signin` : undefined,
+      });
+      if (error) throw error;
       addToast("Password reset link sent. Check your inbox.", "success");
     } catch (err) {
       addToast(err instanceof Error ? err.message : "Could not send reset email", "error");
@@ -148,7 +149,7 @@ function SigninForm({ onSwitch }: { onSwitch: () => void }) {
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        <Button type="submit" loading={loading} disabled={!isFirebaseConfigured} className="w-full">
+        <Button type="submit" loading={loading} disabled={!isSupabaseConfigured} className="w-full">
           Sign In
         </Button>
         <button
@@ -226,8 +227,8 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
 
   const handleSubmit = async () => {
     if (!mathPassed || !termsAccepted) return;
-    if (!isFirebaseConfigured) {
-      addToast("Firebase isn't configured yet, so accounts cannot be created.", "error");
+    if (!isSupabaseConfigured) {
+      addToast("Supabase isn't configured yet, so accounts cannot be created.", "error");
       return;
     }
     if (!emailValid || !passwordValid) {
@@ -236,13 +237,30 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       return;
     }
     setLoading(true);
-    let createdUser: Awaited<ReturnType<typeof createUserWithEmailAndPassword>>["user"] | null = null;
+    let createdUserId: string | null = null;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
-      createdUser = cred.user;
-      await setDoc(doc(db, "users", cred.user.uid), {
+      // A database trigger creates the profile row from this metadata, so the
+      // account always has a profile even if the next call fails.
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: form.email.trim(),
+        password: form.password,
+        options: {
+          data: {
+            name: `${form.firstName} ${form.lastName}`,
+            phone: normalizeGhanaPhone(form.phone),
+            plan: form.plan,
+          },
+        },
+      });
+      if (signUpError) throw signUpError;
+
+      const newUserId = signUpData.user?.id;
+      if (!newUserId) throw new Error("We could not create your account. Please try again.");
+      createdUserId = newUserId;
+
+      await updateDoc(doc(db, "users", newUserId), {
         name: `${form.firstName} ${form.lastName}`,
-        email: form.email,
+        email: form.email.trim(),
         phone: normalizeGhanaPhone(form.phone),
         location: form.location,
         plan: form.plan,
@@ -267,7 +285,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       // Notify Admin (non-blocking – never fails a signup)
       notifyAdminNewRegistration({
         name: `${form.firstName} ${form.lastName}`,
-        email: form.email,
+        email: form.email.trim(),
         phone: normalizeGhanaPhone(form.phone),
         plan: getPlanLabel(form.plan, customPlans),
       }).catch(console.error);
@@ -277,17 +295,27 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     } catch (err) {
       // Never leave a half-registered auth account behind: without a users doc
       // the dashboard would be permanently empty for that login.
-      if (createdUser) {
+      if (createdUserId) {
+        // Never keep a half-registered account: the rollback endpoint deletes
+        // the auth user (cascading the profile row) with the service role.
         try {
-          await deleteUser(createdUser);
+          const { data: sessionData } = await supabase.auth.getSession();
+          const token = sessionData.session?.access_token;
+          if (token) {
+            await fetch("/api/account/rollback", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+            });
+          }
         } catch {
-          await signOut(auth);
+          /* best effort – the account stays recoverable by support */
         }
+        await supabase.auth.signOut();
       }
       const message = err instanceof Error ? err.message : "Registration failed";
       addToast(
-        message.includes("permission-denied")
-          ? "We could not save your profile (Firestore rules blocked the write), so the account was rolled back. Please try again or contact support."
+        message.toLowerCase().includes("row-level security")
+          ? "We could not save your profile (security rules blocked the write), so the account was rolled back. Please try again or contact support."
           : message,
         "error"
       );
@@ -546,7 +574,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <Button
               onClick={handleSubmit}
               loading={loading}
-              disabled={!mathPassed || !termsAccepted || !isFirebaseConfigured}
+              disabled={!mathPassed || !termsAccepted || !isSupabaseConfigured}
               className="flex-1"
             >
               Create Account

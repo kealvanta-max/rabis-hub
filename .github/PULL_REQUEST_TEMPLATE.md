@@ -17,6 +17,6 @@
 - [ ] `npx tsc --noEmit` passes
 - [ ] `npm test` passes
 - [ ] `npm run build` passes
-- [ ] Firebase config optional: the app still renders without env vars
-- [ ] Firestore rules updated if new collections/fields are written
+- [ ] Supabase config optional: the app still renders without env vars
+- [ ] RLS policies updated (and a migration added) if new tables/columns are written
 - [ ] Screenshots / screen recording for UI changes

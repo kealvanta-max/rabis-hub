@@ -1,17 +1,24 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { onAuthStateChanged, User, signOut, getIdTokenResult } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { mapProfileRow } from "@/lib/db";
 import type { UserDoc } from "@/lib/types";
 
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  /** Name supplied at sign-up (kept for compatibility with older pages). */
+  displayName: string | null;
+}
+
 interface AuthState {
-  user: User | null;
+  user: AuthUser | null;
   userData: UserDoc | null;
   isAdmin: boolean;
   loading: boolean;
-  /** True while the Firestore user document is still loading after sign-in. */
+  /** True while the profile row is still loading after sign-in. */
   profileLoading: boolean;
   logout: () => Promise<void>;
 }
@@ -22,107 +29,117 @@ const AuthContext = createContext<AuthState>({
   isAdmin: false,
   loading: true,
   profileLoading: false,
-  logout: async () => { },
+  logout: async () => {},
 });
 
-// Admin emails are primarily handled via Firebase Custom Claims on the backend.
-// The env fallback covers local development before claims have synced.
+// Admin rights live in `profiles.is_admin`. The env fallback covers the very
+// first deployment, before the first admin has been promoted in the database.
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
   .split(",")
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [userData, setUserData] = useState<UserDoc | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
-    // Without a Firebase project we must not call onAuthStateChanged: it would
-    // spam network errors and the app would stay stuck on the loading spinner.
-    if (!isFirebaseConfigured) {
+    // Without a Supabase project we must not call the auth API: it would spam
+    // network errors and the app would stay stuck on the loading spinner.
+    if (!isSupabaseConfigured) {
       setLoading(false);
       return;
     }
 
-    let unsubscribeDoc: (() => void) | null = null;
     let cancelled = false;
+    let channel: RealtimeChannel | null = null;
 
-    const unsub = onAuthStateChanged(
-      auth,
-      async (firebaseUser) => {
-        if (cancelled) return;
+    const applyProfile = (row: Record<string, unknown> | null, email: string | null) => {
+      setUserData(row ? mapProfileRow<UserDoc>(row) : null);
+      setIsAdmin(
+        Boolean(row?.is_admin) || (email ? ADMIN_EMAILS.includes(email.toLowerCase()) : false)
+      );
+      setProfileLoading(false);
+    };
 
-        if (unsubscribeDoc) {
-          unsubscribeDoc();
-          unsubscribeDoc = null;
-        }
+    const syncSession = async (session: { user: { id: string; email?: string | null } } | null) => {
+      if (cancelled) return;
 
-        setUser(firebaseUser);
+      if (channel) {
+        void supabase.removeChannel(channel);
+        channel = null;
+      }
 
-        if (firebaseUser) {
-          setProfileLoading(true);
-          let hasAdminClaim = false;
-          try {
-            const tokenResult = await getIdTokenResult(firebaseUser, true);
-            hasAdminClaim = Boolean(tokenResult.claims.admin);
-          } catch (error) {
-            // Refresh can fail offline – fall back to the cached token.
-            try {
-              const cached = await getIdTokenResult(firebaseUser);
-              hasAdminClaim = Boolean(cached.claims.admin);
-            } catch {
-              hasAdminClaim = false;
-            }
-            console.warn("Could not refresh auth token:", error);
-          }
-
-          if (cancelled) return;
-
-          const userEmail = (firebaseUser.email || "").toLowerCase().trim();
-          setIsAdmin(hasAdminClaim || ADMIN_EMAILS.includes(userEmail));
-
-          unsubscribeDoc = onSnapshot(
-            doc(db, "users", firebaseUser.uid),
-            (snap) => {
-              setUserData(snap.exists() ? (snap.data() as UserDoc) : null);
-              setProfileLoading(false);
-            },
-            (error) => {
-              console.error("Error listening to user data:", error);
-              setUserData(null);
-              setProfileLoading(false);
-            }
-          );
-        } else {
-          setUserData(null);
-          setIsAdmin(false);
-          setProfileLoading(false);
-        }
-
-        setLoading(false);
-      },
-      (error) => {
-        console.error("Auth state error:", error);
+      if (!session?.user) {
         setUser(null);
         setUserData(null);
         setIsAdmin(false);
+        setProfileLoading(false);
         setLoading(false);
+        return;
       }
-    );
+
+      const authUser = session.user;
+      const email = authUser.email ?? null;
+      const displayName =
+        ((authUser as { user_metadata?: { name?: string } }).user_metadata?.name ?? null) as
+          | string
+          | null;
+      setUser({ uid: authUser.id, email, displayName });
+      setProfileLoading(true);
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authUser.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (error) {
+        console.error("Error loading profile:", error.message);
+        applyProfile(null, email);
+      } else {
+        applyProfile((data as Record<string, unknown> | null) ?? null, email);
+      }
+      setLoading(false);
+
+      // Live profile updates (admin approves the member, plan added, …).
+      channel = supabase
+        .channel(`profile:${authUser.id}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "profiles", filter: `id=eq.${authUser.id}` },
+          (payload) => {
+            if (payload.eventType === "DELETE") {
+              applyProfile(null, email);
+              return;
+            }
+            applyProfile(payload.new as Record<string, unknown>, email);
+          }
+        )
+        .subscribe();
+    };
+
+    void supabase.auth.getSession().then(({ data }) => syncSession(data.session));
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION") return; // handled by getSession above
+      void syncSession(session);
+    });
 
     return () => {
       cancelled = true;
-      if (unsubscribeDoc) unsubscribeDoc();
-      unsub();
+      listener.subscription.unsubscribe();
+      if (channel) void supabase.removeChannel(channel);
     };
   }, []);
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      await supabase.auth.signOut();
     } catch (error) {
       console.error("Sign out failed:", error);
     }

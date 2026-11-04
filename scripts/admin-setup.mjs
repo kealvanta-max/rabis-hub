@@ -1,46 +1,74 @@
-import admin from 'firebase-admin';
-import dotenv from 'dotenv';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+/**
+ * Grants admin rights to one or more members.
+ *
+ *   npm run admin:setup                      # uses NEXT_PUBLIC_ADMIN_EMAIL
+ *   npm run admin:setup -- someone@mail.com  # explicit address(es)
+ *
+ * Requires SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and
+ * SUPABASE_SERVICE_ROLE_KEY in .env.local. The service-role key must never be
+ * exposed to the browser or committed to git.
+ */
+import dotenv from "dotenv";
 
-dotenv.config({ path: '.env.local' });
+dotenv.config({ path: ".env.local" });
 
-const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-if (!rawKey) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is missing from .env.local');
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const serviceAccount = JSON.parse(rawKey);
-
-// Ensure newlines are correct in private_key
-if (serviceAccount.private_key) {
-  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+if (!url || !serviceKey) {
+  console.error(
+    "Missing configuration. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env.local"
+  );
+  process.exit(1);
 }
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+const emails = (
+  process.argv.slice(2).length > 0
+    ? process.argv.slice(2)
+    : (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
+        .split(",")
+        .map((email) => email.trim())
+        .filter(Boolean)
+).map((email) => email.toLowerCase());
 
-const emails = [
-  'rabisavinghub@gmail.com',
-  'moneyace914@gmail.com'
-];
+if (emails.length === 0) {
+  console.error("No admin email supplied. Pass one as an argument or set NEXT_PUBLIC_ADMIN_EMAIL.");
+  process.exit(1);
+}
 
-async function grantAdminRole(email) {
+async function promote(email) {
+  const response = await fetch(
+    `${url}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}&select=id,email,is_admin`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({ is_admin: true }),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`${email}: ${response.status} ${await response.text()}`);
+  }
+
+  const rows = await response.json();
+  if (rows.length === 0) {
+    console.warn(`⚠ ${email}: no profile found yet (has this member signed up?)`);
+    return;
+  }
+  console.log(`✅ ${email} is now an admin`);
+}
+
+for (const email of emails) {
   try {
-    const user = await admin.auth().getUserByEmail(email);
-    await admin.auth().setCustomUserClaims(user.uid, { admin: true });
-    console.log(`Successfully granted admin privileges to ${email}`);
+    await promote(email);
   } catch (error) {
-    console.error(`Error granting admin role to ${email}:`, error);
+    console.error(`✖ ${email}:`, error instanceof Error ? error.message : error);
   }
 }
 
-async function main() {
-  console.log('Starting admin elevation process...');
-  for (const email of emails) {
-    await grantAdminRole(email);
-  }
-  console.log('Completed.');
-  process.exit(0);
-}
-
-main();
+console.log("\nSign out and back in for the admin panel to pick up the new role.");

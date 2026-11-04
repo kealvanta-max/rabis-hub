@@ -23,7 +23,7 @@ Susu rounds, confirming payments and exporting data.
 
 *   **Emerald UI "God Mode" Design** – fluid gradients (`#020c06` → `#10B981`), glassmorphic layouts, micro-animations.
 *   **Verified Registration** – Ghana Card (front/back) uploads, OCR pattern check, MediaPipe face check, smile/blink liveness recording, GPS capture and a math captcha.
-*   **Role-Based Access Control** – Firebase Custom Claims (`admin: true`) plus an env fallback allowlist.
+*   **Role-Based Access Control** – `profiles.is_admin` in Supabase, enforced by Postgres RLS + a trigger, with an env allowlist fallback.
 *   **Susu Round Management** – plan-specific rounds, slot rotation, payment reports, admin confirmations, payout confirmation, CSV export.
 *   **Dynamic Plans & Reviews** – plans created in the admin panel appear on the live site; member reviews appear after approval.
 *   **Global Announcements** – pushed from the admin panel to member dashboards.
@@ -39,7 +39,7 @@ Susu rounds, confirming payments and exporting data.
 | :--- | :--- | :--- |
 | **Framework** | [Next.js 14](https://nextjs.org/) | App Router, server/client components |
 | **Styling** | [Tailwind CSS 3.4](https://tailwindcss.com/) | Utility-first CSS + custom theme tokens |
-| **Backend** | [Firebase](https://firebase.google.com/) | Auth, Firestore, Custom Claims (Admin SDK scripts) |
+| **Backend** | [Supabase](https://supabase.com/) | Postgres 17, Supabase Auth, Row Level Security, Realtime |
 | **Animations** | [Framer Motion](https://www.framer.com/motion/) | Entrance, stagger and micro-interactions |
 | **Media** | [MediaPipe](https://developers.google.com/mediapipe), [Tesseract.js](https://tesseract.projectnaptha.com/), [Cloudinary](https://cloudinary.com/) | Liveness detection, Ghana Card OCR, document storage |
 | **Icons** | [Lucide React](https://lucide.dev/) | SVG icon set |
@@ -60,8 +60,9 @@ rabis-hub/
 │   ├── components/         # admin / home / layout / ui components
 │   ├── context/            # AuthContext, i18nContext
 │   ├── hooks/              # useGeolocation, useCustomPlans, useToast
-│   └── lib/                # Firebase, plans, payments, KYC helpers
-├── docs/FIREBASE_SETUP.md  # ⭐ required setup (env, rules, Cloudinary, email)
+│   └── lib/                # supabase client, db layer, plans, payments, KYC helpers
+├── supabase/migrations/    # Postgres schema + RLS (versioned)
+├── docs/SUPABASE_SETUP.md  # ⭐ required setup (env, schema, auth, admin)
 ├── public/                 # Static assets
 └── tailwind.config.ts
 ```
@@ -91,12 +92,12 @@ npm install
 cp .env.example .env.local
 ```
 
-Fill in the Firebase keys at minimum. The full list (Cloudinary, email providers,
-service account) plus the Firestore rules are documented in
-**[docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md)**.
+Fill in the Supabase URL + anon key at minimum. The full list (service role key,
+Cloudinary, email providers) and the database/RLS setup are documented in
+**[docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)**.
 
 > The app builds and renders even with no variables configured — `/auth` shows a
-> "Firebase is not configured" notice instead of crashing.
+> "Supabase is not configured" notice instead of crashing.
 
 ### 4. Run the dev server
 
@@ -115,8 +116,8 @@ Open `http://localhost:3000`.
 | `npm run lint` | ESLint (`next lint`) |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm test` | Unit tests (Vitest) |
-| `npm run admin:setup` | Grant the `admin` custom claim (needs `FIREBASE_SERVICE_ACCOUNT_KEY`) |
-| `npm run env:check` | Validate the service-account JSON in `.env.local` |
+| `npm run admin:setup` | Grant admin rights (needs `SUPABASE_SERVICE_ROLE_KEY`) |
+| `npm run env:check` | Verify the Supabase env vars and connectivity |
 
 ---
 
@@ -125,21 +126,22 @@ Open `http://localhost:3000`.
 1. Push to GitHub and import the repository in Vercel (**Add New Project**).
 2. Vercel auto-detects Next.js — keep the default build command.
 3. Add **all** environment variables from `.env.example` (Production **and** Preview).
-4. Deploy, then add the deployed domain to Firebase **Authentication → Authorized domains**.
-5. Publish the Firestore rules:
+4. Deploy, then add the deployed domain to Supabase **Authentication → URL configuration**.
+5. Apply the database schema (once per environment):
 
 ```bash
-npx firebase-tools deploy --only firestore:rules --project <your-project-id>
+npx supabase link --project-ref <project-ref>
+npx supabase db push
 ```
 
-   (or paste `firestore.rules` into the Firebase console — see `docs/FIREBASE_SETUP.md`).
+   (or paste `supabase/migrations/0001_init.sql` into the SQL editor — see `docs/SUPABASE_SETUP.md`).
 
 ---
 
 ## 🔒 Administrative Access
 
 1. Add admin emails to `NEXT_PUBLIC_ADMIN_EMAIL` (comma separated).
-2. For the secure path, grant Firebase Custom Claims:
+2. For the secure path, promote the account in Postgres:
 
 ```bash
 npm run admin:setup
@@ -171,11 +173,11 @@ Production handover, runbook and client ownership checklist:
 
 | Symptom | Cause / fix |
 | :--- | :--- |
-| Blank page / console says `auth/invalid-api-key` | `NEXT_PUBLIC_FIREBASE_*` missing → `.env.local` / Vercel env vars, then restart/redeploy |
-| "Firebase is not configured" banner on `/auth` | Same as above |
+| Blank page / console says `supabaseUrl is required` | `NEXT_PUBLIC_SUPABASE_*` missing → `.env.local` / Vercel env vars, then restart/redeploy |
+| "Supabase is not configured" banner on `/auth` | Same as above |
 | Upload fails / "Cloudinary rejected the upload preset" | Create the **unsigned** preset `rabi-user-docs`; set `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` |
 | Admin panel loops back to the homepage | Account lacks the admin claim → `npm run admin:setup`, sign out/in |
-| Dashboard says "We could not load your profile" | Firestore rules blocked the write during signup — publish the rules and re-register |
+| Dashboard says "We could not load your profile" | RLS blocked the write during signup — apply `supabase/migrations/0001_init.sql` and re-register |
 | Liveness check shows a recording button instead of smile/blink | MediaPipe CDN/WebGPU unavailable — fallback recording is expected; admin reviews manually |
 | Payment page shows no rounds | Admin has not started a round for your plan, or you are not approved yet |
 

@@ -8,8 +8,9 @@ import {
   where,
   Timestamp,
   getDoc,
-} from "firebase/firestore";
-import { db } from "./firebase";
+  db,
+} from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export interface SusuRoundSlot {
   userId: string;
@@ -145,43 +146,29 @@ export async function getActiveRounds(): Promise<SusuRound[]> {
     .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0));
 }
 
+/**
+ * Members never write the round document directly: a SECURITY DEFINER RPC
+ * inserts the report and flags their slot in a single transaction, which keeps
+ * the payment table the source of truth and the round consistent.
+ */
 export async function reportPayment(
   roundId: string,
-  userId: string,
-  userName: string,
+  _userId: string,
+  _userName: string,
   amount: number,
   momoRef?: string
 ) {
-  const roundRef = doc(db, "susu-rounds", roundId);
-  const roundSnap = await getDoc(roundRef);
-
-  if (!roundSnap.exists()) {
-    throw new Error("This Susu round no longer exists. Please refresh the page.");
-  }
-
-  const roundData = roundSnap.data() as SusuRound;
-  const slots = Array.isArray(roundData.slots) ? roundData.slots : [];
-  if (!slots.some((slot) => slot.userId === userId)) {
-    throw new Error("You are not a member of this Susu round.");
-  }
-
-  const reportRef = await addDoc(collection(db, "payment-reports"), {
-    roundId,
-    userId,
-    userName,
-    amount: Number(amount) || 0,
-    momoRef: momoRef || "",
-    roundNumber: roundData.roundNumber ?? 1,
-    reportedAt: Timestamp.now(),
-    confirmed: false,
+  const { data, error } = await supabase.rpc("report_payment", {
+    p_round_id: roundId,
+    p_amount: Number(amount) || 0,
+    p_momo_ref: momoRef || "",
   });
 
-  const updatedSlots = slots.map((slot) =>
-    slot.userId === userId ? { ...slot, selfReported: true } : slot
-  );
-  await updateDoc(roundRef, { slots: updatedSlots });
+  if (error) {
+    throw new Error(error.message);
+  }
 
-  return reportRef.id;
+  return String(data);
 }
 
 export async function confirmPayment(
