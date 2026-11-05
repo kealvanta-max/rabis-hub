@@ -1,61 +1,17 @@
 # Beta fix pass — what was broken and what changed
 
-Branch: `arena/5151289b-rabis-hub` · builds clean (`npm run lint`, `npx tsc --noEmit`,
-`npm test`, `npm run build` all pass).
-
----
-
-## 🔄 Backend migration: Firebase → Supabase
-
-The whole data layer now runs on **Supabase** (Postgres 17 + Supabase Auth + RLS +
-Realtime) instead of Firebase Auth/Firestore.
-
-| Was | Now |
-| :--- | :--- |
-| `firebase/auth` (`createUserWithEmailAndPassword`, `onAuthStateChanged`, custom claims) | Supabase Auth (`signUp`, `signInWithPassword`, `onAuthStateChange`); admin rights live in `profiles.is_admin` |
-| Firestore collections (`users`, `susu-rounds`, `payment-reports`, `testimonials`, `announcements`, `settings/*`) | Postgres tables + `app_settings` key/value, all with RLS |
-| `firestore.rules` | `supabase/migrations/0001_init.sql` — 17 policies, `is_admin()`, `report_payment()`, `append_my_plan()` |
-| Ad-hoc `addDoc`/`updateDoc` calls scattered through pages | One documented adapter, `src/lib/db.ts`, mapping camelCase documents onto snake_case columns |
-| Admin email allowlist only | `npm run admin:setup` promotes an account in Postgres; the env allowlist stays as a bootstrap fallback |
-
-**Why the adapter:** the pages were written against the Firestore API in ~2 000
-lines of UI code. `src/lib/db.ts` keeps that call style (`collection`, `doc`,
-`getDocs`, `setDoc`, `arrayUnion`, `Timestamp`) while executing real SQL through
-`@supabase/supabase-js`. Page diffs stay tiny and reviewable; the mapping lives in
-one place.
-
-**Security improvements that came with the move**
-
-- RLS on every table: a member can only read their own profile, their own rounds,
-  their own payment reports and approved testimonials.
-- A trigger (`protect_profile_columns`) makes self-approval and self-promotion
-  impossible, even with a valid session.
-- Payment reporting moved into the `report_payment()` SECURITY DEFINER RPC: the
-  report row and the member's slot flag are written in one transaction, so members
-  no longer need write access to the round document (previously a member token
-  could rewrite the whole `slots` array).
-- Registration is transactional: a DB trigger always creates the profile row, and
-  a failure rolls the auth account back through `/api/account/rollback` (token
-  verified server-side; a user can only delete themselves).
-
-**Verified**
-
-- `supabase/tests/rls_checks.sql` — member isolation, escalation attempts,
-  member payment report, admin visibility. All pass against the live project.
-- Post-migration gates: lint ✅, tsc ✅, 32 unit tests ✅, production build ✅
-  (13 routes, first-load JS down ~40 kB thanks to dropping the Firebase SDK).
+Branch: `arena/5151289b-rabis-hub` · builds clean (`npm run lint`, `npx tsc --noEmit`, `npm run build` all pass).
 
 ---
 
 ## ⚠️ The 3 things that must be configured for the live site
 
-1. `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` (+ server-only
-   `SUPABASE_SERVICE_ROLE_KEY`) in Vercel and `.env.local`.
-2. Apply `supabase/migrations/0001_init.sql` to the project.
-3. `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` + an **unsigned** upload preset named `rabi-user-docs`.
+1. `NEXT_PUBLIC_FIREBASE_*` environment variables (Vercel + local `.env.local`).
+2. `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` + an **unsigned** upload preset named `rabi-user-docs`.
+3. Firestore security rules (see `docs/FIREBASE_SETUP.md`).
 
 Without (1) the app used to crash to a blank screen — it now renders normally and
-tells you what is missing. Full walkthrough: **`docs/SUPABASE_SETUP.md`**.
+tells you what is missing. Full walkthrough: **`docs/FIREBASE_SETUP.md`**.
 
 ---
 

@@ -16,8 +16,8 @@ export async function GET() {
     : null;
 
   return NextResponse.json({
-    supabaseConfigured: Boolean(
-      process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    firebaseConfigured: Boolean(
+      process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
     ),
     cloudinaryConfigured: Boolean(process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME),
     emailProvider,

@@ -1,64 +1,85 @@
 # Deploying to Vercel
 
-The Vercel project **`rabis-saving-hub`** already exists with every environment
-variable set (Production, Preview and Development):
+## The account
 
-| Variable | Value |
+The Vercel account connected to this workspace is:
+
+| | |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://jwghacxpzskqjvorkvep.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | project anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | encrypted, server-only |
-| `NEXT_PUBLIC_ADMIN_EMAIL` | `rabisavinghub@gmail.com,moneyace914@gmail.com` |
-| `NEXT_PUBLIC_APP_URL` | `https://rabis-saving-hub.vercel.app` |
+| **Email** | `patienceboatemaah6@gmail.com` |
+| **Name on account** | Rabi |
+| **Username** | `patienceboatemaah6-9752` |
+| **Team** | `team_Cyj2XZI81kfo5BIIYcCxo74A` |
 
-What is missing is the **source connection**: Vercel needs a GitHub login
-connection before it can build a repository. That is a one-time, two-click
-authorisation on your Vercel account — it cannot be granted by an API token.
+Sign in at <https://vercel.com/login> with that email (Google sign-in). The project
+**`rabis-saving-hub`** is already there with every environment variable set.
 
----
+If the live `rabissavinghub.com` deployment lives in a different account, log into
+*that* one instead — import the repository there and paste the `.env.local` values
+(the table below is the same for both).
 
-## Option A — connect GitHub (recommended, gives you CI deploys)
+## Environment variables already configured
 
-1. Open <https://vercel.com/account/login-connections> and click
-   **Add GitHub Account** → authorise.
-2. Open the project → **Settings → Git → Connect Git Repository**.
-3. Pick the repository (`kealvanta-max/rabis-hub` for now, or the dedicated
-   production repository once it exists) and the **production branch**
-   (`main` for the production repo, or `arena/5151289b-rabis-hub` to ship the
-   current build immediately).
-4. Click **Deploy**. `vercel.json` sets the framework and the `fra1` function
-   region, so no other configuration is needed.
-5. Every later push to that branch redeploys automatically; PRs get preview URLs.
+| Key | Value |
+|---|---|
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | set |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `rabis-hub.firebaseapp.com` |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `rabis-hub` |
+| `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `rabis-hub.firebasestorage.app` |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `199788920589` |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:199788920589:web:97da5f2621b1593713ba44` |
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | `doxcv1qkm` |
+| `RESEND_API_KEY` | set (sensitive) |
+| `EMAIL_FROM` | `Rabi's Saving Hub <noreply@rabissavinghub.com>` |
+| `NEXT_PUBLIC_ADMIN_EMAIL` | set |
+| `NEXT_PUBLIC_APP_URL` | `https://rabissavinghub.com` |
 
-## Option B — deploy from your machine in one command
+All are applied to Production, Preview and Development.
+
+> `FIREBASE_SERVICE_ACCOUNT_KEY` is **not** on Vercel. It is server-only and only
+> needed locally by `npm run admin:setup`; keeping it out of the hosting platform
+> reduces the blast radius if the project is ever compromised.
+
+## Option A — connect GitHub (recommended, CI deploys)
+
+Vercel refused an API-only repo link with *"You need to add a Login Connection to
+your GitHub account first"* — that authorisation must be clicked by a human:
+
+1. <https://vercel.com/account/login-connections> → **Add GitHub Account** → authorise.
+2. Project → **Settings → Git → Connect Git Repository**.
+3. Pick `kealvanta-max/rabis-hub` and the branch to ship
+   (`main` once the PR is merged, or `arena/5151289b-rabis-hub` to deploy now).
+4. **Deploy.** `vercel.json` supplies the framework and the `fra1` region.
+
+## Option B — deploy from your own machine
 
 ```bash
-cd rabis-saving-hub-production
-npx vercel link --project rabis-saving-hub   # pick the existing team/project
+# after downloading/cloning the repo
+npm ci
+npx vercel link --project rabis-saving-hub
 npx vercel --prod
 ```
 
-`vercel link` writes `.vercel/project.json` locally (git-ignored) and reuses the
-environment variables already stored on the project.
-
----
+`vercel link` reuses the environment variables already stored on the project.
 
 ## After the first successful deploy
 
-1. Copy the production URL and update:
-   - Supabase → **Authentication → URL configuration** → Site URL + redirect
-     URLs (`https://<domain>/auth`).
-   - `NEXT_PUBLIC_APP_URL` in Vercel, then redeploy.
-2. Promote the owner account to admin:
+1. **Firebase → Authentication → Settings → Authorized domains**: add the
+   deployment domain (`rabis-saving-hub.vercel.app`, `rabissavinghub.com`,
+   and `*.vercel.app` for previews).
+2. **Publish the Firestore rules** (one time):
    ```bash
-   npm run admin:setup
+   npx firebase-tools deploy --only firestore:rules --project rabis-hub
    ```
-3. Run the smoke test (handover doc §7): sign up → approve → start round →
-   report payment → confirm payout.
-4. Add the custom domain `rabissavinghub.com` → Vercel → Domains, then point DNS.
+   or paste `firestore.rules` into Firebase console → Firestore → Rules.
+3. **Promote the owner accounts** to admin:
+   ```bash
+   npm run admin:setup      # uses FIREBASE_SERVICE_ACCOUNT_KEY from .env.local
+   ```
+   then sign out and back in.
+4. Smoke test: sign up → admin approves → start a round → member reports a
+   payment → admin confirms → advance round → payout confirmed.
 
 ## Rollback
 
-Vercel → Deployments → pick the last known-good deployment → **Instant
-Rollback**. Database changes roll back with `supabase db reset` on a branch or by
-reverting the migration; take a `supabase db dump` before every release.
+Vercel → Deployments → pick the last known-good one → **Instant Rollback**.

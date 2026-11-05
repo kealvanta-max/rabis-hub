@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, getDoc, db } from "@/lib/db";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import type { CustomPlan } from "@/lib/plans-data";
 
 /**

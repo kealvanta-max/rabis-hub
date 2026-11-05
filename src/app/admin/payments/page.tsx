@@ -14,7 +14,8 @@ import {
   type PaymentReport,
   type SusuRound,
 } from "@/lib/payment-tracker";
-import { collection, query, where, getDocs, db } from "@/lib/db";
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { getAdminPlanOptions, getPlanLabel, getPlanSlots, type CustomPlan } from "@/lib/plans-data";
 import { useCustomPlans } from "@/hooks/use-custom-plans";
 import { useToastContext } from "@/components/layout/toast-provider";

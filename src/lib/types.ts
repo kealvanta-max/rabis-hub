@@ -1,4 +1,4 @@
-import type { Timestamp } from "@/lib/db";
+import type { Timestamp } from "firebase/firestore";
 
 export interface UserDoc {
   name: string;

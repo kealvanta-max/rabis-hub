@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/auth-context";
-import { collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc, addDoc, Timestamp, db } from "@/lib/db";
+import { collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc, addDoc, Timestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useToastContext } from "@/components/layout/toast-provider";
 import Navigation from "@/components/layout/navigation";
 import Badge from "@/components/ui/badge";
@@ -14,7 +15,7 @@ import Input from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { getPlanLabel, planLabels } from "@/lib/plans-data";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { isFirebaseConfigured } from "@/lib/firebase";
 import type { UserDoc, TestimonialDoc } from "@/lib/types";
 import { notifyUserApproval, notifyUserRejection, notifyAdminNewRegistration } from "@/lib/notifications";
 import dynamic from "next/dynamic";
@@ -46,7 +47,7 @@ export default function AdminPage() {
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
-  const [health, setHealth] = useState<{ cloudinaryConfigured: boolean; emailProvider: string | null; supabaseConfigured?: boolean } | null>(null);
+  const [health, setHealth] = useState<{ cloudinaryConfigured: boolean; emailProvider: string | null } | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -285,7 +286,7 @@ export default function AdminPage() {
           </div>
 
           {/* System status */}
-          {(!isSupabaseConfigured || (health && (!health.cloudinaryConfigured || !health.emailProvider))) && (
+          {(!isFirebaseConfigured || (health && (!health.cloudinaryConfigured || !health.emailProvider))) && (
             <div className="mb-8 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
               <div className="flex items-start gap-3">
                 <svg className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -297,7 +298,7 @@ export default function AdminPage() {
                     Some integrations are missing, so parts of the site will not work for members.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <StatusPill ok={isSupabaseConfigured} label="Firebase" />
+                    <StatusPill ok={isFirebaseConfigured} label="Firebase" />
                     <StatusPill ok={Boolean(health?.cloudinaryConfigured)} label="Cloudinary uploads" />
                     <StatusPill ok={Boolean(health?.emailProvider)} label={`Email${health?.emailProvider ? ` (${health.emailProvider})` : ""}`} />
                   </div>
