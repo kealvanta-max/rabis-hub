@@ -14,6 +14,8 @@ interface AuthState {
   /** True while the Firestore user document is still loading after sign-in. */
   profileLoading: boolean;
   logout: () => Promise<void>;
+  /** Re-read the Firestore profile (recovery when the document failed to load). */
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -23,6 +25,7 @@ const AuthContext = createContext<AuthState>({
   loading: true,
   profileLoading: false,
   logout: async () => { },
+  refreshProfile: async () => { },
 });
 
 // Admin emails are primarily handled via Firebase Custom Claims on the backend.
@@ -120,6 +123,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  /** Re-read the profile document on demand (used by the "profile missing" recovery card). */
+  const refreshProfile = async () => {
+    if (!user) return;
+    setProfileLoading(true);
+    try {
+      const { getDoc } = await import("firebase/firestore");
+      const snap = await getDoc(doc(db, "users", user.uid));
+      setUserData(snap.exists() ? (snap.data() as UserDoc) : null);
+    } catch (error) {
+      console.error("Profile refresh failed:", error);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
       await signOut(auth);
@@ -133,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, userData, isAdmin, loading, profileLoading, logout }}>
+    <AuthContext.Provider value={{ user, userData, isAdmin, loading, profileLoading, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

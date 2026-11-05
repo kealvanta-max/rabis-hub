@@ -32,7 +32,12 @@ If the live `rabissavinghub.com` deployment lives in a different account, log in
 | `RESEND_API_KEY` | set (sensitive) |
 | `EMAIL_FROM` | `Rabi's Saving Hub <noreply@rabissavinghub.com>` |
 | `NEXT_PUBLIC_ADMIN_EMAIL` | set |
-| `NEXT_PUBLIC_APP_URL` | `https://rabissavinghub.com` |
+| `NEXT_PUBLIC_APP_URL` | `https://rabis-hub.vercel.app` |
+| `NEXT_PUBLIC_SITE_URL` | `https://rabis-hub.vercel.app` (SEO canonicals) |
+| `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Search Console HTML tag value (optional) |
+| `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project key (optional — analytics) |
+| `SENTRY_DSN` | Sentry DSN (optional — error tracking) |
+| `UPSTASH_REDIS_REST_URL` / `..._TOKEN` | Upstash REST credentials (optional — rate limiting) |
 
 All are applied to Production, Preview and Development.
 

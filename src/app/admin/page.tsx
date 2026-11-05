@@ -20,6 +20,8 @@ import { isFirebaseConfigured } from "@/lib/firebase";
 import type { UserDoc, TestimonialDoc } from "@/lib/types";
 import { notifyUserApproval, notifyUserRejection, notifyAdminNewRegistration } from "@/lib/notifications";
 import dynamic from "next/dynamic";
+import InsightsPanel from "@/components/admin/insights";
+import { track } from "@/lib/analytics";
 
 const UserMapView = dynamic(() => import("@/components/admin/user-map"), { ssr: false });
 
@@ -44,7 +46,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"users" | "map" | "testimonials" | "whatsapp" | "announcements" | "plans">("users");
+  const [activeTab, setActiveTab] = useState<"insights" | "users" | "map" | "testimonials" | "whatsapp" | "announcements" | "plans">("insights");
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
@@ -101,6 +103,9 @@ export default function AdminPage() {
   }, [isAdmin]);
 
   const setStatus = async (userId: string, status: "approved" | "rejected" | "pending", reason?: string) => {
+    track(status === "approved" ? "admin_approved" : status === "rejected" ? "admin_rejected" : "admin_reset", {
+      userId,
+    });
     try {
       const updates: Record<string, string> = { status };
       const u = users.find((x) => x.id === userId);
@@ -306,28 +311,36 @@ export default function AdminPage() {
 
           {/* Tabs */}
           <div className="flex gap-1 mb-6 bg-white/[0.03] rounded-xl p-1 overflow-x-auto">
-            {(["users", "map", "testimonials", "whatsapp", "announcements", "plans", "payments"] as const).map((tab) => (
+            {(["insights", "users", "map", "testimonials", "whatsapp", "announcements", "plans"] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => {
-                  if (tab === "payments") {
-                    router.push("/admin/payments");
-                  } else {
-                    setActiveTab(tab as any);
-                  }
-                }}
+                onClick={() => setActiveTab(tab as any)}
                 className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                   activeTab === tab
                     ? "bg-primary text-navy-dark"
                     : "text-gray-400 hover:text-white hover:bg-white/5"
                 }`}
               >
-                {tab === "users" ? "Users" : tab === "map" ? "Map View" : tab === "testimonials" ? "Reviews" : tab === "whatsapp" ? "WhatsApp Links" : tab === "announcements" ? "Announcements" : tab === "payments" ? "Susu Payments" : "Custom Plans"}
+                {tab === "insights" ? "Insights" : tab === "users" ? "Users" : tab === "map" ? "Map View" : tab === "testimonials" ? "Reviews" : tab === "whatsapp" ? "WhatsApp Links" : tab === "announcements" ? "Announcements" : "Custom Plans"}
               </button>
             ))}
           </div>
 
           {/* === USERS TAB === */}
+          {activeTab === "insights" && (
+            <InsightsPanel
+              users={users}
+              announcements={announcements}
+              onOpenUser={(id) => {
+                const found = users.find((u) => u.id === id);
+                if (found) {
+                  setSelectedUser(found);
+                  setActiveTab("users");
+                }
+              }}
+            />
+          )}
+
           {activeTab === "users" && (
             <>
               {/* Filters */}

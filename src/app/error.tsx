@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { captureException } from "@/lib/monitoring";
 import Link from "next/link";
 
 export default function GlobalError({
@@ -11,6 +12,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    captureException(error, { boundary: "app/error" });
     console.error("Application error:", error);
   }, [error]);
 

@@ -3,68 +3,71 @@ import "@fontsource-variable/inter";
 import "@fontsource/dm-serif-display";
 import "@fontsource-variable/space-grotesk";
 import { AuthProvider } from "@/context/auth-context";
+import {
+  SITE,
+  KEYWORDS,
+  ORGANIZATION_JSON_LD,
+  WEBSITE_JSON_LD,
+  FINANCIAL_SERVICE_JSON_LD,
+} from "@/lib/site";
 import { I18nProvider } from "@/context/i18n-context";
 import { ToastProvider } from "@/components/layout/toast-provider";
 import FloatingWhatsApp from "@/components/layout/floating-whatsapp";
 import FloatingTabBar from "@/components/layout/floating-tab-bar";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
+import AnalyticsProvider from "@/components/providers/analytics-provider";
+import CookieConsent from "@/components/layout/cookie-consent";
 import AudioPlayer from "@/components/ui/audio-player";
 import LoadingScreen from "@/components/ui/loading-screen";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://rabissavinghub.com"),
-  title: "Rabi's Saving Hub | Save Smart, Grow Together",
-  description:
-    "Ghana's Premium Susu Savings Platform — Join a trusted community, save smart, and grow your wealth together with flexible daily, weekly, and monthly plans.",
-  keywords: ["susu", "savings", "ghana", "investment", "community savings", "rabi", "mobile money", "momo"],
-  authors: [{ name: "Rabi's Saving Hub" }],
-  creator: "Rabi's Saving Hub",
-  publisher: "Rabi's Saving Hub",
-  robots: { index: true, follow: true },
+  metadataBase: new URL(SITE.url),
+  title: {
+    default: `${SITE.name} | Susu Savings in Ghana`,
+    template: `%s | ${SITE.name}`,
+  },
+  description: SITE.description,
+  keywords: [...KEYWORDS],
+  applicationName: SITE.name,
+  authors: [{ name: SITE.name, url: SITE.url }],
+  creator: SITE.name,
+  publisher: SITE.name,
+  category: "finance",
+  alternates: { canonical: "/" },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
+    other: process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION
+      ? { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION }
+      : undefined,
+  },
   openGraph: {
-    title: "Rabi's Saving Hub | Save Smart, Grow Together",
-    description: "Ghana's Premium Susu Savings Platform — Join a trusted community of smart savers.",
     type: "website",
+    url: SITE.url,
+    siteName: SITE.name,
+    title: `${SITE.name} | Susu Savings in Ghana`,
+    description: SITE.description,
     locale: "en_GH",
-    siteName: "Rabi's Saving Hub",
-    images: [{ url: "/brand_logo.png", width: 512, height: 512, alt: "Rabi's Saving Hub Logo" }],
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: `${SITE.name} — ${SITE.tagline}` }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Rabi's Saving Hub | Save Smart, Grow Together",
-    description: "Ghana's Premium Susu Savings Platform",
-    images: ["/brand_logo.png"],
+    title: `${SITE.name} | Susu Savings in Ghana`,
+    description: SITE.description,
+    images: ["/opengraph-image"],
   },
   manifest: "/manifest.json",
   icons: {
-    icon: "/brand_logo.png",
-    apple: "/brand_logo.png",
+    icon: [{ url: "/brand_logo.png", sizes: "512x512", type: "image/png" }],
+    apple: [{ url: "/brand_logo.png", sizes: "512x512" }],
+    shortcut: "/brand_logo.png",
   },
-};
-
-const organizationJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FinancialService",
-  name: "Rabi's Saving Hub",
-  url: "https://rabissavinghub.com",
-  logo: "https://rabissavinghub.com/brand_logo.png",
-  image: "https://rabissavinghub.com/brand_logo.png",
-  description:
-    "Ghana's premium digital Susu savings platform with daily, weekly and monthly community savings plans.",
-  areaServed: "Ghana",
-  telephone: "+233504701032",
-  email: "rabisavinghub@gmail.com",
-  sameAs: [
-    "https://www.tiktok.com/@rabissavinghub",
-    "https://www.instagram.com/rabisavinghub",
-    "https://www.facebook.com/profile.php?id=61576456847439",
-  ],
-  address: {
-    "@type": "PostalAddress",
-    addressLocality: "Accra",
-    addressCountry: "GH",
-  },
+  formatDetection: { telephone: true, address: true, email: true },
 };
 
 export const viewport: Viewport = {
@@ -91,19 +94,24 @@ export default function RootLayout({
         >
           Skip to content
         </a>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
-        />
+        {[ORGANIZATION_JSON_LD, WEBSITE_JSON_LD, FINANCIAL_SERVICE_JSON_LD].map((schema) => (
+          <script
+            key={schema["@type"] as string}
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+          />
+        ))}
         <SmoothScroll>
           <I18nProvider>
             <AuthProvider>
               <ToastProvider>
+                <AnalyticsProvider />
                 <LoadingScreen />
                 <div id="main-content">{children}</div>
                 <FloatingWhatsApp />
                 <AudioPlayer />
                 <FloatingTabBar />
+                <CookieConsent />
               </ToastProvider>
             </AuthProvider>
           </I18nProvider>

@@ -74,32 +74,8 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // ---------------------------------------------------------------
-    // Susu rounds
-    // ---------------------------------------------------------------
-    match /susu-rounds/{roundId} {
-      allow read: if signedIn();
-
-      // Members may only flag their own slot as self-reported ("I have paid").
-      // Positions, confirmations and round numbers are admin-only.
-      allow update: if isAdmin() || (
-        signedIn()
-        && request.auth.uid in resource.data.memberIds
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['slots'])
-      );
-
-      allow create, delete: if isAdmin();
-    }
-
-    // ---------------------------------------------------------------
-    // Payment reports
-    // ---------------------------------------------------------------
-    match /payment-reports/{reportId} {
-      allow read: if isAdmin() || (signedIn() && resource.data.userId == request.auth.uid);
-      allow create: if signedIn()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.confirmed == false;
-      allow update, delete: if isAdmin();
-    }
+    // Payments, Susu rounds and payment reports were removed with the MVP
+    // scope change: Rabi collects and runs the rounds on WhatsApp. The
+    // collections are gone, so no rules remain for them.
   }
 }

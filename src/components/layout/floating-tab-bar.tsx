@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, LayoutDashboard, Wallet, BookOpen, ShieldCheck } from "lucide-react";
+import { Home, LayoutDashboard, BookOpen, ShieldCheck, MessageCircle } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { cn } from "@/lib/utils";
 
 const ROUTES_WITHOUT_DOCK = ["/auth", "/terms", "/privacy"];
+
+/** Rabi's WhatsApp line — the only "payments desk" this MVP needs. */
+const WHATSAPP_NUMBER = "233504701032";
 
 /**
  * Floating liquid-glass tab bar (iOS style).
@@ -26,13 +29,14 @@ export default function FloatingTabBar() {
       href: user ? "/dashboard" : "/auth?mode=signin",
       label: "Hub",
       icon: LayoutDashboard,
-      match: (p: string) => p.startsWith("/dashboard") && !p.startsWith("/dashboard/payments"),
+      match: (p: string) => p.startsWith("/dashboard"),
     },
     {
-      href: "/dashboard/payments",
-      label: "Pay",
-      icon: Wallet,
-      match: (p: string) => p.startsWith("/dashboard/payments"),
+      href: `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hello Rabi! I need help with my savings.")}`,
+      label: "Chat",
+      icon: MessageCircle,
+      external: true,
+      match: () => false,
     },
     { href: "/guide", label: "Guide", icon: BookOpen, match: (p: string) => p.startsWith("/guide") },
   ];
@@ -64,6 +68,7 @@ export default function FloatingTabBar() {
                 key={item.label}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
+                {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 className={cn(
                   "relative flex min-w-[58px] flex-col items-center gap-1 rounded-[20px] px-2 py-2 text-[10px] font-semibold transition-all duration-300",
                   active

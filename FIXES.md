@@ -61,6 +61,130 @@ plus a recorded clip for the human reviewer — and the UI now behaves like Face
 
 ---
 
+## 🚀 MVP launch pass — no payments, real SEO, real analytics
+
+### Payments, rounds and tracking removed
+Rabi collects in person and runs her rounds in WhatsApp, so the software stopped
+pretending otherwise:
+
+* deleted `/dashboard/payments`, `/admin/payments` and `lib/payment-tracker.ts`;
+* the mobile dock's **Pay** tab became **Chat** (one tap to Rabi's WhatsApp);
+* each plan card now links to **"Join the WhatsApp group"** instead of a payment tracker;
+* admin lost the round tools and gained **Insights** instead.
+
+**Kept on purpose:** the announcement banner ("Next CASHOUT is on Tuesday"). It
+was never payment data — it is Rabi's own notice board, now upgraded to a glass
+card with a gold accent, an "Announcement" label and the post date.
+
+### SEO built for `rabis-hub.vercel.app`
+Every `rabissavinghub.com` reference is gone — the domain is driven by one
+variable (`NEXT_PUBLIC_SITE_URL`).
+
+* real titles, descriptions, canonicals and per-page metadata;
+* generated `sitemap.xml` + `robots.txt` (dashboard/admin/api excluded);
+* structured data: **Organization**, **WebSite**, **FinancialService**, **FAQPage**, breadcrumbs;
+* a visible FAQ section answering what members actually ask;
+* a generated 1200×630 share card so WhatsApp/Facebook links look premium;
+* a plain-English launch checklist in `docs/SEO_LAUNCH.md`.
+
+### Behaviour analytics in the admin panel
+New **Insights** tab: applications, approvals, waiting, declines, approval rate,
+new members today/7 days/30 days, a seven-day bar chart, a funnel, most
+requested plans and the latest five sign-ups. Built from the same Firestore data
+the admin already reviews, so it works on day one with no third-party account.
+
+### The stack, all $0 to start
+| Service | What it does | Without a key |
+| :--- | :--- | :--- |
+| **Resend** | approval / decline / new-registration emails | falls back to Gmail → Brevo SMTP |
+| **PostHog** | funnels + session replay (consent-gated) | silently disabled |
+| **Sentry** | client errors relayed via `/api/errors` | server logs only |
+| **Upstash Redis** | distributed rate limiting | in-memory limiter |
+| **Cookies** | consent banner, analytics only after "Accept all" | nothing loads |
+
+### The dog bug
+The selfie check used a face *detector* that also fires on animals. It now uses
+MediaPipe's **FaceLandmarker** (468-point human mesh + iris), so a Labrador, a
+cat or a cartoon cannot pass. If the model cannot load, the photo is flagged for
+manual review rather than blocked or falsely verified.
+
+### Profile recovery
+"We could not load your profile" no longer dead-ends: **Try again** re-reads the
+document, and **Message support** opens WhatsApp with the account email prefilled.
+
+---
+
+## 🚀 MVP scope: a website that sells the business, nothing else
+
+Rabi collects the money and runs every round in her WhatsApp group. So the
+software no longer pretends to be a bank.
+
+### Removed (cleanly, nothing left behind)
+| Gone | Why |
+| :--- | :--- |
+| `/dashboard/payments` — "My Payment Tracking" | she confirms payments in WhatsApp |
+| `/admin/payments` — rounds, "Advance Round", payouts, CSV reports | no rounds to run in software |
+| `src/lib/payment-tracker.ts` | the whole Susu-round model |
+| "Pay" tab in the floating bar, payment links in nav | dead ends for members |
+| `susu-rounds` and `payment-reports` Firestore rules | collections no longer exist |
+
+### Kept and improved — the announcement banner
+The **"Next CASHOUT is on Tuesday !!"** banner stays, but it is no longer welded
+to payment data. It now comes from an **Announcements** board Rabi controls
+herself (Admin → Announcements → title, message, optional plan). Until she posts
+one, a calm default reminds members that **cashouts run every Tuesday** — the
+banner never disappears.
+
+### The product, in one line
+> Land on the site → register with Ghana Card + selfie + location → Rabi reviews
+> it in Admin → **Accept** sends the WhatsApp group invite, **Decline** opens a
+> support path.
+
+### SEO — built for the domain we actually own
+`https://rabis-hub.vercel.app` (not `rabissavinghub.com`)
+
+* `src/lib/site.ts` is the single source of truth — one env var changes every
+  canonical, sitemap URL and social card when she buys a real domain
+* generated `sitemap.xml` + `robots.txt` (private routes disallowed)
+* rich results: `Organization`, `WebSite` + `SearchAction`, `FinancialService`,
+  `FAQPage`, `BreadcrumbList`, `Service` per plan
+* 1200×630 generated Open Graph image, per-page titles/descriptions, GH₵ prices
+  in the copy so the price shows in search snippets
+* Google + Bing verification via `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` /
+  `NEXT_PUBLIC_BING_SITE_VERIFICATION`
+* keyword targeting for what Ghanaians type: *susu savings Ghana*, *susu
+  collector Accra*, *daily susu*, *osusu*, *savings group near me*
+* `docs/SEO_LAUNCH.md` — the 15-minute Search Console + Business Profile checklist
+
+### The $0 stack, wired so a missing key can never break the site
+| Service | Role | Without the key |
+| :--- | :--- | :--- |
+| **Resend** | approval / decline / welcome email | falls back to Gmail SMTP, then logs |
+| **PostHog** | funnel + session replay (sees how people behave) | silently disabled until consent + key |
+| **Sentry** | error tracking via `/api/errors` relay | errors still logged to the console |
+| **Upstash Redis** | distributed rate limiting on the email API | in-memory limiter takes over |
+| **Cookies** | consent banner gating analytics, privacy page updated | analytics simply never loads |
+
+### Admin → Insights
+Live funnel from Firestore, no paid service needed: how many started, finished,
+are pending, approved, declined — today / 7 days / 30 days, plus recent
+activity, so Rabi can see exactly where people drop off.
+
+### Bugs fixed from the screenshots
+1. **The dog passed KYC.** The selfie check used BlazeFace, which fires on
+   animal faces. Now a 478-landmark FaceLandmarker (human geometry + iris) —
+   animals, cartoons and screenshots are rejected.
+2. **"We could not load your profile"** became a recoverable state: retry the
+   read, or message Rabi with the account prefilled.
+3. **Dashboard crash risk** — the announcement filter referenced the member's
+   plans before they were initialised (a real `ReferenceError` on render). Fixed.
+4. **The WhatsApp bubble sat on top of "Continue"** on phones. It is now hidden
+   inside signup, dashboard and admin, where those buttons live.
+
+**Gates:** lint ✅ · `tsc` ✅ · 66 tests ✅ · production build ✅
+
+---
+
 ## ⚠️ The 3 things that must be configured for the live site
 
 1. `NEXT_PUBLIC_FIREBASE_*` environment variables (Vercel + local `.env.local`).

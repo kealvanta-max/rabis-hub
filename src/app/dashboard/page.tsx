@@ -18,25 +18,19 @@ import { DashboardSkeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
 import { PlanItem } from "@/lib/types";
-import { MoveRight, Plus, CheckCircle2 } from "lucide-react";
+import { MoveRight, Plus, CheckCircle2, Megaphone, Clock, RefreshCw, MessageCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-      </div>
-    }>
+    <Suspense fallback={<DashboardSkeleton />}>
       <DashboardContent />
     </Suspense>
   );
 }
 
 function DashboardContent() {
-  const { user, userData, loading, profileLoading, logout } = useAuth();
+  const { user, userData, loading, profileLoading, logout, refreshProfile } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addToast } = useToastContext();
@@ -50,6 +44,10 @@ function DashboardContent() {
     : userData?.plan
     ? [userData.plan]
     : [];
+  // Announcements may be global (no planId) or targeted at one plan.
+  const visibleAnnouncements = announcements
+    .filter((a) => !a.planId || userPlans.includes(a.planId))
+    .slice(0, 3);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -115,25 +113,67 @@ function DashboardContent() {
             <p className="text-gray-400 text-sm">Manage your savings and track your progress.</p>
           </div>
 
-          {/* Announcements (global + announcements targeted at the member's plans) */}
-          {announcements.filter((a) => !a.planId || userPlans.includes(a.planId)).length > 0 && (
+          {/* Announcements — Rabi's own notice board (cashout days, reminders).
+              A calm default keeps the cashout reminder visible until she posts
+              her own, so members always know when money moves. */}
+          {visibleAnnouncements.length === 0 && (
+            <div className="glass glass-sheen relative mb-8 overflow-hidden rounded-2xl border-amber-300/20 p-5">
+              <span
+                aria-hidden="true"
+                className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-amber-300 via-amber-400/70 to-transparent"
+              />
+              <div className="flex items-start gap-4">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-400/15 text-amber-300">
+                  <Megaphone className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300/80">
+                    Cashout reminder
+                  </p>
+                  <h4 className="font-display mt-1 text-lg leading-snug text-white">
+                    Cashouts run every Tuesday
+                  </h4>
+                  <p className="mt-1.5 text-sm leading-relaxed text-gray-300">
+                    Rabi confirms your payout in the WhatsApp group. Keep your contributions
+                    coming and she will post the exact date here each week.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Announcements — Rabi's own notice board (cashout days, reminders) */}
+          {visibleAnnouncements.length > 0 && (
             <div className="mb-8 space-y-3">
-              {announcements
-                .filter((a) => !a.planId || userPlans.includes(a.planId))
-                .slice(0, 3)
-                .map((a) => (
-                <div key={a.id} className="p-4 rounded-xl bg-orange-900/20 border border-orange-500/30 flex items-start gap-4">
-                  <div className="bg-orange-500/20 p-2 rounded-full shrink-0 mt-1">
-                    <svg className="w-5 h-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="text-white font-bold m-0">{a.title}</h4>
-                    <p className="text-sm text-gray-300 mt-1 leading-relaxed">{a.message}</p>
-                    {a.createdAt && (
-                      <p className="text-[11px] text-gray-500 mt-2">{formatDateTime(a.createdAt, "")}</p>
-                    )}
+              {visibleAnnouncements.map((a, index) => (
+                <div
+                  key={a.id}
+                  className={cn(
+                    "glass glass-sheen relative overflow-hidden rounded-2xl p-5",
+                    index === 0 && "border-amber-300/25"
+                  )}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-amber-300 via-amber-400/70 to-transparent"
+                  />
+                  <div className="flex items-start gap-4">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-400/15 text-amber-300">
+                      <Megaphone className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300/80">
+                        Announcement
+                      </p>
+                      <h4 className="font-display mt-1 text-lg leading-snug text-white">{a.title}</h4>
+                      <p className="mt-1.5 text-sm leading-relaxed text-gray-300">{a.message}</p>
+                      {a.createdAt && (
+                        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          {formatDateTime(a.createdAt, "")}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -162,14 +202,43 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Profile missing – usually a Firestore rules / partial signup issue */}
+          {/* Profile missing — recoverable: retry the read, or reach Rabi directly */}
           {!userData && (
-            <div className="mb-8 p-5 rounded-2xl border border-amber-500/30 bg-amber-900/10">
-              <h3 className="text-white font-bold mb-1">We could not load your profile</h3>
-              <p className="text-sm text-gray-300">
-                Your login works, but your registration details are missing. This usually means Firestore rules blocked
-                the save or signup was interrupted. Please contact support on WhatsApp so we can restore your account.
-              </p>
+            <div className="glass-soft mb-8 rounded-2xl border-amber-400/25 p-5">
+              <div className="flex items-start gap-4">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-400/15 text-amber-300">
+                  <RefreshCw className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-bold text-white">Almost there — we can&apos;t see your details yet</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-400">
+                    Your login works but your registration has not reached us. This is usually a brief connection
+                    problem. Tap <strong className="text-gray-200">Try again</strong> — if it still shows nothing, message
+                    Rabi and she will restore your account in minutes.
+                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => void refreshProfile()}
+                      loading={profileLoading}
+                      className="gap-2"
+                    >
+                      <RefreshCw className="h-4 w-4" /> Try again
+                    </Button>
+                    <a
+                      href={`https://wa.me/233504701032?text=${encodeURIComponent(
+                        `Hello Rabi, my account (${user?.email || ""}) is signed in but my registration is missing. Please help me restore it.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="secondary" size="sm" className="gap-2">
+                        <MessageCircle className="h-4 w-4" /> Message support
+                      </Button>
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -222,13 +291,17 @@ function DashboardContent() {
                     {getPlanLabel(pId, customPlans)}
                   </h3>
                   <p className="text-sm text-gray-500 mb-6 uppercase tracking-widest font-medium">Active Subscription</p>
-                  <div 
-                    className="pt-4 border-t border-white/5 flex items-center justify-between text-xs cursor-pointer group/link"
-                    onClick={() => router.push(`/dashboard/payments`)}
+                  <a
+                    href={`https://wa.me/233504701032?text=${encodeURIComponent(
+                      `Hello Rabi! I am ${userData?.name || "a member"} and I am on the ${getPlanLabel(pId, customPlans)} plan.`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="pt-4 border-t border-white/5 flex items-center justify-between text-xs group/link"
                   >
-                    <span className="text-primary font-bold group-hover/link:underline">Track & Report Payments</span>
+                    <span className="text-primary font-bold group-hover/link:underline">Join the WhatsApp group</span>
                     <MoveRight className="w-4 h-4 text-primary transition-all group-hover/link:translate-x-1" />
-                  </div>
+                  </a>
                 </Card>
               )) : (
                 <div className="col-span-full py-12 text-center bg-white/[0.02] rounded-3xl border border-dashed border-white/10">
