@@ -554,3 +554,12 @@ select optgroup {
     transition: none !important;
   }
 }
+
+/* Horizontal rails (admin tabs, filter chips) scroll without a visible bar. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

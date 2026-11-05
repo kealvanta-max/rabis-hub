@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { useAuth } from "@/context/auth-context";
 import { SkeletonPage } from "@/components/ui/skeleton";
 import { collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc, addDoc, Timestamp } from "firebase/firestore";
@@ -21,17 +21,17 @@ import type { UserDoc, TestimonialDoc } from "@/lib/types";
 import { notifyUserApproval, notifyUserRejection, notifyAdminNewRegistration } from "@/lib/notifications";
 import dynamic from "next/dynamic";
 import InsightsPanel from "@/components/admin/insights";
+import AdminTabs, { type AdminTab } from "@/components/admin/admin-tabs";
+import ActionButton from "@/components/admin/action-button";
+import UserRow from "@/components/admin/user-row";
+import UserDetailModal from "@/components/admin/user-detail-modal";
+import ReviewsPanel from "@/components/admin/reviews-panel";
+import WhatsAppLinksPanel from "@/components/admin/whatsapp-links-panel";
+import type { UserItem, TestimonialItem } from "@/components/admin/types";
+import { filterMembers } from "@/lib/admin-query";
 import { track } from "@/lib/analytics";
 
 const UserMapView = dynamic(() => import("@/components/admin/user-map"), { ssr: false });
-
-interface UserItem extends UserDoc {
-  id: string;
-}
-
-interface TestimonialItem extends TestimonialDoc {
-  id: string;
-}
 
 export default function AdminPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
@@ -41,6 +41,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [testimonials, setTestimonials] = useState<TestimonialItem[]>([]);
   const [waLinks, setWaLinks] = useState<Record<string, string>>({});
+  const [savedWaLinks, setSavedWaLinks] = useState<Record<string, string>>({});
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [customPlans, setCustomPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +67,11 @@ export default function AdminPage() {
 
       // WA Links
       const wSnap = await getDoc(doc(db, "settings", "waLinks"));
-      if (wSnap.exists()) setWaLinks(wSnap.data() as Record<string, string>);
+      if (wSnap.exists()) {
+        const stored = wSnap.data() as Record<string, string>;
+        setWaLinks(stored);
+        setSavedWaLinks(stored);
+      }
 
       // Announcements
       const aSnap = await getDocs(collection(db, "announcements"));
@@ -148,6 +153,7 @@ export default function AdminPage() {
   const saveWaLinks = async () => {
     try {
       await setDoc(doc(db, "settings", "waLinks"), waLinks);
+      setSavedWaLinks(waLinks);
       addToast("WhatsApp links saved!", "success");
     } catch {
       addToast("Failed to save links", "error");
@@ -222,11 +228,7 @@ export default function AdminPage() {
     setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
-  const filteredUsers = users.filter((u) => {
-    if (filter !== "all" && u.status !== filter) return false;
-    if (search && !u.name.toLowerCase().includes(search.toLowerCase()) && !u.email.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  const filteredUsers = filterMembers(users, { status: filter, search });
 
   const stats = {
     total: users.length,
@@ -244,7 +246,7 @@ export default function AdminPage() {
       <>
         <Navigation />
         <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
-          <h1 className="font-display text-3xl text-white mb-3">Admin access required</h1>
+          <h1 className="font-grotesk text-3xl font-semibold text-white mb-3">Admin access required</h1>
           <p className="text-sm text-gray-400 mb-6 max-w-md">
             This area is restricted to administrators. Sign in with an admin account, or ask an owner to grant your
             account the <code className="text-primary">admin</code> custom claim.
@@ -258,30 +260,38 @@ export default function AdminPage() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen pt-24 pb-16 px-4">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-            <div>
-              <h1 className="font-display text-3xl text-white">Admin Dashboard</h1>
-              <p className="text-sm text-gray-400 mt-1">Manage users, reviews, and community links.</p>
+      <main className="min-h-screen px-4 pb-28 pt-24 md:pb-16">
+        <div className="mx-auto max-w-6xl">
+          {/* Header — sans display face on purpose: this is an operations screen,
+              not a marketing page, so the serif voice stays on the public site. */}
+          <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-400/80">
+                Operations
+              </p>
+              <h1 className="mt-1 font-grotesk text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+                Admin dashboard
+              </h1>
+              <p className="mt-1 max-w-prose text-sm text-gray-400">
+                Members, reviews and community links — everything Rabi needs, nothing else.
+              </p>
             </div>
-            <div className="flex gap-2 flex-wrap">
-              <Button variant="secondary" size="sm" onClick={downloadCSV}>
+            <div className="flex w-full gap-2 sm:w-auto">
+              <ActionButton variant="neutral" size="md" onClick={downloadCSV} className="flex-1 sm:flex-none">
                 Export CSV
-              </Button>
-              <Button variant="secondary" size="sm" onClick={downloadAllJSON}>
-                Export JSON (All Data)
-              </Button>
+              </ActionButton>
+              <ActionButton variant="ghost" size="md" onClick={downloadAllJSON} className="flex-1 sm:flex-none">
+                Export JSON
+              </ActionButton>
             </div>
-          </div>
+          </header>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-            <StatCard label="Total Users" value={stats.total} color="text-white" />
-            <StatCard label="Pending" value={stats.pending} color="text-yellow-400" />
-            <StatCard label="Approved" value={stats.approved} color="text-emerald-400" />
-            <StatCard label="Rejected" value={stats.rejected} color="text-red-400" />
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <StatCard label="Total members" value={stats.total} color="text-white" />
+            <StatCard label="Pending" value={stats.pending} color="text-amber-300" />
+            <StatCard label="Approved" value={stats.approved} color="text-emerald-300" />
+            <StatCard label="Rejected" value={stats.rejected} color="text-red-300" />
           </div>
 
           {/* System status */}
@@ -310,219 +320,165 @@ export default function AdminPage() {
           )}
 
           {/* Tabs */}
-          <div className="flex gap-1 mb-6 bg-white/[0.03] rounded-xl p-1 overflow-x-auto">
-            {(["insights", "users", "map", "testimonials", "whatsapp", "announcements", "plans"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`flex-1 px-4 py-2.5 text-sm font-medium rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                  activeTab === tab
-                    ? "bg-primary text-navy-dark"
-                    : "text-gray-400 hover:text-white hover:bg-white/5"
-                }`}
-              >
-                {tab === "insights" ? "Insights" : tab === "users" ? "Users" : tab === "map" ? "Map View" : tab === "testimonials" ? "Reviews" : tab === "whatsapp" ? "WhatsApp Links" : tab === "announcements" ? "Announcements" : "Custom Plans"}
-              </button>
-            ))}
-          </div>
+          <AdminTabs
+            value={activeTab}
+            onChange={(id) => setActiveTab(id as typeof activeTab)}
+            tabs={[
+              { id: "insights", label: "Insights" },
+              { id: "users", label: "Users", count: stats.pending },
+              {
+                id: "testimonials",
+                label: "Reviews",
+                count: testimonials.filter((t) => t.status === "pending").length,
+              },
+              { id: "whatsapp", label: "WhatsApp links" },
+              { id: "announcements", label: "Announcements" },
+              { id: "plans", label: "Custom plans" },
+              { id: "map", label: "Map" },
+            ] satisfies AdminTab[]}
+          />
 
           {/* === USERS TAB === */}
           {activeTab === "insights" && (
-            <InsightsPanel
+            <div id="admin-panel-insights" role="tabpanel" aria-labelledby="admin-tab-insights">
+              <InsightsPanel
               users={users}
               announcements={announcements}
-              onOpenUser={(id) => {
-                const found = users.find((u) => u.id === id);
-                if (found) {
-                  setSelectedUser(found);
-                  setActiveTab("users");
-                }
-              }}
-            />
+                onOpenUser={(id) => {
+                  const found = users.find((u) => u.id === id);
+                  if (found) {
+                    setSelectedUser(found);
+                    setActiveTab("users");
+                  }
+                }}
+              />
+            </div>
           )}
 
           {activeTab === "users" && (
-            <>
-              {/* Filters */}
-              <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                <Input
-                  placeholder="Search by name or email..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="sm:max-w-xs"
-                />
-                <div className="flex gap-2">
-                  {["all", "pending", "approved", "rejected"].map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => setFilter(f)}
-                      className={`px-3 py-2 text-xs font-medium rounded-lg transition-all cursor-pointer capitalize ${
-                        filter === f
-                          ? "bg-primary/10 text-primary border border-primary/30"
-                          : "text-gray-500 hover:text-white border border-white/10"
-                      }`}
-                    >
-                      {f}
-                    </button>
-                  ))}
+            <section
+              id="admin-panel-users"
+              role="tabpanel"
+              aria-labelledby="admin-tab-users"
+              className="space-y-4"
+            >
+              {/* Toolbar: search gets its own row on phones, filters scroll. */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <label className="relative block w-full sm:max-w-xs">
+                  <span className="sr-only">Search members</span>
+                  <Search
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+                    aria-hidden="true"
+                  />
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search name or email…"
+                    className="h-11 w-full rounded-xl bg-black/30 pl-9 pr-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-600 focus:ring-emerald-400/60"
+                  />
+                </label>
+
+                <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                  {(["all", "pending", "approved", "rejected"] as const).map((option) => {
+                    const active = filter === option;
+                    const count =
+                      option === "all" ? users.length : users.filter((u) => u.status === option).length;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setFilter(option)}
+                        className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60 ${
+                          active
+                            ? "bg-emerald-500/15 text-emerald-200 ring-1 ring-inset ring-emerald-400/30"
+                            : "text-gray-400 ring-1 ring-inset ring-white/10 hover:text-white"
+                        }`}
+                      >
+                        {option}
+                        <span className={active ? "text-[10px] text-emerald-300/80" : "text-[10px] text-gray-500"}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* User Cards */}
-              <div className="space-y-4">
-                {filteredUsers.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">No users found.</p>
-                ) : (
-                  filteredUsers.map((u) => (
-                    <Card key={u.id} className="!p-5">
-                      <div className="flex items-start gap-4 flex-wrap">
-                        {/* Avatar */}
-                        {u.passportPhoto ? (
-                          <Image src={u.passportPhoto} alt={u.name} width={56} height={56} className="w-14 h-14 rounded-xl object-cover border border-white/10 shrink-0" />
-                        ) : (
-                          <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                            <span className="text-primary font-bold text-lg">{u.name.charAt(0)}</span>
-                          </div>
-                        )}
+              <p className="text-xs text-gray-500" role="status">
+                Showing {filteredUsers.length} of {users.length} members
+              </p>
 
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-bold text-white truncate">{u.name}</h3>
-                            <Badge status={u.status} />
-                          </div>
-                          <p className="text-xs text-gray-500">{u.email} • {u.phone}</p>
-                          <p className="text-xs text-gray-500">{getPlanLabel(u.plan, customPlans)} • {u.gpsAddress || u.location || "No location"}</p>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex gap-2 shrink-0">
-                          <button
-                            onClick={() => setSelectedUser(u)}
-                            className="px-3 py-1.5 text-xs bg-white/5 text-gray-300 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                          >
-                            View
-                          </button>
-                          {u.status !== "approved" && (
-                            <button
-                              onClick={() => setStatus(u.id, "approved")}
-                              className="px-3 py-1.5 text-xs bg-emerald-600/20 text-emerald-400 rounded-lg hover:bg-emerald-600/30 transition-colors cursor-pointer"
-                            >
-                              Approve
-                            </button>
-                          )}
-                          {u.status !== "rejected" && (
-                            <button
-                              onClick={() => setShowRejectModal(u.id)}
-                              className="px-3 py-1.5 text-xs bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors cursor-pointer"
-                            >
-                              Reject
-                            </button>
-                          )}
-                          {u.status !== "pending" && (
-                            <button
-                              onClick={() => setStatus(u.id, "pending")}
-                              className="px-3 py-1.5 text-xs bg-yellow-600/20 text-yellow-400 rounded-lg hover:bg-yellow-600/30 transition-colors cursor-pointer"
-                            >
-                              Reset
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  ))
-                )}
-              </div>
-            </>
+              {filteredUsers.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/10 px-4 py-12 text-center">
+                  <p className="font-grotesk text-sm font-semibold text-white">No members here</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {search ? `Nothing matches “${search}”.` : "Try a different filter."}
+                  </p>
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {filteredUsers.map((u) => (
+                    <li key={u.id}>
+                      <UserRow
+                        user={u}
+                        planLabel={getPlanLabel(u.plan, customPlans)}
+                        onOpen={() => setSelectedUser(u)}
+                        onApprove={() => setStatus(u.id, "approved")}
+                        onReject={() => setShowRejectModal(u.id)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           )}
 
           {/* === MAP TAB === */}
           {activeTab === "map" && (
-            <div className="bg-white/[0.04] border border-white/10 rounded-2xl overflow-hidden" style={{ height: "600px" }}>
-              <UserMapView users={users} />
+            <div
+              id="admin-panel-map"
+              role="tabpanel"
+              aria-labelledby="admin-tab-map"
+              className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
+            >
+              <div className="h-[60vh] max-h-[600px] min-h-[360px]">
+                <UserMapView users={users} />
+              </div>
             </div>
           )}
 
-          {/* === TESTIMONIALS TAB === */}
           {activeTab === "testimonials" && (
-            <div className="space-y-4">
-              <AddStaticTestimonial onAdd={(t) => setTestimonials((prev) => [t, ...prev])} />
-              {testimonials.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No testimonials yet.</p>
-              ) : (
-                testimonials.map((t) => (
-                  <Card key={t.id} className="!p-5">
-                    <div className="flex items-start gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="font-bold text-white">{t.userName}</span>
-                          <Badge status={t.status} />
-                          {t.isStatic && (
-                            <span className="px-2 py-0.5 text-xs bg-blue-500/10 text-blue-400 rounded-full">Static</span>
-                          )}
-                        </div>
-                        <div className="flex gap-0.5 mb-2">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <svg key={i} className={`w-3.5 h-3.5 ${i < t.rating ? "text-primary" : "text-gray-700"}`} fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                            </svg>
-                          ))}
-                        </div>
-                        <p className="text-sm text-gray-300">&ldquo;{t.review}&rdquo;</p>
-                        <p className="text-xs text-gray-500 mt-1">{t.planName}</p>
-                      </div>
-                      <div className="flex gap-2 shrink-0">
-                        {t.status !== "approved" && (
-                          <button onClick={() => setTestimonialStatus(t.id, "approved")} className="px-3 py-1.5 text-xs bg-emerald-600/20 text-emerald-400 rounded-lg hover:bg-emerald-600/30 transition-colors cursor-pointer">
-                            Approve
-                          </button>
-                        )}
-                        {t.status !== "rejected" && (
-                          <button onClick={() => setTestimonialStatus(t.id, "rejected")} className="px-3 py-1.5 text-xs bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors cursor-pointer">
-                            Reject
-                          </button>
-                        )}
-                        <button onClick={() => deleteTestimonial(t.id)} className="px-3 py-1.5 text-xs bg-gray-600/20 text-gray-400 rounded-lg hover:bg-gray-600/30 transition-colors cursor-pointer">
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </Card>
-                ))
-              )}
+            <div id="admin-panel-testimonials" role="tabpanel" aria-labelledby="admin-tab-testimonials">
+              <ReviewsPanel
+                testimonials={testimonials}
+                onStatus={(id, status) => setTestimonialStatus(id, status)}
+                onDelete={(id) => deleteTestimonial(id)}
+                toolbar={<AddStaticTestimonial onAdd={(t) => setTestimonials((prev) => [t, ...prev])} />}
+              />
             </div>
           )}
 
-          {/* === WHATSAPP TAB === */}
           {activeTab === "whatsapp" && (
-            <Card>
-              <h3 className="text-lg font-bold text-white mb-4">WhatsApp Group Links</h3>
-              <p className="text-sm text-gray-400 mb-6">
-                Set the WhatsApp group link for each plan. When you approve a user, they&apos;ll automatically get the link matching their plan.
-              </p>
-              <div className="space-y-4">
-                {Object.entries(planLabels).map(([key, label]) => (
-                  <div key={key} className="flex items-center gap-3">
-                    <span className="text-sm text-gray-300 w-40 shrink-0">{label}</span>
-                    <input
-                      type="url"
-                      value={waLinks[key] || ""}
-                      onChange={(e) => setWaLinks((prev) => ({ ...prev, [key]: e.target.value }))}
-                      placeholder="https://chat.whatsapp.com/..."
-                      className="flex-1 px-3 py-2 bg-navy-dark/60 border border-gray-700 rounded-lg text-gray-100 text-sm placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-6">
-                <Button onClick={saveWaLinks}>Save All Links</Button>
-              </div>
-            </Card>
+            <div id="admin-panel-whatsapp" role="tabpanel" aria-labelledby="admin-tab-whatsapp">
+              <WhatsAppLinksPanel
+                links={waLinks}
+                baseline={savedWaLinks}
+                onChange={(key, value) => setWaLinks((prev) => ({ ...prev, [key]: value }))}
+                onSave={saveWaLinks}
+              />
+            </div>
           )}
 
           {/* === ANNOUNCEMENTS TAB === */}
           {activeTab === "announcements" && (
-            <div className="space-y-4">
+            <div
+              id="admin-panel-announcements"
+              role="tabpanel"
+              aria-labelledby="admin-tab-announcements"
+              className="space-y-4"
+            >
               <AddAnnouncement
                 customPlans={customPlans}
                 onAdd={(a) => setAnnouncements((prev) => [a, ...prev])}
@@ -532,8 +488,8 @@ export default function AdminPage() {
               ) : (
                 announcements.map((a) => (
                   <Card key={a.id} className="!p-5 border-l-4 border-l-primary selection:bg-primary/20">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <h3 className="font-bold text-white mb-1">{a.title}</h3>
                         <p className="text-sm text-gray-300">{a.message}</p>
                         <p className="text-[11px] text-primary/70 mt-1">
@@ -561,7 +517,12 @@ export default function AdminPage() {
 
           {/* === DYNAMIC PLANS TAB === */}
           {activeTab === "plans" && (
-            <div className="space-y-4">
+            <div
+              id="admin-panel-plans"
+              role="tabpanel"
+              aria-labelledby="admin-tab-plans"
+              className="space-y-4"
+            >
               <AddCustomPlan onAdd={async (newPlan) => {
                 const newPlans = [newPlan, ...customPlans];
                 try {
@@ -576,8 +537,8 @@ export default function AdminPage() {
               ) : (
                 customPlans.map((plan) => (
                   <Card key={plan.id} className="!p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <h3 className="font-bold text-white mb-1">{plan.name}</h3>
                         <p className="text-sm text-gray-300">Rate: GH₵{plan.amt} | Frequency: {plan.freq}</p>
                         <p className="text-sm text-emerald-400 font-semibold mt-1">Target Return: GH₵{plan.ret}</p>
@@ -615,157 +576,65 @@ export default function AdminPage() {
         </div>
       </main>
 
-      {/* User Detail Modal */}
-      <Modal isOpen={!!selectedUser} onClose={() => setSelectedUser(null)} title={selectedUser?.name || ""} maxWidth="max-w-2xl">
-        {selectedUser && (
-          <div className="space-y-4">
-            <div className="flex justify-end">
-               <Button variant="secondary" size="sm" onClick={() => downloadSingleUserJSON(selectedUser)}>
-                 Download User Data (JSON)
-               </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><span className="text-gray-500">Email:</span> <span className="text-white ml-1">{selectedUser.email}</span></div>
-              <div><span className="text-gray-500">Phone:</span> <span className="text-white ml-1">{selectedUser.phone}</span></div>
-              <div><span className="text-gray-500">Plan:</span> <span className="text-white ml-1">{getPlanLabel(selectedUser.plan, customPlans)}</span></div>
-              <div><span className="text-gray-500">Status:</span> <Badge status={selectedUser.status} /></div>
-              
-              <div className="col-span-2 flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/10">
-                <div>
-                  <span className="text-gray-500 block text-xs">Ghana Card PIN</span>
-                  <span className="text-white font-mono">{selectedUser.ghanaCardNumber || "N/A"}</span>
-                </div>
-                {selectedUser.ghanaCardValid ? (
-                  <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs font-bold">FORMAT VALID</span>
-                ) : (
-                  <span className="bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs font-bold">INVALID FORMAT</span>
-                )}
-              </div>
+      {/* Member review sheet */}
+      <UserDetailModal
+        user={selectedUser}
+        planLabel={selectedUser ? getPlanLabel(selectedUser.plan, customPlans) : ""}
+        ocrVerified={
+          selectedUser?.ghanaCardOcrResult ? isOcrValid(selectedUser.ghanaCardOcrResult) : false
+        }
+        onClose={() => setSelectedUser(null)}
+        onApprove={() => {
+          if (!selectedUser) return;
+          setStatus(selectedUser.id, "approved");
+          setSelectedUser(null);
+        }}
+        onReject={() => {
+          if (!selectedUser) return;
+          setShowRejectModal(selectedUser.id);
+          setSelectedUser(null);
+        }}
+        onReset={() => {
+          if (!selectedUser) return;
+          setStatus(selectedUser.id, "pending");
+          setSelectedUser(null);
+        }}
+        onDownload={() => selectedUser && downloadSingleUserJSON(selectedUser)}
+        onCopyGps={(value) => {
+          navigator.clipboard
+            ?.writeText(value)
+            .then(() => addToast("GPS copied", "success"))
+            .catch(() => addToast("Could not copy GPS", "error"));
+        }}
+      />
 
-              <div className="col-span-2"><span className="text-gray-500">Location:</span> <span className="text-white ml-1">{selectedUser.gpsAddress || selectedUser.location}</span></div>
-              <div className="col-span-2">
-                <span className="text-gray-500">GPS:</span> 
-                <a 
-                  href={`https://www.google.com/maps/search/?api=1&query=${selectedUser.gpsLat},${selectedUser.gpsLng}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:text-emerald-400 ml-1 underline underline-offset-2 flex inline-flex items-center gap-1"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  {selectedUser.gpsLat?.toFixed(6)}, {selectedUser.gpsLng?.toFixed(6)}
-                </a>
-              </div>
-            </div>
-            
-            <div className="pt-4 border-t border-white/10 space-y-4">
-              {/* OCR Result Badge */}
-              {selectedUser.ghanaCardOcrResult && (
-                <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-3 flex items-center gap-2">
-                  {isOcrValid(selectedUser.ghanaCardOcrResult) ? (
-                    <>
-                      <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-xs text-blue-300">OCR Verified</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-xs text-amber-300">OCR Unverified - Manual Check Required</span>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Liveness Video */}
-              <div>
-                <p className="text-xs text-gray-500 mb-1 flex items-center gap-2">
-                  KYC Liveness Scan
-                  {selectedUser.faceScanVideo && (
-                    <span className="text-emerald-400 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/30">VERIFIED</span>
-                  )}
-                </p>
-                {selectedUser.faceScanVideo ? (
-                  <div className="relative rounded-lg overflow-hidden border border-white/10 bg-black aspect-video max-h-48">
-                    <video src={selectedUser.faceScanVideo} controls className="w-full h-full object-contain" />
-                    <a href={selectedUser.faceScanVideo} download className="absolute top-2 right-2 bg-black/60 hover:bg-primary text-white p-2 rounded-lg transition-colors backdrop-blur-sm" title="Download Video">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                    </a>
-                  </div>
-                ) : (
-                  <div className="w-full h-16 bg-white/5 rounded-lg flex items-center justify-center text-xs text-gray-600">No liveness video available</div>
-                )}
-              </div>
-
-              {/* Documents Grid */}
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "Ghana Card Front", url: selectedUser.ghanaCardFront, badge: "OCR" },
-                  { label: "Ghana Card Back", url: selectedUser.ghanaCardBack },
-                  { label: "Passport Photo", url: selectedUser.passportPhoto, badge: "Face" },
-                ].map((d) => (
-                  <div key={d.label}>
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-gray-500">{d.label}</p>
-                      {d.badge === "OCR" && selectedUser.ghanaCardOcrResult && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">OCR</span>
-                      )}
-                      {d.badge === "Face" && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 border border-green-500/30">Face</span>
-                      )}
-                    </div>
-                    {d.url ? (
-                      <a href={d.url} target="_blank" rel="noopener noreferrer">
-                        <Image src={d.url} alt={d.label} width={400} height={128} className="w-full h-24 object-cover rounded-lg border border-white/10 hover:border-primary/30 transition-colors" />
-                      </a>
-                    ) : (
-                      <div className="w-full h-24 bg-white/5 rounded-lg flex items-center justify-center text-xs text-gray-600">Not uploaded</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="pt-4 border-t border-white/10 flex gap-2 flex-wrap">
-              {selectedUser.status !== "approved" && (
-                <Button size="sm" onClick={() => { setStatus(selectedUser.id, "approved"); setSelectedUser(null); }} className="flex-1">
-                  Approve
-                </Button>
-              )}
-              {selectedUser.status !== "rejected" && (
-                <Button size="sm" variant="danger" onClick={() => { setShowRejectModal(selectedUser.id); setSelectedUser(null); }} className="flex-1">
-                  Reject
-                </Button>
-              )}
-              {selectedUser.status !== "pending" && (
-                <Button size="sm" variant="secondary" onClick={() => { setStatus(selectedUser.id, "pending"); setSelectedUser(null); }} className="flex-1">
-                  Reset
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Rejection Reason Modal */}
-      <Modal isOpen={!!showRejectModal} onClose={() => setShowRejectModal(null)} title="Reason for Rejection">
+      {/* Rejection reason — the member receives this verbatim by email */}
+      <Modal isOpen={!!showRejectModal} onClose={() => setShowRejectModal(null)} title="Reject application">
         <div className="space-y-4">
-          <p className="text-sm text-gray-400">Please provide a reason for rejecting this application. This will be emailed to the user.</p>
-          <textarea
-            value={rejectionReason}
-            onChange={(e) => setRejectionReason(e.target.value)}
-            placeholder="e.g. Invalid document, blurry photo, etc."
-            className="w-full h-32 px-3 py-2 bg-navy-dark/60 border border-gray-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50"
-          />
-          <div className="flex gap-3">
-            <Button variant="secondary" className="flex-1" onClick={() => setShowRejectModal(null)}>Cancel</Button>
-            <Button 
-              className="flex-1 bg-red-600 hover:bg-red-700" 
+          <p className="text-sm leading-relaxed text-gray-400">
+            Tell the member why in one or two sentences — this exact text is emailed to them, so write it the way
+            you would say it on WhatsApp.
+          </p>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+              Reason
+            </span>
+            <textarea
+              value={rejectionReason}
+              onChange={(event) => setRejectionReason(event.target.value)}
+              placeholder="e.g. The photo of your card is blurred — please send a clearer one."
+              rows={4}
+              className="w-full resize-y rounded-xl bg-black/30 px-3 py-2.5 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-600 focus:ring-emerald-400/60"
+            />
+          </label>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <ActionButton variant="neutral" size="md" onClick={() => setShowRejectModal(null)} fullWidth>
+              Cancel
+            </ActionButton>
+            <ActionButton
+              variant="danger"
+              size="md"
+              fullWidth
               onClick={() => {
                 if (showRejectModal) {
                   setStatus(showRejectModal, "rejected", rejectionReason);
@@ -774,11 +643,12 @@ export default function AdminPage() {
                 }
               }}
             >
-              Confirm Rejection
-            </Button>
+              Confirm rejection
+            </ActionButton>
           </div>
         </div>
       </Modal>
+
     </>
   );
 }
@@ -872,7 +742,15 @@ function AddStaticTestimonial({ onAdd }: { onAdd: (t: TestimonialItem) => void }
 
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)}>Add Static Testimonial</Button>
+      <ActionButton
+        variant="neutral"
+        size="md"
+        onClick={() => setOpen(true)}
+        icon={<Plus className="h-4 w-4" />}
+        className="shrink-0"
+      >
+        Add testimonial
+      </ActionButton>
       <Modal isOpen={open} onClose={() => setOpen(false)} title="Add Static Testimonial">
         <div className="space-y-4">
           <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -881,7 +759,14 @@ function AddStaticTestimonial({ onAdd }: { onAdd: (t: TestimonialItem) => void }
             <p className="text-sm text-gray-300 mb-1">Rating</p>
             <div className="flex gap-1">
               {[1, 2, 3, 4, 5].map((s) => (
-                <button key={s} onClick={() => setRating(s)} className="cursor-pointer">
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setRating(s)}
+                  aria-label={`${s} star${s === 1 ? "" : "s"}`}
+                  aria-pressed={s <= rating}
+                  className="cursor-pointer rounded p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60"
+                >
                   <svg className={`w-6 h-6 ${s <= rating ? "text-primary" : "text-gray-700"}`} fill="currentColor" viewBox="0 0 20 20">
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
