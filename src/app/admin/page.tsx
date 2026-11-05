@@ -27,6 +27,14 @@ import UserRow from "@/components/admin/user-row";
 import UserDetailModal from "@/components/admin/user-detail-modal";
 import ReviewsPanel from "@/components/admin/reviews-panel";
 import WhatsAppLinksPanel from "@/components/admin/whatsapp-links-panel";
+import {
+  AddCustomPlan,
+  EditCustomPlan,
+  PlanLinkBadge,
+} from "@/components/admin/custom-plan-form";
+import AdvanceRequestsPanel from "@/components/admin/advance-requests-panel";
+import type { CustomPlan } from "@/lib/custom-plans";
+import { memberWhatsappLink, planWhatsappLink } from "@/lib/custom-plans";
 import type { UserItem, TestimonialItem } from "@/components/admin/types";
 import { filterMembers } from "@/lib/admin-query";
 import { track } from "@/lib/analytics";
@@ -43,11 +51,14 @@ export default function AdminPage() {
   const [waLinks, setWaLinks] = useState<Record<string, string>>({});
   const [savedWaLinks, setSavedWaLinks] = useState<Record<string, string>>({});
   const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [customPlans, setCustomPlans] = useState<any[]>([]);
+  const [customPlans, setCustomPlans] = useState<CustomPlan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingAdvances, setPendingAdvances] = useState(0);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<"insights" | "users" | "map" | "testimonials" | "whatsapp" | "announcements" | "plans">("insights");
+  const [activeTab, setActiveTab] = useState<
+    "insights" | "users" | "map" | "testimonials" | "whatsapp" | "announcements" | "plans" | "requests"
+  >("insights");
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
@@ -85,6 +96,15 @@ export default function AdminPage() {
       setAnnouncements(aData);
 
       // Custom Plans
+      try {
+        const advanceSnap = await getDocs(collection(db, "advanceRequests"));
+        setPendingAdvances(
+          advanceSnap.docs.filter((entry) => entry.data().status === "pending").length
+        );
+      } catch {
+        /* optional badge — never block the dashboard on it */
+      }
+
       const pSnap = await getDoc(doc(db, "settings", "customPlans"));
       if (pSnap.exists()) {
         setCustomPlans(pSnap.data().plans || []);
@@ -113,6 +133,46 @@ export default function AdminPage() {
       .catch(() => setHealth(null));
   }, [isAdmin]);
 
+  /** Record money Rabi has received. Members can read it; only admins write it. */
+  const recordContribution = async (userId: string, amount: number) => {
+    const member = users.find((entry) => entry.id === userId);
+    if (!member) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const contributions = [
+      ...(Array.isArray(member.contributions) ? member.contributions : []),
+      { date: today, amount },
+    ];
+    setUsers((previous) =>
+      previous.map((entry) => (entry.id === userId ? { ...entry, contributions } : entry))
+    );
+    try {
+      await updateDoc(doc(db, "users", userId), { contributions });
+      addToast(`GH₵${amount} recorded for ${member.name?.split(" ")[0] || "member"}.`, "success");
+    } catch {
+      addToast("Could not save that payment.", "error");
+      setUsers((previous) =>
+        previous.map((entry) =>
+          entry.id === userId ? { ...entry, contributions: member.contributions } : entry
+        )
+      );
+    }
+  };
+
+  const removeContribution = async (userId: string, index: number) => {
+    const member = users.find((entry) => entry.id === userId);
+    if (!member) return;
+    const contributions = (member.contributions ?? []).filter((_, position) => position !== index);
+    try {
+      await updateDoc(doc(db, "users", userId), { contributions });
+      setUsers((previous) =>
+        previous.map((entry) => (entry.id === userId ? { ...entry, contributions } : entry))
+      );
+      addToast("Payment removed.", "success");
+    } catch {
+      addToast("Could not remove that payment.", "error");
+    }
+  };
+
   const setStatus = async (userId: string, status: "approved" | "rejected" | "pending", reason?: string) => {
     track(status === "approved" ? "admin_approved" : status === "rejected" ? "admin_rejected" : "admin_reset", {
       userId,
@@ -123,8 +183,11 @@ export default function AdminPage() {
       if (status === "approved") {
         const link =
           (u &&
-            ((Array.isArray(u.plans) ? u.plans : []).map((planId) => waLinks[planId]).find(Boolean) ||
-              waLinks[u.plan] ||
+            (memberWhatsappLink(
+              Array.isArray(u.plans) && u.plans.length > 0 ? u.plans : [u.plan],
+              customPlans,
+              waLinks
+            ) ||
               "")) ||
           "";
         updates.whatsappLink = link;
@@ -354,6 +417,7 @@ export default function AdminPage() {
               { id: "whatsapp", label: "WhatsApp links" },
               { id: "announcements", label: "Announcements" },
               { id: "plans", label: "Custom plans" },
+              { id: "requests", label: "Advance Susu", count: pendingAdvances },
               { id: "map", label: "Map" },
             ] satisfies AdminTab[]}
           />
@@ -483,6 +547,7 @@ export default function AdminPage() {
           {activeTab === "whatsapp" && (
             <div id="admin-panel-whatsapp" role="tabpanel" aria-labelledby="admin-tab-whatsapp">
               <WhatsAppLinksPanel
+                customPlans={customPlans}
                 links={waLinks}
                 baseline={savedWaLinks}
                 onChange={(key, value) => setWaLinks((prev) => ({ ...prev, [key]: value }))}
@@ -535,6 +600,17 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* === ADVANCE SUSU (early payout requests) === */}
+          {activeTab === "requests" && (
+            <div
+              id="admin-panel-requests"
+              role="tabpanel"
+              aria-labelledby="admin-tab-requests"
+            >
+              <AdvanceRequestsPanel onPendingChange={setPendingAdvances} />
+            </div>
+          )}
+
           {/* === DYNAMIC PLANS TAB === */}
           {activeTab === "plans" && (
             <div
@@ -543,7 +619,7 @@ export default function AdminPage() {
               aria-labelledby="admin-tab-plans"
               className="space-y-4"
             >
-              <AddCustomPlan onAdd={async (newPlan) => {
+              <AddCustomPlan existing={customPlans.map((p) => p.id)} onAdd={async (newPlan) => {
                 const newPlans = [newPlan, ...customPlans];
                 try {
                   await setDoc(doc(db, "settings", "customPlans"), { plans: newPlans });
@@ -559,13 +635,31 @@ export default function AdminPage() {
                   <Card key={plan.id} className="!p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="font-bold text-white mb-1">{plan.name}</h3>
-                        <p className="text-sm text-gray-300">Rate: GH₵{plan.amt} | Frequency: {plan.freq}</p>
-                        <p className="text-sm text-emerald-400 font-semibold mt-1">Target Return: GH₵{plan.ret}</p>
+                        <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                          <h3 className="min-w-0 truncate font-bold text-white">{plan.name}</h3>
+                          <PlanLinkBadge link={plan.whatsappLink || waLinks[plan.id]} />
+                        </div>
+                        <p className="text-sm text-gray-300">
+                          Rate: {plan.amt ? `GH₵${plan.amt}` : "flexible"} | Frequency: {plan.freq || "flexible"}
+                        </p>
+                        <p className="text-sm text-emerald-400 font-semibold mt-1">
+                          Target Return: {plan.ret ? `GH₵${plan.ret}` : "Rabi quotes this"}
+                        </p>
+                        {plan.whatsappLink && (
+                          <a
+                            href={plan.whatsappLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-2 inline-block truncate text-[11px] text-emerald-300 underline decoration-emerald-400/30 underline-offset-4"
+                          >
+                            Test the group link
+                          </a>
+                        )}
                       </div>
                       <div className="flex gap-2 shrink-0">
                         <EditCustomPlan
                           plan={plan}
+                          existing={customPlans.map((p) => p.id)}
                           onSave={async (updated) => {
                             const newPlans = customPlans.map((p) => (p.id === updated.id ? updated : p));
                             await setDoc(doc(db, "settings", "customPlans"), { plans: newPlans });
@@ -626,6 +720,12 @@ export default function AdminPage() {
             .then(() => addToast("GPS copied", "success"))
             .catch(() => addToast("Could not copy GPS", "error"));
         }}
+        onRecordContribution={(amount) =>
+          selectedUser ? recordContribution(selectedUser.id, amount) : Promise.resolve()
+        }
+        onRemoveContribution={(index) =>
+          selectedUser ? removeContribution(selectedUser.id, index) : Promise.resolve()
+        }
       />
 
       {/* Rejection reason — the member receives this verbatim by email */}
@@ -890,108 +990,3 @@ function AddAnnouncement({
   );
 }
 
-function AddCustomPlan({ onAdd }: { onAdd: (plan: any) => Promise<void> }) {
-  const { addToast } = useToastContext();
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState({ name: "", amt: "", freq: "", ret: "", slots: "" });
-
-  const handleAdd = async () => {
-    if (!plan.name || !plan.amt || !plan.freq || !plan.ret) {
-      addToast("Please fill all fields", "error");
-      return;
-    }
-    setLoading(true);
-    try {
-      await onAdd({
-        id: `custom-${Date.now()}`,
-        name: plan.name,
-        amt: Number(plan.amt),
-        freq: plan.freq,
-        ret: Number(plan.ret),
-        ...(plan.slots ? { slots: Number(plan.slots) } : {}),
-      });
-      addToast("Custom plan saved!", "success");
-      setOpen(false);
-      setPlan({ name: "", amt: "", freq: "", ret: "", slots: "" });
-    } catch {
-      addToast("Failed to save plan", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <>
-      <Button size="sm" onClick={() => setOpen(true)}>Add Custom Susu Plan</Button>
-      <Modal isOpen={open} onClose={() => setOpen(false)} title="Create New Plan">
-        <div className="space-y-4">
-          <Input label="Plan Name (e.g. Daily GH₵50)" value={plan.name} onChange={(e) => setPlan(p => ({ ...p, name: e.target.value }))} required />
-          <Input label="Contribution Amount (GH₵)" type="number" value={plan.amt} onChange={(e) => setPlan(p => ({ ...p, amt: e.target.value }))} required />
-          <Input label="Frequency (e.g. Daily, 5 Days)" value={plan.freq} onChange={(e) => setPlan(p => ({ ...p, freq: e.target.value }))} required />
-          <Input label="Target Return Amount (GH₵)" type="number" value={plan.ret} onChange={(e) => setPlan(p => ({ ...p, ret: e.target.value }))} required />
-          <Input label="Slots (optional)" type="number" value={plan.slots} onChange={(e) => setPlan(p => ({ ...p, slots: e.target.value }))} placeholder="e.g. 15" />
-          
-          <Button onClick={handleAdd} loading={loading} className="w-full">Save Plan to Live Site</Button>
-        </div>
-      </Modal>
-    </>
-  );
-}
-
-function EditCustomPlan({ plan, onSave }: { plan: any; onSave: (plan: any) => Promise<void> }) {
-  const { addToast } = useToastContext();
-  const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({
-    name: plan.name || "",
-    amt: String(plan.amt ?? ""),
-    freq: plan.freq || "",
-    ret: String(plan.ret ?? ""),
-    slots: plan.slots ? String(plan.slots) : "",
-  });
-
-  const handleSave = async () => {
-    if (!form.name || !form.amt || !form.freq || !form.ret) {
-      addToast("Please fill all required fields", "error");
-      return;
-    }
-    setLoading(true);
-    try {
-      await onSave({
-        ...plan,
-        name: form.name,
-        amt: Number(form.amt),
-        freq: form.freq,
-        ret: Number(form.ret),
-        ...(form.slots ? { slots: Number(form.slots) } : {}),
-      });
-      setOpen(false);
-    } catch {
-      addToast("Failed to update plan", "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="px-3 py-1.5 text-xs bg-white/5 text-gray-300 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-      >
-        Edit
-      </button>
-      <Modal isOpen={open} onClose={() => setOpen(false)} title={`Edit ${plan.name}`}>
-        <div className="space-y-4">
-          <Input label="Plan Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-          <Input label="Contribution Amount (GH₵)" type="number" value={form.amt} onChange={(e) => setForm((f) => ({ ...f, amt: e.target.value }))} required />
-          <Input label="Frequency" value={form.freq} onChange={(e) => setForm((f) => ({ ...f, freq: e.target.value }))} required />
-          <Input label="Target Return Amount (GH₵)" type="number" value={form.ret} onChange={(e) => setForm((f) => ({ ...f, ret: e.target.value }))} required />
-          <Input label="Slots (optional)" type="number" value={form.slots} onChange={(e) => setForm((f) => ({ ...f, slots: e.target.value }))} />
-          <Button onClick={handleSave} loading={loading} className="w-full">Save Changes</Button>
-        </div>
-      </Modal>
-    </>
-  );
-}

@@ -3,14 +3,16 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, ExternalLink, Link2, Search, Save } from "lucide-react";
 import ActionButton from "@/components/admin/action-button";
-import { planLabels } from "@/lib/plans-data";
 import { groupPlanEntries } from "@/lib/admin-query";
+import { planEntries, type CustomPlan } from "@/lib/custom-plans";
 import { cn } from "@/lib/utils";
 
 interface WhatsAppLinksPanelProps {
   links: Record<string, string>;
   /** Last saved values, used to tell the admin what has changed. */
   baseline: Record<string, string>;
+  /** Custom plans created in the Plans tab, so they get a row here too. */
+  customPlans?: CustomPlan[];
   onChange: (key: string, value: string) => void;
   onSave: () => Promise<void> | void;
 }
@@ -26,13 +28,16 @@ interface WhatsAppLinksPanelProps {
 export default function WhatsAppLinksPanel({
   links,
   baseline,
+  customPlans = [],
   onChange,
   onSave,
 }: WhatsAppLinksPanelProps) {
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const entries = useMemo(() => Object.entries(planLabels), []);
+  // Built-in plans AND whatever Rabi created — a custom plan with no row here
+  // was the bug that made it impossible to attach a group link to it.
+  const entries = useMemo(() => planEntries(customPlans), [customPlans]);
 
   const grouped = useMemo(() => groupPlanEntries(entries, query), [entries, query]);
 

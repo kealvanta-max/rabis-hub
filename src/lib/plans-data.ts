@@ -105,13 +105,20 @@ export function getPlanOptions() {
 /** Every standard plan (daily, weekly, months, longterm) flattened. */
 export const allStandardPlans: PlanItem[] = Object.values(plans).flat();
 
+/**
+ * A plan Rabi created herself. Only `name` is guaranteed: she builds these
+ * mid-conversation, and forcing every money field up front meant losing the
+ * sale (and the WhatsApp link) entirely.
+ */
 export interface CustomPlan {
   id: string;
   name: string;
-  amt: number;
-  freq: string;
-  ret: number;
+  amt?: number;
+  freq?: string;
+  ret?: number;
   slots?: number;
+  /** WhatsApp group this plan's members join after approval. */
+  whatsappLink?: string;
 }
 
 /** Human readable label for any plan id, including admin-created custom plans. */

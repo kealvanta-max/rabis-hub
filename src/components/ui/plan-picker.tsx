@@ -95,7 +95,9 @@ export default function PlanPicker({ value, onChange, customPlans = [] }: PlanPi
         cards: customPlans.map((plan) => ({
           id: plan.id,
           amount: Number(plan.amt) || 0,
-          cadence: plan.freq,
+          // Only the name is guaranteed now; a half-decided plan must still be
+          // selectable, so absent fields degrade to honest labels.
+          cadence: plan.freq || "Flexible",
           payout: Number(plan.ret) || 0,
           slots: plan.slots,
           note: plan.name,
