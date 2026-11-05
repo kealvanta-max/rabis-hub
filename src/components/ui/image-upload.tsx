@@ -15,6 +15,7 @@ import {
   type DocVerdict,
 } from "@/lib/kyc-verification";
 import { cn } from "@/lib/utils";
+import ImageCropper from "@/components/ui/image-cropper";
 
 export type VerifyMode = "id-front" | "id-back" | "selfie";
 
@@ -35,6 +36,25 @@ const modeCopy: Record<VerifyMode, string> = {
   selfie: "Looking for your face…",
 };
 
+/** Frame shape the member crops into — ID-1 for the card, portrait for a face. */
+const cropAspect: Record<VerifyMode, number> = {
+  "id-front": 1.586,
+  "id-back": 1.586,
+  selfie: 0.8,
+};
+
+const cropTitle: Record<VerifyMode, string> = {
+  "id-front": "Fit your card in the frame",
+  "id-back": "Fit the back of your card",
+  selfie: "Fit your face in the frame",
+};
+
+const cropHint: Record<VerifyMode, string> = {
+  "id-front": "All four corners inside the brackets, number readable, no glare.",
+  "id-back": "The whole back of the card, barcode visible if it has one.",
+  selfie: "Head and shoulders, eyes open, plain background, good light.",
+};
+
 export default function ImageUpload({
   label,
   value,
@@ -48,6 +68,7 @@ export default function ImageUpload({
   const [stage, setStage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<DocVerdict | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
@@ -58,7 +79,8 @@ export default function ImageUpload({
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const handleFile = async (file: File) => {
+  /** Validates the pick, then hands it to the cropper. */
+  const handleFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
       setError("Please choose a photo (JPG, PNG or HEIC).");
       return;
@@ -67,7 +89,12 @@ export default function ImageUpload({
       setError("That photo is larger than 12 MB. Take a new one or compress it first.");
       return;
     }
+    setError(null);
+    setPendingFile(file);
+  };
 
+  /** Runs the document checks on the cropped result. */
+  const processFile = async (file: File) => {
     setBusy(true);
     setError(null);
     setVerdict(null);
@@ -271,13 +298,29 @@ export default function ImageUpload({
             disabled={busy}
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file) void handleFile(file);
+              if (file) handleFile(file);
+              event.currentTarget.value = "";
             }}
           />
         </label>
       )}
 
       {error && <p className="mt-2 text-xs leading-relaxed text-red-400">{error}</p>}
+
+      {pendingFile && (
+        <ImageCropper
+          file={pendingFile}
+          aspect={verify ? cropAspect[verify] : 4 / 3}
+          title={verify ? cropTitle[verify] : "Crop your photo"}
+          subtitle={verify ? cropHint[verify] : undefined}
+          onCancel={() => setPendingFile(null)}
+          onConfirm={(blob) => {
+            const cropped = new File([blob], `crop-${Date.now()}.jpg`, { type: "image/jpeg" });
+            setPendingFile(null);
+            void processFile(cropped);
+          }}
+        />
+      )}
     </div>
   );
 }

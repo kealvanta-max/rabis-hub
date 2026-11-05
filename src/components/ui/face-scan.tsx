@@ -8,12 +8,12 @@ import {
   Check,
   Info,
   Loader2,
-  ScanFace,
   ShieldCheck,
   Smile,
   Upload,
 } from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import AppleFaceID, { type FaceIdPhase } from "@/components/ui/apple-face-id";
 import { cn } from "@/lib/utils";
 
 interface FaceScanProps {
@@ -393,24 +393,21 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
         />
 
         {/* Idle / intro */}
+        {/* Apple-style Face ID panel — tap the glass core to begin.
+            The camera is only requested by that tap, which is what mobile
+            browsers require and what keeps the permission prompt from
+            appearing while the page is still loading. */}
         {status === "intro" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
-            <span className="glass flex h-14 w-14 items-center justify-center rounded-full">
-              <ScanFace className="h-7 w-7 text-emerald-300" />
-            </span>
-            <p className="text-sm font-semibold text-white">Quick face check</p>
-            <p className="text-xs leading-relaxed text-gray-400">
-              We will ask you to <strong className="text-gray-200">smile</strong> and{" "}
-              <strong className="text-gray-200">blink</strong>. It takes about 5 seconds and proves you are a
-              real person.
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
+            <AppleFaceID
+              phase="idle"
+              size={186}
+              onActivate={start}
+              label="Tap the glass to start your face check"
+            />
+            <p className="max-w-[240px] text-[10px] leading-relaxed text-gray-500">
+              Smile + blink · about 5 seconds · nothing is posted publicly
             </p>
-            <button
-              type="button"
-              onClick={start}
-              className="glass-emerald glass-sheen mt-1 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-emerald-50"
-            >
-              <Camera className="h-4 w-4" /> Start camera
-            </button>
           </div>
         )}
 
@@ -469,9 +466,8 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
         )}
 
         {status === "done" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-emerald-900/50">
-            <Check className="h-10 w-10 text-emerald-300" />
-            <p className="font-bold text-emerald-200">Liveness verified</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-emerald-950/60">
+            <AppleFaceID phase="success" size={168} label="Liveness verified" />
           </div>
         )}
 

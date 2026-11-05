@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
 import { Home, LayoutDashboard, BookOpen, ShieldCheck, MessageCircle } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ const WHATSAPP_NUMBER = "233504701032";
 export default function FloatingTabBar() {
   const pathname = usePathname();
   const { user, isAdmin } = useAuth();
+  const reducedMotion = useReducedMotion();
 
   if (ROUTES_WITHOUT_DOCK.some((route) => pathname?.startsWith(route))) return null;
 
@@ -59,7 +61,7 @@ export default function FloatingTabBar() {
         aria-label="Primary"
         className="pb-safe fixed inset-x-0 bottom-0 z-[9995] px-3 md:hidden"
       >
-        <div className="glass glass-sheen mx-auto flex max-w-[430px] items-center justify-around gap-1 rounded-[26px] p-1.5">
+        <div className="lg-surface mx-auto flex max-w-[430px] items-center justify-around gap-1 rounded-[26px] p-1.5">
           {items.map((item) => {
             const active = item.match(pathname ?? "/");
             const Icon = item.icon;
@@ -70,20 +72,29 @@ export default function FloatingTabBar() {
                 aria-current={active ? "page" : undefined}
                 {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                 className={cn(
-                  "relative flex min-w-[58px] flex-col items-center gap-1 rounded-[20px] px-2 py-2 text-[10px] font-semibold transition-all duration-300",
-                  active
-                    ? "bg-emerald-400/15 text-emerald-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.25)]"
-                    : "text-gray-400 hover:text-gray-100"
+                  "relative flex min-w-[58px] flex-col items-center gap-1 rounded-[20px] px-2 py-2 text-[10px] font-semibold",
+                  active ? "text-emerald-300" : "text-gray-400 hover:text-gray-100"
                 )}
               >
+                {/* The travelling bubble: one shared layoutId so the highlight
+                    slides between tabs with heavy-liquid inertia. */}
                 {active && (
-                  <span className="absolute inset-x-3 -top-px h-px bg-gradient-to-r from-transparent via-emerald-300/80 to-transparent" />
+                  <motion.span
+                    layoutId="dock-bubble"
+                    aria-hidden="true"
+                    transition={
+                      reducedMotion
+                        ? { duration: 0 }
+                        : { type: "spring", mass: 0.5, damping: 15, stiffness: 100 }
+                    }
+                    className="lg-pill absolute inset-0 rounded-[20px] bg-emerald-400/15"
+                  />
                 )}
                 <Icon
-                  className={cn("h-5 w-5 transition-transform duration-300", active && "scale-110")}
+                  className={cn("relative z-10 h-5 w-5", active && "scale-110")}
                   strokeWidth={active ? 2.4 : 1.9}
                 />
-                <span className="tracking-wide">{item.label}</span>
+                <span className="relative z-10 tracking-wide">{item.label}</span>
               </Link>
             );
           })}

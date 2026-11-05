@@ -457,3 +457,100 @@ select optgroup {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ==========================================================================
+   LIQUID GLASS — navigation surface
+   --------------------------------------------------------------------------
+   Optical model, not decoration:
+     1. Body  ........ translucent tint + 25px blur + 180% saturation
+     2. Bevel ........ 1px top light edge (0.6 white), 1px bottom shade
+     3. Specular ..... gradient lens on the top 50%, masked to nothing at the
+                       midline so the glass reads as curved, never as a stripe
+     4. Occlusion .... two-layer shadow: wide ambient contact + 1px inset light
+   Light mode is the reference; dark mode re-derives the same physics with a
+   dark tint (a 0.4 white body would glow on a near-black page).
+   ========================================================================== */
+:root {
+  --lg-body: rgba(255, 255, 255, 0.4);
+  --lg-blur: 25px;
+  --lg-saturation: 180%;
+  --lg-edge-top: rgba(255, 255, 255, 0.6);
+  --lg-edge-bottom: rgba(0, 0, 0, 0.05);
+  --lg-specular: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.3) 0%,
+    rgba(255, 255, 255, 0.08) 38%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  --lg-shadow: 0 4px 30px rgba(0, 0, 0, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+  --lg-ink: rgba(0, 0, 0, 0.8);
+  --lg-ink-muted: rgba(0, 0, 0, 0.55);
+  --lg-pill: rgba(255, 255, 255, 0.55);
+  --lg-pill-shadow: 0 1px 0 rgba(255, 255, 255, 0.8), 0 6px 16px -8px rgba(0, 0, 0, 0.25);
+  --lg-ink-active: rgba(0, 0, 0, 0.92);
+}
+
+.dark {
+  --lg-body: rgba(10, 26, 18, 0.52);
+  --lg-edge-top: rgba(255, 255, 255, 0.18);
+  --lg-edge-bottom: rgba(0, 0, 0, 0.35);
+  --lg-specular: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  --lg-shadow: 0 4px 30px rgba(0, 0, 0, 0.28), inset 0 1px 1px rgba(255, 255, 255, 0.16);
+  --lg-ink: rgba(255, 255, 255, 0.82);
+  --lg-ink-muted: rgba(255, 255, 255, 0.6);
+  --lg-pill: rgba(255, 255, 255, 0.1);
+  --lg-pill-shadow: 0 1px 0 rgba(255, 255, 255, 0.14), 0 10px 24px -12px rgba(0, 0, 0, 0.6);
+  --lg-ink-active: #ffffff;
+}
+
+.lg-surface {
+  position: relative;
+  isolation: isolate;
+  background: var(--lg-body);
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturation));
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-saturation));
+  border-top: 1px solid var(--lg-edge-top);
+  border-bottom: 1px solid var(--lg-edge-bottom);
+  box-shadow: var(--lg-shadow);
+  color: var(--lg-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* The curved-lens highlight: absolutely positioned, spans the top half only,
+   and fades out exactly at the midline. Pointer-events off, never a layer
+   that can swallow a click. */
+.lg-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 50% 0;
+  border-radius: inherit;
+  background: var(--lg-specular);
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 55%, rgba(0, 0, 0, 0) 100%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 55%, rgba(0, 0, 0, 0) 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.lg-surface > * {
+  position: relative;
+  z-index: 1;
+}
+
+.lg-pill {
+  background: var(--lg-pill);
+  box-shadow: var(--lg-pill-shadow);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-surface,
+  .lg-pill {
+    transition: none !important;
+  }
+}

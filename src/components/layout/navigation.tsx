@@ -1,17 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { useTranslation } from "@/context/i18n-context";
 import LanguageSwitcher from "@/components/layout/language-switcher";
+import LiquidGlassNav from "@/components/ui/liquid-glass-nav";
 
 export default function Navigation() {
   const { user, isAdmin, logout } = useAuth();
   const { t } = useTranslation();
+  const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const primaryItems = useMemo(
+    () => [
+      { href: "/#plans", label: t.nav_plans },
+      { href: "/#calculator", label: t.nav_calculator },
+      { href: "/#testimonials", label: t.nav_reviews },
+      { href: "/guide", label: "Guide" },
+      { href: "/#contact", label: t.nav_contact },
+    ],
+    [t.nav_plans, t.nav_calculator, t.nav_reviews, t.nav_contact]
+  );
+
+  /** Only real routes can be "current" — hash anchors are not pages. */
+  const activeHref = primaryItems.some((item) => item.href === pathname) ? pathname ?? undefined : undefined;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -21,10 +38,8 @@ export default function Navigation() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-[9000] transition-all duration-300 ${
-        scrolled
-          ? "bg-navy-dark/95 backdrop-blur-md shadow-lg shadow-black/20 border-b border-white/5"
-          : "bg-transparent"
+      className={`fixed top-0 left-0 right-0 z-[9000] transition-[background-color,box-shadow] duration-500 ${
+        scrolled ? "lg-surface" : "bg-transparent"
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -45,12 +60,8 @@ export default function Navigation() {
           </Link>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-1">
-            <NavLink href="/#plans">{t.nav_plans}</NavLink>
-            <NavLink href="/#calculator">{t.nav_calculator}</NavLink>
-            <NavLink href="/#testimonials">{t.nav_reviews}</NavLink>
-            <NavLink href="/guide">Guide</NavLink>
-            <NavLink href="/#contact">{t.nav_contact}</NavLink>
+          <div className="hidden md:flex items-center gap-2">
+            <LiquidGlassNav items={primaryItems} activeHref={activeHref} ariaLabel="Main navigation" />
 
             {user ? (
               <>
@@ -117,7 +128,7 @@ export default function Navigation() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden bg-navy-dark/98 backdrop-blur-md border-t border-white/5">
+        <div className="lg-surface md:hidden rounded-b-3xl">
           <div className="px-4 py-4 space-y-1">
             <MobileLink href="/#plans" onClick={() => setMenuOpen(false)}>{t.nav_plans}</MobileLink>
             <MobileLink href="/#calculator" onClick={() => setMenuOpen(false)}>{t.nav_calculator}</MobileLink>
@@ -169,17 +180,6 @@ export default function Navigation() {
         </div>
       )}
     </nav>
-  );
-}
-
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors rounded-lg hover:bg-white/5"
-    >
-      {children}
-    </Link>
   );
 }
 

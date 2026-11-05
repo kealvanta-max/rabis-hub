@@ -185,6 +185,67 @@ activity, so Rabi can see exactly where people drop off.
 
 ---
 
+## 🧊 Glass physics, a real cropper, and a Face ID that looks like Face ID
+
+### 1. The cropper that was missing
+Step 2 of signup now opens a **frame-filling cropper** the moment a photo is
+picked — before any OCR, upload or verdict runs.
+
+* Frame is already the right shape: **1.586:1** for the Ghana Card (ID-1), **4:5**
+  for the selfie — so "the whole card in the frame" is enforced by geometry, not
+  by hope.
+* Drag to reposition, slider or **pinch to zoom**, one-tap **rotate** for a
+  sideways card, rule-of-thirds guides and corner brackets.
+* Exports a **1280 px JPEG at 0.92** — sharper than the OCR needs, ~4× smaller
+  than the original phone photo, so uploads are fast on mobile data.
+* Geometry lives in `src/lib/image-crop.ts` and is **unit-tested** (9 tests).
+  Writing those tests caught a real bug: rotating a landscape photo inside a
+  landscape frame could expose blank edges. The cover scale is now derived from
+  the rotated box, so it is impossible to export a crop with a white strip.
+
+### 2. Liquid glass navigation — optical model, not decoration
+New shared surface (`.lg-surface` + `--lg-*` tokens in `globals.css`):
+
+| Layer | Value |
+| :--- | :--- |
+| Body | `rgba(255,255,255,0.4)` · `backdrop-filter: blur(25px) saturate(180%)` |
+| Bevel | 1px `rgba(255,255,255,0.6)` top · 1px `rgba(0,0,0,0.05)` bottom |
+| Specular | gradient from `rgba(255,255,255,0.3)` → transparent across the **top 50%**, masked to nothing at the midline (the curved-lens read) |
+| Occlusion | `0 4px 30px rgba(0,0,0,0.03), inset 0 1px 1px rgba(255,255,255,0.5)` |
+| Ink | `rgba(0,0,0,0.8)`, antialiased |
+
+Light **and** dark variables ship together (`.dark` re-derives the same physics
+with a dark tint — a 0.4 white body would glow on a near-black page).
+
+`LiquidGlassNav` puts a hairline pill behind the hovered link with
+`layoutId` and a **mass 0.5 / damping 15 / stiffness 100** spring, so it slides
+between links like mercury. The mobile dock uses the same surface and the same
+spring for its travelling bubble.
+
+### 3. AppleFaceID
+`src/components/ui/apple-face-id.tsx` — a 240 px dark frosted card with:
+
+* a **real transmission-glass core** (`MeshTransmissionMaterial`: transmission 1,
+  thickness 1.8, roughness 0.08, ior 1.5, chromaticAberration 0.06) inside a
+  `<Canvas>`, with a city `Environment` for studio highlights
+* crisp **SVG corner brackets** and a face glyph that becomes a **drawn
+  checkmark** (`pathLength` 0 → 1) on success
+* `idle → scanning → success` driven by Framer Motion springs (brackets:
+  stiffness 300 / damping 22) and **damped lerps inside `useFrame`** for the 3D
+  tint, spin and pulse — no CSS transitions anywhere
+* **degrades safely**: no WebGL → static glow, same tap-to-start behaviour; the
+  camera is still only requested by the member's tap
+
+It replaces the "Start camera" bubble in signup step 3 and reappears as the
+success state, so the panel reads as one object through the whole check.
+
+**Performance:** three.js and MediaPipe stay in **lazy chunks** — `/auth` first
+load is 287 kB and nothing 3D is downloaded until step 3 is reached.
+
+**Gates:** lint ✅ · `tsc` ✅ · **75 tests** ✅ · production build ✅
+
+---
+
 ## ⚠️ The 3 things that must be configured for the live site
 
 1. `NEXT_PUBLIC_FIREBASE_*` environment variables (Vercel + local `.env.local`).
