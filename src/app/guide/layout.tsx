@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/site";
 
 export const metadata: Metadata = pageMetadata({
-  title: "How Susu Savings Works — Step by Step Guide",
+  title: "How Susu Savings Works, Step by Step Guide",
   description:
     "Learn how Susu savings works at Rabi's Saving Hub in Ghana: choosing a daily, weekly or monthly plan, verifying your Ghana Card, and cashing out with a real person on WhatsApp.",
   path: "/guide",

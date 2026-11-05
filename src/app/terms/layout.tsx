@@ -4,7 +4,7 @@ import { pageMetadata } from "@/lib/site";
 export const metadata: Metadata = pageMetadata({
   title: "Terms & Conditions",
   description:
-    "The terms that govern membership of Rabi's Saving Hub — plan rules, contribution schedule, payout timing and community conduct.",
+    "The terms that govern membership of Rabi's Saving Hub, plan rules, contribution schedule, payout timing and community conduct.",
   path: "/terms",
 });
 

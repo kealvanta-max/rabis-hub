@@ -96,7 +96,7 @@ export default function ReviewsPanel({ testimonials, onStatus, onDelete, toolbar
 
       {visible.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-gray-500">
-          Nothing here yet{filter !== "all" ? ` — no ${filter} reviews` : ""}.
+          Nothing here yet{filter !== "all" ? `, no ${filter} reviews` : ""}.
         </p>
       ) : (
         <ul className="space-y-3">

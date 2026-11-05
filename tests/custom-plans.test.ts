@@ -145,7 +145,7 @@ describe("lookups across built-in and custom plans", () => {
 describe("live preview shown while she types", () => {
   it("says 'flexible' instead of guessing money she has not decided", () => {
     const preview = planPreview({ id: "custom-x", name: "Flexi" });
-    expect(preview.payout).toBe("Flexible — Rabi quotes this");
+    expect(preview.payout).toBe("Flexible, Rabi quotes this");
     expect(preview.rate).toBe("Amount agreed with Rabi");
     expect(preview.slots).toBe("No slot limit");
   });

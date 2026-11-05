@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { SITE } from "@/lib/site";
 
 export const runtime = "nodejs";
-export const alt = "Rabi's Saving Hub — Susu savings in Ghana";
+export const alt = "Rabi's Saving Hub, Susu savings in Ghana";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -90,7 +90,7 @@ export default function OpengraphImage() {
             Save smart. Grow together.
           </div>
           <div style={{ display: "flex", fontSize: 30, color: "#9CA3AF", maxWidth: 860 }}>
-            Trusted Susu savings plans from GHS 6 a day — verified members, real people, cash out with confidence.
+            Trusted Susu savings plans from GHS 6 a day, verified members, real people, cash out with confidence.
           </div>
         </div>
 

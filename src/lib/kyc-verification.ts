@@ -142,7 +142,7 @@ export function evaluateIdFront(
     return {
       status: "verified",
       confidence: 95,
-      message: "Ghana Card front verified — number and issuing authority match.",
+      message: "Ghana Card front verified, number and issuing authority match.",
       reasons: ["number-match", "authority-marker"],
     };
   }
@@ -250,7 +250,7 @@ export function evaluateSelfie(check: FaceCheck, skipped = false): DocVerdict {
     return {
       status: "review",
       confidence: 0,
-      message: "Automatic face check is unavailable right now — an admin will review your photo manually.",
+      message: "Automatic face check is unavailable right now, an admin will review your photo manually.",
       reasons: ["detector-unavailable"],
     };
   }
@@ -287,7 +287,7 @@ export function evaluateSelfie(check: FaceCheck, skipped = false): DocVerdict {
   return {
     status: "verified",
     confidence: Math.round(Math.max(check.confidence, 0.6) * 100),
-    message: "Face detected — this photo is good for your KYC record.",
+    message: "Face detected, this photo is good for your KYC record.",
     reasons: ["single-face", "good-framing"],
   };
 }

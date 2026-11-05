@@ -58,7 +58,7 @@ export default function PlanPicker({ value, onChange, customPlans = [] }: PlanPi
       {
         key: "weekly",
         label: "Weekly",
-        hint: "One payment a week — the most popular way to save.",
+        hint: "One payment a week, the most popular way to save.",
         cards: fromStandard(plans.weekly),
       },
       {

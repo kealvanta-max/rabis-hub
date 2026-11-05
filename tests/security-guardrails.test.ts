@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -10,6 +10,18 @@ import { describe, expect, it } from "vitest";
  */
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+
+/** Every file under a directory, recursively. */
+function walk(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true })) {
+    const relative = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) out.push(...walk(relative));
+    else out.push(relative);
+  }
+  return out;
+}
+
 
 describe("email relay", () => {
   it("requires a verified ID token before sending", () => {
@@ -118,5 +130,40 @@ describe("firestore rules", () => {
 
   it("validates required profile fields on create", () => {
     expect(rules).toContain("hasAll(['name', 'email', 'phone', 'plan', 'status'])");
+  });
+});
+
+describe("copy guardrails", () => {
+  const UI_GLOB = ["src/app", "src/components", "src/lib"];
+
+  it("never shows an em dash to a visitor", () => {
+    // Rabi reads these strings as signals that a machine wrote them.
+    const offenders: string[] = [];
+
+    for (const root of UI_GLOB) {
+      for (const file of walk(root)) {
+        if (!/\.(ts|tsx)$/.test(file)) continue;
+        for (const line of read(file).split("\n")) {
+          const trimmed = line.trimStart();
+          // Comments are invisible to visitors, so they are allowed to keep one.
+          if (/^(https?:\/\/)?\//.test(trimmed) || trimmed.startsWith("*") || trimmed.startsWith("{/*")) continue;
+          if (line.includes("—")) offenders.push(file);
+        }
+      }
+    }
+
+    expect(Array.from(new Set(offenders))).toEqual([]);
+  });
+
+  it("keeps Advance Susu out of the product", () => {
+    const sources = walk("src").filter((file) => /\.(ts|tsx)$/.test(file));
+    const hits = sources.filter((file) => /advanceRequests|Advance Susu|advanceLimit/.test(read(file)));
+    expect(hits).toEqual([]);
+  });
+
+  it("sends operators straight to the admin dashboard", () => {
+    const dashboard = read("src/app/dashboard/page.tsx");
+    expect(dashboard).toContain('router.replace("/admin")');
+    expect(dashboard).not.toContain("This is the owner account");
   });
 });

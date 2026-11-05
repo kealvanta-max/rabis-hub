@@ -88,34 +88,6 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------
-    // Advance Susu — a member asks for part of their own money early.
-    // Members may create one request for themselves and read their own;
-    // only Rabi's account may decide it. Mirror of lib/savings.ts.
-    // ---------------------------------------------------------------
-    match /advanceRequests/{requestId} {
-      allow read: if isSelf(resource.data.userId) || isAdmin();
-
-      allow create: if signedIn()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.amount is number
-        && request.resource.data.amount > 0
-        && request.resource.data.reason is string
-        && request.resource.data.reason.size() >= 5
-        && request.resource.data.reason.size() <= 300
-        && request.resource.data.keys().hasOnly([
-             'userId', 'userName', 'plan', 'amount', 'reason', 'status', 'createdAt'
-           ]);
-
-      allow update: if isAdmin()
-        && request.resource.data.userId == resource.data.userId
-        && request.resource.data.amount == resource.data.amount
-        && request.resource.data.status in ['approved', 'declined', 'pending'];
-
-      allow delete: if isAdmin();
-    }
-
-    // ---------------------------------------------------------------
     // Testimonials / reviews
     // ---------------------------------------------------------------
     match /testimonials/{testimonialId} {

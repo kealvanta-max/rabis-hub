@@ -41,8 +41,8 @@ describe("formatDate", () => {
 });
 
 describe("formatDateTime", () => {
-  it("defaults to an em dash", () => {
-    expect(formatDateTime(undefined)).toBe("—");
+  it("defaults to a dash when there is no date", () => {
+    expect(formatDateTime(undefined)).toBe("-");
   });
 });
 

@@ -23,7 +23,7 @@ export default function GuidePage() {
         "Complete the liveness face scan (smile, then blink)",
         "Allow GPS location detection",
         "Solve the math captcha and accept the terms",
-        "Submit — your application will be reviewed by the admin"
+        "Submit, your application will be reviewed by the admin"
       ]
     },
     {
@@ -45,7 +45,7 @@ export default function GuidePage() {
       statuses: [
         { status: "Pending", description: "Your application is under review" },
         { status: "Approved", description: "You are a verified member and can join WhatsApp groups" },
-        { status: "Rejected", description: "Your application was not approved — contact support" }
+        { status: "Rejected", description: "Your application was not approved, contact support" }
       ]
     },
     {

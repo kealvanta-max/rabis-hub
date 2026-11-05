@@ -32,18 +32,18 @@ export default function PrivacyPolicyPage() {
                 <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
                   <h3 className="text-white font-semibold mb-2">Personal Details</h3>
                   <ul className="list-disc list-inside space-y-1 text-gray-400">
-                    <li><span className="text-gray-300">Full name</span> — so we know who you are and can address you properly</li>
-                    <li><span className="text-gray-300">Email address</span> — for your account login and important notifications</li>
-                    <li><span className="text-gray-300">Phone number</span> — to reach you about your savings and add you to the right WhatsApp group</li>
-                    <li><span className="text-gray-300">Location / Area</span> — to understand where our members are based</li>
+                    <li><span className="text-gray-300">Full name</span>, so we know who you are and can address you properly</li>
+                    <li><span className="text-gray-300">Email address</span>, for your account login and important notifications</li>
+                    <li><span className="text-gray-300">Phone number</span>, to reach you about your savings and add you to the right WhatsApp group</li>
+                    <li><span className="text-gray-300">Location / Area</span>, to understand where our members are based</li>
                   </ul>
                 </div>
 
                 <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
                   <h3 className="text-white font-semibold mb-2">Identity Documents</h3>
                   <ul className="list-disc list-inside space-y-1 text-gray-400">
-                    <li><span className="text-gray-300">Ghana Card (front and back)</span> — to verify your identity before we approve your account</li>
-                    <li><span className="text-gray-300">Passport-style photo or clear selfie</span> — to confirm you are who you say you are</li>
+                    <li><span className="text-gray-300">Ghana Card (front and back)</span>, to verify your identity before we approve your account</li>
+                    <li><span className="text-gray-300">Passport-style photo or clear selfie</span>, to confirm you are who you say you are</li>
                   </ul>
                   <p className="text-sm text-gray-500 mt-2">
                     These images are uploaded securely through Cloudinary, a trusted cloud media service. We do not store them on our own servers.

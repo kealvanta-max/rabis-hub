@@ -1,9 +1,9 @@
 /**
- * Savings tracking and Advance Susu — pure maths, no Firestore.
+ * Savings tracking, pure maths, no Firestore.
  *
- * Rabi still collects money on WhatsApp and Mobile Money; nothing here takes a
- * payment. The admin records what she received (one tap), the member sees the
- * running total, and an "advance" is a *request* she can approve or decline.
+ * Rabi collects money on WhatsApp and Mobile Money; nothing here takes a
+ * payment. She records what she received (one tap), and the member sees the
+ * running total and how far they have to go.
  */
 
 export interface Contribution {
@@ -87,76 +87,3 @@ export function humaniseLastContribution(iso: string | undefined, now: Date = ne
   });
 }
 
-/**
- * How much of her own money a member could ask to withdraw early.
- * Half of what has actually been received — conservative on purpose, because
- * the other half is what funds the payout she is saving toward.
- */
-export function advanceLimit(totalContributed: number): number {
-  if (!Number.isFinite(totalContributed) || totalContributed <= 0) return 0;
-  return Math.floor(totalContributed / 2);
-}
-
-export interface AdvanceRequest {
-  id?: string;
-  userId: string;
-  userName: string;
-  plan?: string;
-  amount: number;
-  reason: string;
-  status: "pending" | "approved" | "declined";
-  createdAt?: unknown;
-  decidedAt?: unknown;
-  adminNote?: string;
-}
-
-export interface AdvanceValidation {
-  ok: boolean;
-  error?: string;
-}
-
-export function validateAdvance(
-  amountInput: string,
-  reason: string,
-  totalContributed: number
-): AdvanceValidation {
-  const amount = Number(amountInput);
-
-  if (!amountInput.trim()) return { ok: false, error: "How much do you need?" };
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return { ok: false, error: "Enter an amount greater than 0." };
-  }
-
-  const limit = advanceLimit(totalContributed);
-  if (limit === 0) {
-    return {
-      ok: false,
-      error: "No contributions recorded yet — once Rabi has received your first payment this opens up.",
-    };
-  }
-  if (amount > limit) {
-    return { ok: false, error: `You can request up to GH₵${limit} right now.` };
-  }
-  if (reason.trim().length < 5) {
-    return { ok: false, error: "Tell Rabi briefly why you need it (a few words is enough)." };
-  }
-  if (reason.trim().length > 300) {
-    return { ok: false, error: "Keep the reason under 300 characters." };
-  }
-
-  return { ok: true };
-}
-
-/** Newest first, pending at the top for the admin. */
-export function sortAdvanceRequests<T extends { status: string; createdAt?: unknown }>(list: T[]): T[] {
-  const weight = (status: string) => (status === "pending" ? 0 : 1);
-  return [...list].sort((a, b) => {
-    const byStatus = weight(a.status) - weight(b.status);
-    if (byStatus !== 0) return byStatus;
-    const at = (value: unknown) =>
-      typeof value === "object" && value && "seconds" in value
-        ? Number((value as { seconds: number }).seconds)
-        : 0;
-    return at(b.createdAt) - at(a.createdAt);
-  });
-}

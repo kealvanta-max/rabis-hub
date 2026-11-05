@@ -133,7 +133,7 @@ export function validatePlanInput(input: PlanInput, existing: string[] = []): Pl
 
   const name = input.name.trim();
   if (name.length < 2) errors.name = "Give the plan a name (at least 2 characters).";
-  if (name.length > 60) errors.name = "That name is too long — keep it under 60 characters.";
+  if (name.length > 60) errors.name = "That name is too long, keep it under 60 characters.";
 
   const amt = input.amt.trim() ? Number(input.amt) : undefined;
   if (amt !== undefined && (!Number.isFinite(amt) || amt <= 0)) {
@@ -142,12 +142,12 @@ export function validatePlanInput(input: PlanInput, existing: string[] = []): Pl
 
   const ret = input.ret.trim() ? Number(input.ret) : undefined;
   if (ret !== undefined && (!Number.isFinite(ret) || ret <= 0)) {
-    errors.ret = "Return must be a number greater than 0 — or leave it blank.";
+    errors.ret = "Return must be a number greater than 0, or leave it blank.";
   }
 
   const slots = input.slots.trim() ? Number(input.slots) : undefined;
   if (slots !== undefined && (!Number.isInteger(slots) || slots <= 0)) {
-    errors.slots = "Slots must be a whole number — or leave it blank for no limit.";
+    errors.slots = "Slots must be a whole number, or leave it blank for no limit.";
   }
 
   if (!isValidWhatsappLink(input.whatsappLink)) {
@@ -188,7 +188,7 @@ export function planPreview(plan: CustomPlan): {
   return {
     title: plan.name || "Untitled plan",
     rate: plan.amt ? `GH₵${plan.amt} · ${plan.freq || "flexible schedule"}` : "Amount agreed with Rabi",
-    payout: plan.ret ? `GH₵${plan.ret}` : "Flexible — Rabi quotes this",
+    payout: plan.ret ? `GH₵${plan.ret}` : "Flexible, Rabi quotes this",
     slots: plan.slots ? `${plan.slots} slots` : "No slot limit",
   };
 }

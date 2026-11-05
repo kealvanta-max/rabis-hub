@@ -32,7 +32,6 @@ import {
   EditCustomPlan,
   PlanLinkBadge,
 } from "@/components/admin/custom-plan-form";
-import AdvanceRequestsPanel from "@/components/admin/advance-requests-panel";
 import type { CustomPlan } from "@/lib/custom-plans";
 import { memberWhatsappLink, planWhatsappLink } from "@/lib/custom-plans";
 import type { UserItem, TestimonialItem } from "@/components/admin/types";
@@ -53,11 +52,10 @@ export default function AdminPage() {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [customPlans, setCustomPlans] = useState<CustomPlan[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pendingAdvances, setPendingAdvances] = useState(0);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<
-    "insights" | "users" | "map" | "testimonials" | "whatsapp" | "announcements" | "plans" | "requests"
+    "insights" | "users" | "map" | "testimonials" | "whatsapp" | "announcements" | "plans"
   >("insights");
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
@@ -96,14 +94,6 @@ export default function AdminPage() {
       setAnnouncements(aData);
 
       // Custom Plans
-      try {
-        const advanceSnap = await getDocs(collection(db, "advanceRequests"));
-        setPendingAdvances(
-          advanceSnap.docs.filter((entry) => entry.data().status === "pending").length
-        );
-      } catch {
-        /* optional badge — never block the dashboard on it */
-      }
 
       const pSnap = await getDoc(doc(db, "settings", "customPlans"));
       if (pSnap.exists()) {
@@ -192,7 +182,7 @@ export default function AdminPage() {
           "";
         updates.whatsappLink = link;
         if (u && !link) {
-          addToast("Approved — but no WhatsApp link is saved for this plan yet.", "info");
+          addToast("Approved, but no WhatsApp link is saved for this plan yet.", "info");
         }
       }
       if (status === "pending" || status === "rejected") {
@@ -342,7 +332,7 @@ export default function AdminPage() {
                 Admin dashboard
               </h1>
               <p className="mt-1 max-w-prose text-sm text-gray-400">
-                Members, reviews and community links — everything Rabi needs, nothing else.
+                Members, reviews and community links, everything Rabi needs, nothing else.
               </p>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
@@ -417,7 +407,6 @@ export default function AdminPage() {
               { id: "whatsapp", label: "WhatsApp links" },
               { id: "announcements", label: "Announcements" },
               { id: "plans", label: "Custom plans" },
-              { id: "requests", label: "Advance Susu", count: pendingAdvances },
               { id: "map", label: "Map" },
             ] satisfies AdminTab[]}
           />
@@ -600,16 +589,6 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* === ADVANCE SUSU (early payout requests) === */}
-          {activeTab === "requests" && (
-            <div
-              id="admin-panel-requests"
-              role="tabpanel"
-              aria-labelledby="admin-tab-requests"
-            >
-              <AdvanceRequestsPanel onPendingChange={setPendingAdvances} />
-            </div>
-          )}
 
           {/* === DYNAMIC PLANS TAB === */}
           {activeTab === "plans" && (
@@ -732,7 +711,7 @@ export default function AdminPage() {
       <Modal isOpen={!!showRejectModal} onClose={() => setShowRejectModal(null)} title="Reject application">
         <div className="space-y-4">
           <p className="text-sm leading-relaxed text-gray-400">
-            Tell the member why in one or two sentences — this exact text is emailed to them, so write it the way
+            Tell the member why in one or two sentences, this exact text is emailed to them, so write it the way
             you would say it on WhatsApp.
           </p>
           <label className="block">
@@ -742,7 +721,7 @@ export default function AdminPage() {
             <textarea
               value={rejectionReason}
               onChange={(event) => setRejectionReason(event.target.value)}
-              placeholder="e.g. The photo of your card is blurred — please send a clearer one."
+              placeholder="e.g. The photo of your card is blurred, please send a clearer one."
               rows={4}
               className="w-full resize-y rounded-xl bg-black/30 px-3 py-2.5 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-600 focus:ring-emerald-400/60"
             />

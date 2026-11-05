@@ -426,7 +426,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           </div>
 
           <ImageUpload
-            label="Ghana Card — Front"
+            label="Ghana Card, Front"
             value={form.ghanaCardFront}
             verify="id-front"
             declaredCardNumber={form.ghanaCardNumber || ""}
@@ -440,11 +440,11 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           />
 
           <ImageUpload
-            label="Ghana Card — Back"
+            label="Ghana Card, Back"
             value={form.ghanaCardBack}
             verify="id-back"
             declaredCardNumber={form.ghanaCardNumber || ""}
-            hint="Flip the card over — the barcode side. Keep the whole card in frame."
+            hint="Flip the card over, the barcode side. Keep the whole card in frame."
             onUpload={(url) => update("ghanaCardBack", url)}
             onVerdict={(verdict, hash) => {
               setDocVerdicts((prev) => ({ ...prev, back: verdict }));
@@ -528,13 +528,13 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             onManualReview={() => {
               setLivenessMode("manual_review");
               update("faceScanVideo", "");
-              addToast("No problem — Rabi will verify you manually.", "info");
+              addToast("No problem, Rabi will verify you manually.", "info");
             }}
           />
 
           {livenessMode === "manual_review" && (
             <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
-              Manual review requested. You can continue — your account stays pending until Rabi confirms
+              Manual review requested. You can continue, your account stays pending until Rabi confirms
               your identity.
             </p>
           )}

@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  advanceLimit,
   contributionSummary,
   humaniseLastContribution,
   progressPercent,
   remainingToTarget,
-  sortAdvanceRequests,
-  validateAdvance,
 } from "@/lib/savings";
 
 const NOW = new Date("2026-11-05T12:00:00");
@@ -82,47 +79,3 @@ describe("humaniseLastContribution", () => {
   });
 });
 
-describe("Advance Susu", () => {
-  it("caps the request at half of what has been received", () => {
-    expect(advanceLimit(0)).toBe(0);
-    expect(advanceLimit(173)).toBe(86);
-    expect(advanceLimit(Number.NaN)).toBe(0);
-  });
-
-  it("explains itself when there is nothing to advance against", () => {
-    const result = validateAdvance("50", "school fees", 0);
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/No contributions recorded/i);
-  });
-
-  it("blocks more than the cap and says what the cap is", () => {
-    const result = validateAdvance("500", "school fees", 200);
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain("GH₵100");
-  });
-
-  it("requires a short reason", () => {
-    expect(validateAdvance("50", "x", 200).ok).toBe(false);
-    expect(validateAdvance("50", "school fees", 200).ok).toBe(true);
-    expect(validateAdvance("50", "a".repeat(301), 200).ok).toBe(false);
-  });
-
-  it("rejects empty, zero and negative amounts", () => {
-    expect(validateAdvance("", "school fees", 200).ok).toBe(false);
-    expect(validateAdvance("0", "school fees", 200).ok).toBe(false);
-    expect(validateAdvance("-5", "school fees", 200).ok).toBe(false);
-  });
-
-  it("surfaces pending requests first, newest first within a status", () => {
-    const sorted = sortAdvanceRequests([
-      { status: "approved", createdAt: { seconds: 300 } },
-      { status: "pending", createdAt: { seconds: 100 } },
-      { status: "pending", createdAt: { seconds: 500 } },
-    ]);
-    expect(sorted.map((r) => r.createdAt)).toEqual([
-      { seconds: 500 },
-      { seconds: 100 },
-      { seconds: 300 },
-    ]);
-  });
-});
