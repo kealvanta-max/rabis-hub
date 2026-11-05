@@ -117,7 +117,9 @@ export async function detectHumanFace(image: string | Blob): Promise<FaceDetecti
 }
 
 /** Snapshot of pixels for the duplicate-image guard (9×8 greyscale). */
-export async function fingerprintImage(image: Blob): Promise<{ hash: string; width: number; height: number }> {
+export async function fingerprintImage(
+  image: Blob
+): Promise<{ hash: string; width: number; height: number; brightness: number; contrast: number }> {
   const { differenceHash } = await import("@/lib/kyc-verification");
   const bitmap = await createImageBitmap(image);
   const { width, height } = bitmap;
@@ -127,7 +129,7 @@ export async function fingerprintImage(image: Blob): Promise<{ hash: string; wid
   const context = canvas.getContext("2d");
   if (!context) {
     bitmap.close?.();
-    return { hash: "", width, height };
+    return { hash: "", width, height, brightness: 128, contrast: 52 };
   }
   context.drawImage(bitmap, 0, 0, 9, 8);
   bitmap.close?.();
@@ -136,5 +138,15 @@ export async function fingerprintImage(image: Blob): Promise<{ hash: string; wid
   for (let i = 0; i < data.length; i += 4) {
     pixels.push(Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]));
   }
-  return { hash: differenceHash(pixels, 9, 8), width, height };
+  const mean = pixels.reduce((sum, value) => sum + value, 0) / pixels.length;
+  const variance =
+    pixels.reduce((sum, value) => sum + (value - mean) ** 2, 0) / pixels.length;
+
+  return {
+    hash: differenceHash(pixels, 9, 8),
+    width,
+    height,
+    brightness: Math.round(mean),
+    contrast: Math.round(Math.sqrt(variance)),
+  };
 }

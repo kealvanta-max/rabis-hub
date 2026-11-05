@@ -11,6 +11,7 @@ import {
   evaluateIdBack,
   evaluateIdFront,
   evaluateSelfie,
+  checkImageQuality,
   type DocVerdict,
 } from "@/lib/kyc-verification";
 import { cn } from "@/lib/utils";
@@ -73,9 +74,31 @@ export default function ImageUpload({
     setStage("Preparing…");
 
     try {
-      const fingerprint = await fingerprintImage(file).catch(() => ({ hash: "", width: 0, height: 0 }));
+      const fingerprint = await fingerprintImage(file).catch(() => ({
+        hash: "",
+        width: 0,
+        height: 0,
+        brightness: 128,
+        contrast: 52,
+      }));
 
       let nextVerdict: DocVerdict | null = null;
+
+      const quality = checkImageQuality({
+        brightness: fingerprint.brightness,
+        contrast: fingerprint.contrast,
+      });
+
+      if (!quality.ok) {
+        setVerdict({ status: "rejected", confidence: 0, message: quality.reason ?? "Photo rejected.", reasons: ["quality"] });
+        onVerdict?.(
+          { status: "rejected", confidence: 0, message: quality.reason ?? "Photo rejected.", reasons: ["quality"] },
+          fingerprint.hash
+        );
+        setError(quality.reason ?? "Photo rejected.");
+        if (inputRef.current) inputRef.current.value = "";
+        return;
+      }
 
       if (verify === "id-front" || verify === "id-back") {
         setStage("Checking the photo…");

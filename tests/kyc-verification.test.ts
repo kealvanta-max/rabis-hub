@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkCardAspectRatio,
+  checkImageQuality,
   detectIdMarkers,
   differenceHash,
   evaluateIdBack,
@@ -150,5 +151,23 @@ describe("duplicate image guard", () => {
 
   it("ignores missing hashes", () => {
     expect(isDuplicateImage(undefined, null)).toBe(false);
+  });
+});
+
+describe("photo quality guard", () => {
+  it("accepts a normally exposed photo", () => {
+    expect(checkImageQuality({ brightness: 130, contrast: 45 }).ok).toBe(true);
+  });
+
+  it("rejects a covered lens", () => {
+    expect(checkImageQuality({ brightness: 12, contrast: 30 }).ok).toBe(false);
+  });
+
+  it("rejects flash glare", () => {
+    expect(checkImageQuality({ brightness: 250, contrast: 30 }).ok).toBe(false);
+  });
+
+  it("rejects a flat, blurred frame", () => {
+    expect(checkImageQuality({ brightness: 128, contrast: 4 }).ok).toBe(false);
   });
 });

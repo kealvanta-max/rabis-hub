@@ -203,6 +203,37 @@ export function evaluateIdBack(
   };
 }
 
+export interface ImageQuality {
+  brightness: number;
+  contrast: number;
+}
+
+export interface QualityVerdict {
+  ok: boolean;
+  reason?: string;
+}
+
+/**
+ * Rejects unusable photos before they cost the member a 2 MB upload:
+ * a black frame (lens covered), a washed-out frame (flash glare) or a flat
+ * frame (blurred / photo of a blank surface).
+ */
+export function checkImageQuality(quality: ImageQuality): QualityVerdict {
+  if (quality.brightness < 28) {
+    return { ok: false, reason: "That photo is too dark. Move somewhere with more light and try again." };
+  }
+  if (quality.brightness > 242) {
+    return { ok: false, reason: "That photo is washed out by light. Step away from direct sunlight or flash." };
+  }
+  if (quality.contrast < 12) {
+    return {
+      ok: false,
+      reason: "That photo looks blank or badly blurred. Hold the camera still and refocus.",
+    };
+  }
+  return { ok: true };
+}
+
 export interface FaceCheck {
   faceCount: number;
   /** Largest face area as a fraction of the whole image (0–1). */

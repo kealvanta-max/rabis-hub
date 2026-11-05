@@ -197,7 +197,7 @@ Set billing alerts on Firebase and Cloudinary before launch.
 ## 10. Known limitations / roadmap
 
 1. Payment reporting currently writes to `susu-rounds` from the client (rules restrict it to the member's own slot). Moving it to an API route with the Admin SDK is the next hardening step.
-2. Next.js 14 is end-of-life — schedule the Next 16 / React 19 upgrade.
-3. The welcome voice-over is hosted on Dropbox (expiring link) — move it to `/public/audio`.
-4. The "AI Assistant" button is a placeholder until a Gemini key is wired in.
-5. Add end-to-end tests (Playwright) for the signup → payout journey.
+3. Next.js 14 is end-of-life — schedule the Next 16 / React 19 upgrade.
+4. The welcome voice-over is hosted on Dropbox (expiring link) — move it to `/public/audio`.
+5. ~~The "AI Assistant" button is a placeholder~~ — removed entirely in the UX pass.
+6. Add end-to-end tests (Playwright) for the signup → payout journey.
