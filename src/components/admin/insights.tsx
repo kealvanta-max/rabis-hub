@@ -217,7 +217,7 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-white">{member.name || "Unnamed"}</p>
                   <p className="truncate text-[11px] text-gray-500">
-                    {member.createdAt ? formatDate(member.createdAt) : "—"} · {getPlanLabel(member.plan || "")}
+                    {member.createdAt ? formatDate(member.createdAt) : "-"} · {getPlanLabel(member.plan || "")}
                   </p>
                 </div>
                 <span

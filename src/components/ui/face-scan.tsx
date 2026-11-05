@@ -135,7 +135,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
         console.error("Liveness upload failed:", error);
         setStatus("error");
         setMessage(
-          "Your clip was recorded but could not be uploaded. Check your connection and try again — or continue with manual review."
+          "Your clip was recorded but could not be uploaded. Check your connection and try again, or continue with manual review."
         );
       }
     },
@@ -321,7 +321,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
                   window.setTimeout(() => {
                     if (!blinkedOnce) {
                       setStatus("fallback");
-                      setMessage("We could not detect a blink. Record a short clip instead — it takes 3 seconds.");
+                      setMessage("We could not detect a blink. Record a short clip instead, it takes 3 seconds.");
                     }
                   }, CHALLENGE_MS)
                 );
@@ -340,7 +340,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
           if (!smileDone && now - startedAt > CHALLENGE_MS) {
             setStatus("fallback");
             setMessage(
-              "We could not detect a smile. Record a short 3-second clip instead — an admin will review it."
+              "We could not detect a smile. Record a short 3-second clip instead, an admin will review it."
             );
             return;
           }
@@ -359,7 +359,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
       console.warn("Liveness model unavailable, using clip fallback:", error);
       setStatus("fallback");
       setMessage(
-        "The automatic face detector could not load on this connection. Record a 3-second clip instead — an admin reviews it."
+        "The automatic face detector could not load on this connection. Record a 3-second clip instead, an admin reviews it."
       );
     }
   }, [fail, startClipRecording, uploadClip]);
@@ -500,7 +500,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
         <div className="glass-soft flex items-start gap-2 rounded-2xl p-3 text-[11px] leading-relaxed text-gray-400">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
           <span>
-            Close floating chat bubbles (WhatsApp, Instagram) and any app using the camera first — Android
+            Close floating chat bubbles (WhatsApp, Instagram) and any app using the camera first, Android
             blocks the request while another app holds it.
           </span>
         </div>

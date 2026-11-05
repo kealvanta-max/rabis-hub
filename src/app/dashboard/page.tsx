@@ -19,8 +19,6 @@ import {
   humaniseLastContribution,
   progressPercent,
   remainingToTarget,
-  validateAdvance,
-  type AdvanceRequest,
 } from "@/lib/savings";
 import { useCustomPlans } from "@/hooks/use-custom-plans";
 import { track } from "@/lib/analytics";
@@ -36,11 +34,7 @@ import {
   Clock,
   RefreshCw,
   MessageCircle,
-  ShieldCheck,
   PiggyBank,
-  Wallet,
-  ArrowUpRight,
-  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -60,11 +54,6 @@ function DashboardContent() {
   const { customPlans } = useCustomPlans();
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [addingPlan, setAddingPlan] = useState(false);
-  const [advances, setAdvances] = useState<AdvanceRequest[]>([]);
-  const [advanceAmount, setAdvanceAmount] = useState("");
-  const [advanceReason, setAdvanceReason] = useState("");
-  const [advanceError, setAdvanceError] = useState<string | null>(null);
-  const [advanceSending, setAdvanceSending] = useState(false);
 
   const addPlanId = searchParams.get("addPlan");
   const userPlans = Array.isArray(userData?.plans) && userData.plans.length > 0
@@ -98,37 +87,11 @@ function DashboardContent() {
     }
   }, [user, loading, router]);
 
-  const handleAdvanceRequest = async () => {
-    if (!user || !userData) return;
-    const check = validateAdvance(advanceAmount, advanceReason, savings.total);
-    if (!check.ok) {
-      setAdvanceError(check.error ?? "Check the amount and reason.");
-      return;
+  useEffect(() => {
+    if (!loading && isAdmin) {
+      router.replace("/admin");
     }
-    setAdvanceError(null);
-    setAdvanceSending(true);
-    try {
-      const payload = {
-        userId: user.uid,
-        userName: userData.name,
-        plan: primaryPlan ? getPlanLabel(primaryPlan, customPlans) : "",
-        amount: Number(advanceAmount),
-        reason: advanceReason.trim(),
-        status: "pending" as const,
-        createdAt: serverTimestamp(),
-      };
-      const ref = await addDoc(collection(db, "advanceRequests"), payload);
-      setAdvances((previous) => [{ id: ref.id, ...payload } as AdvanceRequest, ...previous]);
-      setAdvanceAmount("");
-      setAdvanceReason("");
-      addToast("Request sent to Rabi. She will confirm on WhatsApp.", "success");
-      track("advance_requested", { amount: payload.amount });
-    } catch {
-      addToast("Could not send the request. Try again.", "error");
-    } finally {
-      setAdvanceSending(false);
-    }
-  };
+  }, [isAdmin, loading, router]);
 
   const handleAddPlan = async (planId: string) => {
     if (!user) return;
@@ -146,29 +109,6 @@ function DashboardContent() {
     }
   };
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const loadAdvances = async () => {
-      try {
-        const snap = await getDocs(
-          query(collection(db, "advanceRequests"), where("userId", "==", user.uid))
-        );
-        if (cancelled) return;
-        setAdvances(
-          snap.docs
-            .map((entry) => ({ id: entry.id, ...entry.data() } as AdvanceRequest))
-            .sort((a, b) => (a.status === "pending" ? -1 : 0) - (b.status === "pending" ? -1 : 0))
-        );
-      } catch {
-        /* an empty list is a fine failure mode for a read-only card */
-      }
-    };
-    void loadAdvances();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -197,6 +137,13 @@ function DashboardContent() {
 
   if (!user) {
     return null;
+  }
+
+  // Operators do not get the member hub. Rabi's own login goes straight to her
+  // dashboard instead of a "welcome member" screen she has no use for.
+  if (isAdmin) {
+    router.replace("/admin");
+    return <DashboardSkeleton />;
   }
 
   return (
@@ -305,39 +252,6 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Operator account — Rabi's own login has no member document, and
-              telling her "we can't see your details" was both wrong and scary. */}
-          {isAdmin && !userData && (
-            <div className="glass mb-8 rounded-2xl border-emerald-400/25 p-5">
-              <div className="flex items-start gap-4">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-400/15 text-emerald-300">
-                  <ShieldCheck className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-bold text-white">This is the owner account</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-gray-400">
-                    Signed in as <span className="text-gray-200">{user?.email}</span>. It has full admin
-                    rights but no member profile — that is expected, not a fault. Approve members,
-                    record contributions and settle advance requests from the admin dashboard.
-                  </p>
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                    <Button size="sm" onClick={() => router.push("/admin")} className="w-full gap-2 sm:w-auto">
-                      Open admin dashboard <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => router.push("/auth?mode=signup")}
-                      className="w-full sm:w-auto"
-                    >
-                      Create a member profile too
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Profile missing for a real member — recoverable: retry, or reach Rabi */}
           {!userData && !isAdmin && (
             <div className="glass-soft mb-8 rounded-2xl border-amber-400/25 p-5">
@@ -351,7 +265,7 @@ function DashboardContent() {
                   </h3>
                   <p className="mt-1 text-sm leading-relaxed text-gray-400">
                     Your login works but your registration has not reached us. This is usually a brief connection
-                    problem. Tap <strong className="text-gray-200">Try again</strong> — if it still shows nothing, message
+                    problem. Tap <strong className="text-gray-200">Try again</strong>, if it still shows nothing, message
                     Rabi and she will restore your account in minutes.
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -404,10 +318,10 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Savings tracking + Advance Susu — what members actually open the
-              dashboard for. Rabi records payments; nothing here moves money. */}
+          {/* Savings tracking. Rabi records every payment she receives; the
+              member sees exactly what has landed and how far she has to go. */}
           {userData && (
-            <div className="mb-10 grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <div className="mb-10">
               <section
                 aria-label="Savings progress"
                 className="glass rounded-2xl p-5"
@@ -448,7 +362,7 @@ function DashboardContent() {
                   </div>
                 ) : (
                   <p className="mt-4 rounded-xl bg-white/[0.03] px-3 py-2 text-[11px] text-gray-400">
-                    Your plan has no fixed target — Rabi quotes your payout on WhatsApp.
+                    Your plan has no fixed target, Rabi quotes your payout on WhatsApp.
                   </p>
                 )}
 
@@ -468,94 +382,6 @@ function DashboardContent() {
                 </div>
               </section>
 
-              <section aria-label="Advance Susu" className="glass rounded-2xl p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-300/80">
-                      Advance Susu
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-gray-400">
-                      Need part of your savings early? Ask Rabi here — she decides and pays out on
-                      Mobile Money.
-                    </p>
-                  </div>
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400/10 text-amber-300">
-                    <Wallet className="h-5 w-5" aria-hidden="true" />
-                  </div>
-                </div>
-
-                {userData.status !== "approved" ? (
-                  <p className="mt-4 rounded-xl bg-white/[0.03] px-3 py-2 text-[11px] text-gray-400">
-                    Opens once your account is approved.
-                  </p>
-                ) : (
-                  <div className="mt-4 space-y-3">
-                    <div>
-                      <label htmlFor="advance-amount" className="mb-1.5 block text-xs font-medium text-gray-300">
-                        Amount (GH₵)
-                      </label>
-                      <input
-                        id="advance-amount"
-                        value={advanceAmount}
-                        onChange={(event) => { setAdvanceAmount(event.target.value); setAdvanceError(null); }}
-                        inputMode="decimal"
-                        placeholder="50"
-                        className="h-11 w-full rounded-xl bg-black/30 px-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 placeholder:text-gray-600 focus:ring-emerald-400/60"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="advance-reason" className="mb-1.5 block text-xs font-medium text-gray-300">
-                        Why do you need it?
-                      </label>
-                      <textarea
-                        id="advance-reason"
-                        value={advanceReason}
-                        onChange={(event) => { setAdvanceReason(event.target.value); setAdvanceError(null); }}
-                        maxLength={300}
-                        rows={2}
-                        placeholder="School fees, medical bill…"
-                        className="w-full resize-none rounded-xl bg-black/30 px-3 py-2 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 placeholder:text-gray-600 focus:ring-emerald-400/60"
-                      />
-                    </div>
-                    {advanceError && (
-                      <p className="text-[11px] font-medium text-red-300">{advanceError}</p>
-                    )}
-                    <Button
-                      size="sm"
-                      onClick={handleAdvanceRequest}
-                      loading={advanceSending}
-                      disabled={savings.total <= 0}
-                      className="w-full"
-                    >
-                      Request advance
-                    </Button>
-
-                    {advances.length > 0 && (
-                      <ul className="space-y-2 pt-1">
-                        {advances.slice(0, 3).map((request) => (
-                          <li
-                            key={request.id}
-                            className="flex items-center justify-between gap-2 rounded-xl bg-black/25 px-3 py-2"
-                          >
-                            <span className="min-w-0 truncate text-[11px] text-gray-300">
-                              GH₵{request.amount} · {request.reason}
-                            </span>
-                            <Badge
-                              status={
-                                request.status === "approved"
-                                  ? "approved"
-                                  : request.status === "declined"
-                                  ? "rejected"
-                                  : "pending"
-                              }
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </section>
             </div>
           )}
 

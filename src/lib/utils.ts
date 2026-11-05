@@ -37,7 +37,7 @@ export function formatDate(value: unknown, fallback = "Not scheduled"): string {
   return date ? date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : fallback;
 }
 
-export function formatDateTime(value: unknown, fallback = "—"): string {
+export function formatDateTime(value: unknown, fallback = "-"): string {
   const date = toDate(value);
   return date ? date.toLocaleString("en-GB") : fallback;
 }

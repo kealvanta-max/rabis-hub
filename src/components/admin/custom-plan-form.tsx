@@ -91,7 +91,7 @@ function PlanForm({
     const result = validatePlanInput(form, existing);
     if (!result.ok || !result.plan) {
       setErrors(result.errors);
-      addToast("Check the highlighted field — the rest can stay blank.", "error");
+      addToast("Check the highlighted field, the rest can stay blank.", "error");
       return;
     }
     setErrors({});
@@ -109,7 +109,7 @@ function PlanForm({
         htmlFor="plan-name"
         label="Plan name"
         error={errors.name}
-        hint="The only required field. e.g. “Daily GH₵50” or “Flexi — 3 weeks”."
+        hint="The only required field. e.g. “Daily GH₵50” or “Flexi, 3 weeks”."
       >
         <input
           id="plan-name"
@@ -126,7 +126,7 @@ function PlanForm({
           htmlFor="plan-amt"
           label="Contribution (GH₵)"
           error={errors.amt}
-          hint="Optional — leave blank if you quote it on WhatsApp."
+          hint="Optional, leave blank if you quote it on WhatsApp."
         >
           <input
             id="plan-amt"
@@ -142,7 +142,7 @@ function PlanForm({
           htmlFor="plan-ret"
           label="Payout to member (GH₵)"
           error={errors.ret}
-          hint="Optional. Blank shows “Flexible — Rabi quotes this” on the site."
+          hint="Optional. Blank shows “Flexible, Rabi quotes this” on the site."
         >
           <input
             id="plan-ret"
@@ -159,7 +159,7 @@ function PlanForm({
         <Field
           htmlFor="plan-freq"
           label="How often does she pay?"
-          hint="Tap one, or type anything — “Every Monday” is a valid answer."
+          hint="Tap one, or type anything, “Every Monday” is a valid answer."
         >
           <input
             id="plan-freq"
@@ -282,7 +282,7 @@ export function AddCustomPlan({
         <div className="min-w-0">
           <h3 className="font-grotesk text-sm font-semibold text-white">Create a susu plan</h3>
           <p className="mt-1 text-xs text-gray-400">
-            Only the name is required — you can finish the rest later, including the group link.
+            Only the name is required, you can finish the rest later, including the group link.
           </p>
         </div>
         <Button size="sm" onClick={() => setOpen(true)} className="w-full gap-2 sm:w-auto">

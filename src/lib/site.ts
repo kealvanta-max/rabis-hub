@@ -13,7 +13,7 @@ export const SITE = {
   url: (process.env.NEXT_PUBLIC_SITE_URL || "https://rabis-hub.vercel.app").replace(/\/+$/, ""),
   tagline: "Save Smart, Grow Together",
   description:
-    "Rabi's Saving Hub is Ghana's trusted Susu savings community. Join a daily, weekly or monthly plan from GH₵6, get verified in minutes, and cash out with a real person on WhatsApp — no banks, no hidden charges.",
+    "Rabi's Saving Hub is Ghana's trusted Susu savings community. Join a daily, weekly or monthly plan from GH₵6, get verified in minutes, and cash out with a real person on WhatsApp, no banks, no hidden charges.",
   phone: "+233504701032",
   whatsapp: "233504701032",
   email: "rabisavinghub@gmail.com",
@@ -83,7 +83,7 @@ export function pageMetadata({
       title,
       description,
       locale: "en_GH",
-      images: [{ url: image, width: 1200, height: 630, alt: `${SITE.name} — ${SITE.tagline}` }],
+      images: [{ url: image, width: 1200, height: 630, alt: `${SITE.name}, ${SITE.tagline}` }],
     },
     twitter: {
       card: "summary_large_image",
@@ -98,7 +98,7 @@ export function pageMetadata({
 export const FAQS = [
   {
     q: "What is Rabi's Saving Hub?",
-    a: "Rabi's Saving Hub is a Susu savings community in Accra, Ghana. You pick a daily, weekly or monthly plan, contribute on schedule, and receive your payout when your round ends — all coordinated by a real person on WhatsApp.",
+    a: "Rabi's Saving Hub is a Susu savings community in Accra, Ghana. You pick a daily, weekly or monthly plan, contribute on schedule, and receive your payout when your round ends, all coordinated by a real person on WhatsApp.",
   },
   {
     q: "How much money do I need to start a Susu plan?",
@@ -106,7 +106,7 @@ export const FAQS = [
   },
   {
     q: "How do I join Rabi's Saving Hub?",
-    a: "Create an account, verify your Ghana Card and take a quick selfie, and share your location for verification. Rabi reviews your application — once approved you are added to the members' WhatsApp group.",
+    a: "Create an account, verify your Ghana Card and take a quick selfie, and share your location for verification. Rabi reviews your application, once approved you are added to the members' WhatsApp group.",
   },
   {
     q: "How do I pay my contributions?",

@@ -345,7 +345,7 @@ export default function AppleFaceID({
 
       <p className="max-w-[260px] text-center text-xs leading-relaxed text-gray-400">
         {phase === "success"
-          ? "That is you — your identity check is complete."
+          ? "That is you, your identity check is complete."
           : phase === "scanning"
           ? "Hold still while we check you are a real person."
           : label}

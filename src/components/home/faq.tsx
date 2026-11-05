@@ -24,7 +24,7 @@ export default function FaqSection() {
             Everything members ask <span className="gold-text-gradient">before joining</span>
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-sm text-gray-400">
-            Still unsure? Message Rabi directly on WhatsApp — a real person answers.
+            Still unsure? Message Rabi directly on WhatsApp, a real person answers.
           </p>
         </div>
 

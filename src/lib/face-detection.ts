@@ -124,7 +124,7 @@ export async function detectHumanFace(image: string | Blob): Promise<FaceDetecti
         faceCount === 0
           ? "No human face detected in that photo."
           : faceCount > 1
-          ? `${faceCount} faces detected — a selfie must show only you.`
+          ? `${faceCount} faces detected, a selfie must show only you.`
           : "Human face detected.",
     };
   } catch (error) {

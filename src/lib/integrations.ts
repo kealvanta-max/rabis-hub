@@ -73,7 +73,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     category: "auth",
     required: ["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "CLERK_SECRET_KEY", "CLERK_JWT_ISSUER_DOMAIN"],
     impact:
-      "Nothing — Firebase Auth is the live provider. Clerk only activates when all three are set AND FIREBASE_SERVICE_ACCOUNT_KEY exists.",
+      "Nothing, Firebase Auth is the live provider. Clerk only activates when all three are set AND FIREBASE_SERVICE_ACCOUNT_KEY exists.",
     source: "Clerk dashboard → API keys + JWT templates (see docs/CLERK_MIGRATION.md)",
   },
   {
@@ -112,7 +112,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     required: ["NEXT_PUBLIC_POSTHOG_KEY"],
     publicKeys: ["NEXT_PUBLIC_POSTHOG_KEY", "NEXT_PUBLIC_POSTHOG_HOST"],
     impact:
-      "No funnels, no session replay — Rabi cannot see what members actually do. Nothing else changes.",
+      "No funnels, no session replay, Rabi cannot see what members actually do. Nothing else changes.",
     source: "posthog.com → Project settings → Project API key",
   },
   {

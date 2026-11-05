@@ -25,7 +25,7 @@ export default function GlobalError({
       </div>
       <h1 className="font-display text-3xl mb-3">Something went wrong</h1>
       <p className="text-sm text-gray-400 max-w-md mb-8">
-        We hit an unexpected error while loading this page. Your savings data is safe — try again, and if the problem
+        We hit an unexpected error while loading this page. Your savings data is safe, try again, and if the problem
         continues contact support on WhatsApp.
       </p>
       <div className="flex flex-col sm:flex-row gap-3">

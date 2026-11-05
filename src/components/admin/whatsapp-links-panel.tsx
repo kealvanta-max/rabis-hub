@@ -79,7 +79,7 @@ export default function WhatsAppLinksPanel({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Find a plan — daily, weekly, achiever…"
+            placeholder="Find a plan, daily, weekly, achiever…"
             className="h-11 w-full rounded-xl bg-black/30 pl-9 pr-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-600 focus:ring-emerald-400/60"
           />
         </label>

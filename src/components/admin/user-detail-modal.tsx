@@ -146,10 +146,10 @@ export default function UserDetailModal({
         {/* Contact — single column on phones so long addresses can never collide */}
         <dl className="grid grid-cols-1 gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 sm:grid-cols-2">
           <DataRow label="Email" href={`mailto:${user.email}`}>
-            {user.email || "—"}
+            {user.email || "-"}
           </DataRow>
           <DataRow label="Phone" href={`tel:${user.phone}`}>
-            {user.phone || "—"}
+            {user.phone || "-"}
           </DataRow>
           <DataRow label="Plan">{planLabel}</DataRow>
           <DataRow label="Location">{user.gpsAddress || user.location || "Not shared"}</DataRow>
@@ -296,7 +296,7 @@ export default function UserDetailModal({
                 <p className="mt-1 text-xs leading-relaxed text-gray-400">
                   {ocrVerified
                     ? "The number printed on the card was read on the member's phone and matches what they typed. Approve as normal."
-                    : "The scan was blurry, glared or failed on a slow connection. Compare the card photo below with the number above before deciding — everything else about this member can be fine."}
+                    : "The scan was blurry, glared or failed on a slow connection. Compare the card photo below with the number above before deciding, everything else about this member can be fine."}
                 </p>
                 <a
                   href="#kyc-documents"
@@ -348,7 +348,7 @@ export default function UserDetailModal({
             </>
           ) : (
             <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-4 text-center text-xs text-gray-500">
-              No liveness clip — reviewed manually.
+              No liveness clip, reviewed manually.
             </p>
           )}
         </div>
