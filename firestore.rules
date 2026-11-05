@@ -6,10 +6,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    // Admin = the `admin` custom claim (set by scripts/admin-setup.mjs).
+    // Owner addresses are honoured as a fallback, but only for *verified*
+    // addresses, so an unverified account can never inherit owner powers.
     function isAdmin() {
       return signedIn() && (
         request.auth.token.admin == true ||
-        request.auth.token.email in ['rabisavinghub@gmail.com', 'moneyace914@gmail.com']
+        (
+          request.auth.token.email_verified == true &&
+          request.auth.token.email.lower() in ['rabisavinghub@gmail.com', 'moneyace914@gmail.com']
+        )
       );
     }
 
@@ -23,9 +29,27 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSelf(uid) || isAdmin();
 
+      // A member may create exactly one profile, for their own address, always
+      // pending. Required fields and sane lengths stop junk/oversized documents.
       allow create: if isSelf(uid)
         && request.resource.data.email.lower() == request.auth.token.email.lower()
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasAll(['name', 'email', 'phone', 'plan', 'status'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2
+        && request.resource.data.name.size() <= 80
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() <= 24
+        && request.resource.data.plan is string
+        && request.resource.data.plan.size() <= 40
+        && (!('location' in request.resource.data) || (
+             request.resource.data.location is string
+             && request.resource.data.location.size() <= 120
+           ))
+        && (!('ghanaCardNumber' in request.resource.data) || (
+             request.resource.data.ghanaCardNumber is string
+             && request.resource.data.ghanaCardNumber.size() <= 24
+           ));
 
       allow update: if isAdmin() || (
         isSelf(uid)
@@ -70,7 +94,12 @@ service cloud.firestore {
       allow read: if resource.data.status == 'approved' || isAdmin();
       allow create: if signedIn()
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && request.resource.data.rating is int
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.review is string
+        && request.resource.data.review.size() <= 600;
       allow update, delete: if isAdmin();
     }
 

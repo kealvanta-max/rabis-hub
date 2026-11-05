@@ -303,6 +303,42 @@ cause rather than patched with a nicer colour.
 
 ---
 
+## 🔒 Security pass before handover (hacker's-eye audit)
+
+Full report: **`docs/SECURITY_AUDIT.md`**. Handover for Rabi: **`docs/HANDOVER.md`**.
+Readiness verdict: **`docs/PRODUCTION_READINESS.md`**.
+
+### Two vulnerabilities that had to die first
+1. **`/api/email` was an open relay.** No authentication, and a missing `Origin`
+   header was treated as trusted — so `curl` could send any HTML to any address
+   from Rabi's verified Resend domain. That is a ready-made phishing kit aimed at
+   her own members. Now: Firebase ID token required (verified server-side through
+   Google Identity Toolkit), recipient policy enforced per role, member HTML
+   stripped of scripts/iframes/handlers, rate limit keyed per user, subject
+   sanitised against CRLF header injection.
+2. **Unsigned Cloudinary writes.** The upload preset in the bundle was a public
+   write key. Uploads now go through `POST /api/upload`: authenticated, signed with
+   the API secret, JPG/PNG/WEBP only, ≤ 8 MB, forced folder, re-encoded to
+   ≤ 1600 px. If the secret is missing the proxy still authenticates the request
+   rather than falling back to browser-direct writes.
+
+### Also hardened
+* **Firestore rules** — owner-email admin fallback now requires a *verified*
+  address; profile creation validates required fields and lengths; testimonials
+  validate rating and length; self-updates still cannot touch `status`.
+* **`/api/errors`** — 16 KB body cap, e-mails/phones/tokens scrubbed before
+  reaching Sentry, context capped.
+* **Browser hardening** — CSP, HSTS, `nosniff`, Referrer-Policy,
+  Permissions-Policy and COOP on every response (the CSP keeps only the
+  permissive bits Next/Firebase/MediaPipe/Tesseract genuinely need).
+* **Dependencies** — nodemailer patched (CRLF injection); remaining advisories
+  documented with their real exposure in the readiness report.
+
+**Gates:** lint ✅ · `tsc` ✅ · **120 tests** ✅ · build ✅
+The email and upload routes now return **401 without a token** (verified with curl).
+
+---
+
 ## ⚠️ The 3 things that must be configured for the live site
 
 1. `NEXT_PUBLIC_FIREBASE_*` environment variables (Vercel + local `.env.local`).

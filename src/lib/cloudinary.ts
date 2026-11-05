@@ -1,47 +1,40 @@
-interface CloudinaryResponse {
-    secure_url: string;
-    error?: {
-        message: string;
-    };
+/**
+ * Signed document uploads.
+ *
+ * Previously the browser posted straight to Cloudinary with an *unsigned* preset,
+ * which means the preset name in this bundle was a public write key: anyone could
+ * push files (or worse) into Rabi's Cloudinary account. Uploads now go through
+ * `/api/upload`, which verifies the member's Firebase ID token and signs the
+ * request with the API secret that never leaves the server.
+ */
+
+export interface UploadResult {
+  secure_url: string;
 }
 
-export const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-export const UPLOAD_PRESET = "rabi-user-docs";
-
 export async function uploadToCloudinary(file: File): Promise<string> {
-    if (!CLOUD_NAME) {
-        throw new Error(
-            "File uploads are not configured. Set NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME in your environment."
-        );
-    }
+  const { getAuth } = await import("firebase/auth");
+  const user = getAuth().currentUser;
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", UPLOAD_PRESET);
+  if (!user) {
+    throw new Error("Please sign in again before uploading your documents.");
+  }
 
-    try {
-        const res = await fetch(
-            `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`,
-            {
-                method: "POST",
-                body: formData,
-            }
-        );
-        
-        const data: CloudinaryResponse = await res.json();
-        
-        if (!res.ok) {
-            const message = data.error?.message || "Upload failed";
-            throw new Error(
-                /preset/i.test(message)
-                    ? `Cloudinary rejected the upload preset "${UPLOAD_PRESET}". Create it as an unsigned preset in your Cloudinary dashboard.`
-                    : message
-            );
-        }
-        
-        return data.secure_url;
-    } catch (error) {
-        console.error("Cloudinary upload error:", error);
-        throw new Error(error instanceof Error ? error.message : "Image upload failed");
-    }
+  const token = await user.getIdToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch("/api/upload", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  const data = (await response.json().catch(() => ({}))) as Partial<UploadResult> & { error?: string };
+
+  if (!response.ok || !data.secure_url) {
+    throw new Error(data.error || "Image upload failed. Check your connection and try again.");
+  }
+
+  return data.secure_url;
 }

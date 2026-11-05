@@ -6,11 +6,29 @@ const escapeHtml = (value: string) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+/**
+ * The mail route requires proof of identity (it is no longer an open relay), so
+ * every call carries the signed-in member's Firebase ID token. Failure to get a
+ * token is not fatal — email is a nice-to-have and the caller never blocks.
+ */
+async function authHeaders(): Promise<Record<string, string>> {
+  if (typeof window === "undefined") return {};
+  try {
+    const { getAuth } = await import("firebase/auth");
+    const user = getAuth().currentUser;
+    if (!user) return {};
+    const token = await user.getIdToken();
+    return { Authorization: `Bearer ${token}` };
+  } catch {
+    return {};
+  }
+}
+
 export async function sendEmailNotification(to: string, subject: string, html: string) {
   try {
     const res = await fetch("/api/email", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify({ to, subject, html }),
     });
 
