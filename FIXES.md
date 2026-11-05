@@ -339,6 +339,44 @@ The email and upload routes now return **401 without a token** (verified with cu
 
 ---
 
+## 📱 Custom plans, WhatsApp links, savings tracking, Advance Susu (handover patch)
+
+### The custom-plan WhatsApp bug — three separate breaks
+1. The plan form had **no link field at all** (`AddCustomPlan` collected five fields, none of them a URL).
+2. The WhatsApp-links tab built its rows from the **static** built-in plan list, so a custom plan id
+   (`custom-…`) never got a row to paste into.
+3. Approval looked up `waLinks[planId]` for a plan that had no entry, so `whatsappLink` stayed empty and
+   the member's dashboard showed nothing to join.
+
+**Fixed:** the plan form now has a group-link field (create *and* edit, with validation and a test link),
+the links tab merges built-in + custom plans, and approval resolves plan link → `waLinks` map → the
+member's existing link. A member approved months ago now sees the group button without re-approval,
+because the dashboard resolves the link from the plan itself.
+
+### The form was hostile to a business owner on a phone
+"Please fill all fields" on four fields, and the whole modal reset on one miss. Now:
+**only the plan name is required.** Contribution, payout, frequency and slots are optional; blank payout
+renders as "Flexible — Rabi quotes this" instead of a fabricated number; frequency has one-tap presets;
+a live preview shows exactly what the member will read; inputs open the right keyboard; and ids are
+stable slugs (`custom-daily-50`) instead of timestamps so a rename cannot detach a member from their plan.
+
+### Admin login no longer pretends to be a member
+Rabi's own account has no member document, so `/dashboard` greeted her as "Welcome, Member" and showed
+**"we can't see your details yet — your registration has not reached us"**, which read like her business
+had lost data. Operators now get an owner card ("This is the owner account"), her email as the name, and
+a one-tap route into `/admin`.
+
+### Savings tracking + Advance Susu
+Rabi records money she has actually received (member sheet → *Record payment*, one tap, undo included).
+The member sees total saved, payments count, last contribution in plain English, this month, last 7 days,
+and progress toward the plan payout. **Advance Susu** lets a member ask for part of their own money early
+— capped at half of what has been received — and Rabi approves or declines from a new admin tab with a
+WhatsApp shortcut. No gateway, no card, no change to how money actually moves.
+
+**Gates:** lint ✅ · `tsc` ✅ · **174 tests** ✅ · build ✅
+
+---
+
 ## ⚠️ The 3 things that must be configured for the live site
 
 1. `NEXT_PUBLIC_FIREBASE_*` environment variables (Vercel + local `.env.local`).

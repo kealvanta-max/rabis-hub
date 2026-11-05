@@ -20,6 +20,8 @@ export interface UserDoc {
   whatsappLink: string;
   createdAt: Timestamp;
   ghanaCardOcrResult?: string;
+  /** Money Rabi has actually received, recorded by her in the admin panel. */
+  contributions?: { date: string; amount: number; note?: string }[];
 }
 
 export interface TestimonialDoc {

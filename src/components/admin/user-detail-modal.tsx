@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Coins,
+  Trash2,
   BadgeCheck,
   CheckCircle2,
   Copy,
@@ -17,6 +19,7 @@ import Badge from "@/components/ui/badge";
 import ActionButton from "@/components/admin/action-button";
 import MemberAvatar from "@/components/admin/member-avatar";
 import { formatDate } from "@/lib/utils";
+import { contributionSummary, humaniseLastContribution } from "@/lib/savings";
 import type { UserItem } from "@/components/admin/types";
 
 interface UserDetailModalProps {
@@ -29,6 +32,9 @@ interface UserDetailModalProps {
   onReset: () => void;
   onDownload: () => void;
   onCopyGps: (value: string) => void;
+  /** Rabi records money she has actually received — no gateway involved. */
+  onRecordContribution: (amount: number) => Promise<void> | void;
+  onRemoveContribution: (index: number) => Promise<void> | void;
 }
 
 function DataRow({
@@ -78,7 +84,13 @@ export default function UserDetailModal({
   onReset,
   onDownload,
   onCopyGps,
+  onRecordContribution,
+  onRemoveContribution,
 }: UserDetailModalProps) {
+  // Hooks first, unconditionally — the component returns early without a user.
+  const [contribution, setContribution] = useState("");
+  const [savingContribution, setSavingContribution] = useState(false);
+
   const gps = useMemo(() => {
     if (!user || typeof user.gpsLat !== "number" || typeof user.gpsLng !== "number") return null;
     return `${user.gpsLat.toFixed(6)}, ${user.gpsLng.toFixed(6)}`;
@@ -95,6 +107,20 @@ export default function UserDetailModal({
     { label: "Ghana Card · Back", url: user.ghanaCardBack, tag: null },
     { label: "Passport photo", url: user.passportPhoto, tag: "Face" },
   ];
+
+  const savings = contributionSummary(user?.contributions);
+
+  const saveContribution = async () => {
+    const amount = Number(contribution);
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    setSavingContribution(true);
+    try {
+      await onRecordContribution(amount);
+      setContribution("");
+    } finally {
+      setSavingContribution(false);
+    }
+  };
 
   return (
     <Modal isOpen={Boolean(user)} onClose={onClose} title="Member review" maxWidth="max-w-2xl">
@@ -128,6 +154,77 @@ export default function UserDetailModal({
           <DataRow label="Plan">{planLabel}</DataRow>
           <DataRow label="Location">{user.gpsAddress || user.location || "Not shared"}</DataRow>
         </dl>
+
+        {/* Savings — what Rabi has actually received. One tap, no gateway. */}
+        <section aria-label="Savings recorded" className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
+                Savings recorded
+              </p>
+              <p className="mt-1 font-grotesk text-xl font-semibold text-white">
+                GH₵{savings.total.toLocaleString("en-GH")}
+              </p>
+              <p className="mt-0.5 text-[11px] text-gray-400">
+                {savings.count} payment{savings.count === 1 ? "" : "s"} · {humaniseLastContribution(savings.last)}
+              </p>
+            </div>
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-300">
+              <Coins className="h-4 w-4" aria-hidden="true" />
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <div className="min-w-0 flex-1">
+              <label htmlFor="contribution-amount" className="mb-1.5 block text-[11px] text-gray-400">
+                Amount received (GH₵)
+              </label>
+              <input
+                id="contribution-amount"
+                value={contribution}
+                onChange={(event) => setContribution(event.target.value)}
+                inputMode="decimal"
+                placeholder="50"
+                className="h-10 w-full rounded-xl bg-black/30 px-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 placeholder:text-gray-600 focus:ring-emerald-400/60"
+              />
+            </div>
+            <ActionButton
+              variant="primary"
+              size="md"
+              onClick={() => void saveContribution()}
+              className="self-end sm:w-auto"
+            >
+              {savingContribution ? "Recording…" : "Record payment"}
+            </ActionButton>
+          </div>
+
+          {(user.contributions ?? []).length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {(user.contributions ?? [])
+                .map((entry, index) => ({ entry, index }))
+                .slice(-4)
+                .reverse()
+                .map(({ entry, index }) => (
+                  <li
+                    key={`${entry.date}-${index}`}
+                    className="flex items-center justify-between gap-2 rounded-lg bg-black/25 px-2.5 py-1.5"
+                  >
+                    <span className="min-w-0 truncate text-[11px] text-gray-300">
+                      GH₵{entry.amount} · {entry.date}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void onRemoveContribution(index)}
+                      className="shrink-0 rounded-md p-1 text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300/60"
+                      aria-label={`Remove the GH₵${entry.amount} payment from ${entry.date}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </section>
 
         {/* Identity document */}
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
