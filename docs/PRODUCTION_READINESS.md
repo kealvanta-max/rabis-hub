@@ -115,6 +115,27 @@ numbers, not with more animation.
 
 ---
 
+## "Unique at $0" — what actually separates a shipped site from a template
+
+Awwwards does not score animation. It scores **typography, restraint, one
+signature interaction, and content that could not belong to any other site**.
+Six moves, all free, in order of impact:
+
+| # | Move | Why it reads as designed, not generated | Cost |
+| :--- | :--- | :--- | :--- |
+| 1 | **One real face, one real number** — Rabi's photo and a headline like "470 members. GHS 128,000 paid out." | fabricated stock trust is the #1 slop tell; a verifiable number cannot be templated | $0 |
+| 2 | **Type as the layout** — one display face at real sizes (clamp 40→96 px), tight tracking, generous measure; delete the decorative gradients that currently carry hierarchy | generated pages use colour where they should use scale | $0 (Fontsource already in) |
+| 3 | **One signature moment** — the deposit card flips like a passbook page when saved (already have the Liquid Glass card; make *one* thing move, not ten) | deliberate, single, repeatable = craft; hover-everything = slop | $0 |
+| 4 | **Motion budget** — 120 ms in, 200 ms out, `transform`/`opacity` only, honour `prefers-reduced-motion` (already respected) | consistent timing is what people feel without being able to name | $0 |
+| 5 | **Kill the three-beat rhythm** — hero → plans → testimonials → FAQ on repeat is a wireframe. Replace testimonials with a live "latest payout" strip fed by approved reviews in Firestore | real data, unique to her, updates itself | $0 |
+| 6 | **Twi/Ga micro-copy** — "Maakye" on the morning greeting, Susu vocabulary in the plan cards, not in a language switcher nobody uses | local specificity is the thing a European design team cannot copy | $0 |
+
+What **not** to do: parallax on every section, three.js backgrounds, scroll-jacked
+storytelling. They cost frame budget on a GHS 700 Android phone and read as
+decoration, not design. Rabi's members are on mobile data, not a MacBook.
+
+---
+
 ## The honest one-liner
 
 The website is ready. The **installation** is not — and the installation is five
