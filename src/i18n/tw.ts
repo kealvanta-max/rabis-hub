@@ -70,7 +70,7 @@ const tw = {
   auth_no_account: "Wonni akontaa?",
   auth_create_one: "Yɛ bi",
   auth_join_title: "Bɛka Rabi Susu Kuw",
-  auth_step_of: "Anammɔn {step} a ɛfiri 4 mu",
+  auth_step_of: "Anammɔn {step} a ɛfiri 5 mu",
   auth_first_name: "Wo din a edi kan",
   auth_last_name: "W'abusua din",
   auth_phone: "Wo fon nɔma",

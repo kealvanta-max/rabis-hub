@@ -11,7 +11,7 @@ export default function Footer() {
           <div className="lg:col-span-2">
             <div className="flex items-center gap-3 mb-4 group">
               <Image 
-                src="/brand_logo.png" 
+                src="/brand-logo.webp" 
                 alt="Rabi's Saving Hub Logo" 
                 width={160}
                 height={40}

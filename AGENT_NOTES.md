@@ -1,18 +1,36 @@
-# Rabi's Saving Hub — Agent Notes (V2 - Professional Update)
+# Rabi's Saving Hub — Agent Notes (V3 — beta stabilisation)
 
-## Project Overview
-Next.js 14 community savings (Susu) platform for Ghana. This version includes hardened security, professional Susu management, and enhanced admin features.
+## Project overview
+Next.js 14 App Router + Firebase (Auth + Firestore) community savings (Susu) platform for Ghana.
+Client-side rendering for dashboards; Firebase custom claims for admin; Cloudinary for KYC uploads;
+MediaPipe for liveness/face checks; Tesseract.js for Ghana Card OCR.
 
-## Key Features & Fixes (V2)
-1. **Hardened Registration**: Step 2 & 3 mandatory. Fail-closed logic for face/OCR.
-2. **Professional Susu Management**: Plan-specific rounds, slot rotation, payout tracking, CSV export.
-3. **Dynamic Plans & Reviews**: Custom plans and approved reviews show on live site.
-4. **Announcement System**: Global and plan-specific broadcasts.
-5. **AI Assistant**: Robot icon (🤖) and Gemini placeholder.
-6. **Visual Guide**: Step-by-step tutorial page with Tango.ai readiness.
+## Current state (V3)
+- ✅ `npm run lint`, `npx tsc --noEmit`, `npm run build` all pass.
+- ✅ App renders without any env vars (clear "not configured" state instead of a white screen).
+- ✅ Fonts self-hosted via `@fontsource` — no Google Fonts request at build or runtime.
+- ✅ Registration flow (documents → face scan → GPS → captcha/terms) works end to end.
+- ✅ Susu rounds: create → member reports payment → admin confirms → advance → payout confirmation.
+- ✅ Dynamic (admin-created) plans show on the landing page, auth picker and payments.
+- ⚠️ Needs env configuration to actually talk to Firebase/Cloudinary: see `docs/FIREBASE_SETUP.md`.
+- ⚠️ Firestore rules must be published from `docs/FIREBASE_SETUP.md` (repo does not deploy them).
 
-## Tech Stack
-Next.js 14, Firebase, Tailwind, Framer Motion, Nodemailer, MediaPipe, Tesseract.js, Cloudinary.
+## Important implementation notes
+- `src/lib/firebase.ts` exports `isFirebaseConfigured`; guard any new Firebase calls with it.
+- All Firestore dates must go through `toDate()/formatDate()` from `src/lib/utils.ts`
+  (mixing `Date` and `Timestamp` used to crash payment pages).
+- Avoid `where(...) + orderBy(...)` on different fields — no composite indexes are
+  provisioned. Sort client-side instead.
+- Plans: use `getPlanLabel/getPlanAmount/getPlanSlots` from `src/lib/plans-data.ts`
+  so custom and achiever plans resolve correctly.
+- Payment reporting updates the member's own slot; rules only allow `slots` changes for members.
+- The liveness component degrades to a manual 3-second recording when MediaPipe fails.
 
-## Last Updated
-July 05, 2026.
+## Known follow-ups
+1. Move payment reporting behind an API route (Admin SDK) so members never write rounds.
+2. Host the welcome voice-over in `/public/audio` (current Dropbox link is signed/expiring).
+3. Implement or hide the "AI Assistant — coming soon" button.
+4. Add Playwright tests for the full signup → approval → payment → cashout journey.
+
+## Last updated
+November 2026.

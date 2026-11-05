@@ -131,7 +131,7 @@ export default function HeroSection() {
                   className="relative w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] rounded-full"
                 >
                   <Image 
-                    src="/images/ghana-globe.png"
+                    src="/images/ghana-globe.webp"
                     alt="Ghana Globe"
                     fill
                     className="object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.4)]"

@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Fonts are self-hosted through @fontsource so the app never depends on a
+ * runtime/build-time request to Google Fonts (which fails in offline builds
+ * and in restricted networks).
+ */
+:root {
+  --font-inter: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-dm-serif: "DM Serif Display", ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  --font-space-grotesk: "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -326,4 +337,123 @@ select optgroup {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+/* ==========================================================================
+   LIQUID GLASS — Apple-inspired translucent surfaces
+   ========================================================================== */
+
+:root {
+  --glass-tint: 255 255 255;
+  --glass-blur: 24px;
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-shadow: 0 18px 50px -12px rgba(0, 0, 0, 0.75);
+}
+
+.glass {
+  position: relative;
+  background:
+    linear-gradient(145deg, rgba(var(--glass-tint), 0.11), rgba(var(--glass-tint), 0.03));
+  backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass-soft {
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-emerald {
+  background:
+    linear-gradient(145deg, rgba(16, 185, 129, 0.24), rgba(16, 185, 129, 0.05));
+  backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  box-shadow:
+    0 18px 50px -18px rgba(16, 185, 129, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+/* Specular highlight that sweeps across the glass when hovered/pressed. */
+.glass-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.16) 42%,
+    transparent 62%
+  );
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  pointer-events: none;
+}
+
+.glass-sheen:hover::after,
+.glass-sheen:focus-visible::after {
+  opacity: 1;
+}
+
+/* Bottom dock keeps clear of iOS home indicator / Android gesture bar. */
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* ==========================================================================
+   SKELETON SHIMMER
+   ========================================================================== */
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 0.75rem;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.09),
+    transparent
+  );
+  animation: skeleton-sweep 1.6s infinite;
+}
+
+@keyframes skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}
+
+/* Scrollbar-less horizontal carousels (category chips, plan rows). */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

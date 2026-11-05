@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { MoveRight } from "lucide-react";
 import { useAuth } from "@/context/auth-context";
+import { useCustomPlans } from "@/hooks/use-custom-plans";
 
 const PlanList = ({ plans, category }: { plans: any[]; category: string }) => {
   const { user } = useAuth();
@@ -123,7 +124,17 @@ const AchieverList = ({ tiers }: { tiers: any[] }) => {
 
 export default function PlansSection() {
   const { user } = useAuth();
+  const { customPlans } = useCustomPlans();
   const categories = [
+    ...(customPlans.length > 0
+      ? [
+          {
+            category: "Limited Offer",
+            title: "New plans from Rabi",
+            content: <PlanList plans={customPlans} category="Custom" />,
+          },
+        ]
+      : []),
     {
       category: "Daily Starter",
       title: "Daily Savings Plans",

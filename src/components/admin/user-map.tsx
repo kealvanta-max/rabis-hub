@@ -13,10 +13,26 @@ interface UserMapViewProps {
   users: UserItem[];
 }
 
+const statusColors: Record<string, string> = {
+  approved: "#10B981",
+  pending: "#F59E0B",
+  rejected: "#EF4444",
+};
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 export default function UserMapView({ users }: UserMapViewProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const markersRef = useRef<L.LayerGroup | null>(null);
 
+  // Create the map exactly once.
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
@@ -26,14 +42,30 @@ export default function UserMapView({ users }: UserMapViewProps) {
     });
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(map);
 
-    const statusColors: Record<string, string> = {
-      approved: "#10B981",
-      pending: "#F59E0B",
-      rejected: "#EF4444",
+    markersRef.current = L.layerGroup().addTo(map);
+    mapInstanceRef.current = map;
+
+    // The container is often hidden when the tab opens – make sure tiles fill it.
+    const timer = window.setTimeout(() => map.invalidateSize(), 150);
+
+    return () => {
+      window.clearTimeout(timer);
+      map.remove();
+      mapInstanceRef.current = null;
+      markersRef.current = null;
     };
+  }, []);
+
+  // Re-draw markers whenever the user list changes (data loads asynchronously).
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const layer = markersRef.current;
+    if (!map || !layer) return;
+
+    layer.clearLayers();
 
     users.forEach((user) => {
       if (!user.gpsLat || !user.gpsLng) return;
@@ -47,34 +79,30 @@ export default function UserMapView({ users }: UserMapViewProps) {
         iconAnchor: [7, 7],
       });
 
-      const marker = L.marker([user.gpsLat, user.gpsLng], { icon });
+      const name = escapeHtml(user.name || "Member");
+      const email = escapeHtml(user.email || "");
+      const address = escapeHtml(user.gpsAddress || user.location || "Open in Maps");
+      const status = escapeHtml(user.status || "pending");
 
-      marker.bindPopup(`
+      L.marker([user.gpsLat, user.gpsLng], { icon })
+        .bindPopup(
+          `
         <div style="font-family:Inter,sans-serif;min-width:180px;">
-          <p style="font-weight:700;margin:0 0 4px;">${user.name}</p>
-          <p style="font-size:12px;color:#666;margin:0 0 2px;">${user.email}</p>
+          <p style="font-weight:700;margin:0 0 4px;">${name}</p>
+          <p style="font-size:12px;color:#666;margin:0 0 2px;">${email}</p>
           <a href="https://www.google.com/maps/search/?api=1&query=${user.gpsLat},${user.gpsLng}" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:#3b82f6;margin:0 0 2px;text-decoration:none;display:flex;align-items:center;gap:4px;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-            ${user.gpsAddress || user.location || "Open in Maps"}
+            ${address}
           </a>
-          <p style="font-size:11px;margin:4px 0 0;padding:2px 6px;display:inline-block;border-radius:8px;background:${color}20;color:${color};font-weight:600;text-transform:capitalize;">${user.status}</p>
+          <p style="font-size:11px;margin:4px 0 0;padding:2px 6px;display:inline-block;border-radius:8px;background:${color}20;color:${color};font-weight:600;text-transform:capitalize;">${status}</p>
         </div>
-      `);
-
-      marker.addTo(map);
+      `
+        )
+        .addTo(layer);
     });
 
-    mapInstanceRef.current = map;
-
-    setTimeout(() => map.invalidateSize(), 100);
-
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-    };
+    map.invalidateSize();
   }, [users]);
 
-  return <div ref={mapRef} className="w-full h-full" />;
+  return <div ref={mapRef} className="w-full h-full min-h-[400px]" />;
 }

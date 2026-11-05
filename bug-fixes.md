@@ -23,12 +23,15 @@ Next.js, TypeScript, Firebase (Auth/Firestore), Tailwind CSS
 - `src/lib/payment-tracker.ts`
 
 ## Task Breakdown
-1. **[ ] Fix face-scan.tsx**: Convert WebM video Blob to a `File` object before uploading to Cloudinary (Agent: frontend-specialist, Skill: typescript-expert). INPUT: Base64 data logic -> OUTPUT: File object -> VERIFY: No `npx tsc` errors.
-2. **[ ] Fix auth/page.tsx**: Remove early submit button, bind `termsAccepted`, enforce step 5 (Agent: frontend-specialist). INPUT: Step 4 Bypass -> OUTPUT: Secure multi-step form -> VERIFY: Manual form progression requires terms agreement.
-3. **[ ] Fix dashboard payments**: Dynamically fetch custom plans and standard plans to calculate `amount` rather than using `0` (Agent: backend-specialist). INPUT: Hardcoded 0 -> OUTPUT: Actual GH₵ value -> VERIFY: Firestore payload shows correct amount.
-4. **[ ] Fix admin confirmations**: Pass the real `reportId` instead of a mocked string, and update `confirmPayment` to support force-confirmations (Agent: backend-specialist). INPUT: Mocked string -> OUTPUT: Dynamic ID lookup -> VERIFY: Confirmation updates slot correctly.
+1. **[x] Fix face-scan.tsx**: Convert WebM video Blob to a `File` object before uploading to Cloudinary (Agent: frontend-specialist, Skill: typescript-expert). INPUT: Base64 data logic -> OUTPUT: File object -> VERIFY: No `npx tsc` errors.
+2. **[x] Fix auth/page.tsx**: Remove early submit button, bind `termsAccepted`, enforce step 5 (Agent: frontend-specialist). INPUT: Step 4 Bypass -> OUTPUT: Secure multi-step form -> VERIFY: Manual form progression requires terms agreement.
+3. **[x] Fix dashboard payments**: Dynamically fetch custom plans and standard plans to calculate `amount` rather than using `0` (Agent: backend-specialist). INPUT: Hardcoded 0 -> OUTPUT: Actual GH₵ value -> VERIFY: Firestore payload shows correct amount.
+4. **[x] Fix admin confirmations**: Pass the real `reportId` instead of a mocked string, and update `confirmPayment` to support force-confirmations (Agent: backend-specialist). INPUT: Mocked string -> OUTPUT: Dynamic ID lookup -> VERIFY: Confirmation updates slot correctly.
 
 ## ✅ PHASE X Verification
-- Lint: [ ] Pending
-- Security: [ ] Pending
-- Build: [ ] Pending
+- Lint: [x] Passes (`npm run lint`)
+- Typecheck: [x] Passes (`npx tsc --noEmit`)
+- Build: [x] Passes (`npm run build`)
+
+> Completed in the V3 beta stabilisation pass — see `FIXES.md` for the full list and
+> `docs/FIREBASE_SETUP.md` for the required environment/rules configuration.

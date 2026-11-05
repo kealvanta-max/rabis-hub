@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/auth-context";
+import { SkeletonPage } from "@/components/ui/skeleton";
 import { collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc, addDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToastContext } from "@/components/layout/toast-provider";
@@ -13,7 +14,9 @@ import Card from "@/components/ui/card";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
-import { planLabels } from "@/lib/plans-data";
+import { getPlanLabel, planLabels } from "@/lib/plans-data";
+import { formatDate, formatDateTime } from "@/lib/utils";
+import { isFirebaseConfigured } from "@/lib/firebase";
 import type { UserDoc, TestimonialDoc } from "@/lib/types";
 import { notifyUserApproval, notifyUserRejection, notifyAdminNewRegistration } from "@/lib/notifications";
 import dynamic from "next/dynamic";
@@ -45,6 +48,7 @@ export default function AdminPage() {
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
+  const [health, setHealth] = useState<{ cloudinaryConfigured: boolean; emailProvider: string | null } | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -74,10 +78,11 @@ export default function AdminPage() {
       }
     } catch (err) {
       console.error("Admin fetch error:", err);
+      addToast("Could not load admin data. Check your connection and Firestore rules.", "error");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addToast]);
 
   useEffect(() => {
     if (!authLoading && (!user || !isAdmin)) {
@@ -87,12 +92,29 @@ export default function AdminPage() {
     if (user && isAdmin) fetchData();
   }, [user, isAdmin, authLoading, router, fetchData]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/health")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data && setHealth(data))
+      .catch(() => setHealth(null));
+  }, [isAdmin]);
+
   const setStatus = async (userId: string, status: "approved" | "rejected" | "pending", reason?: string) => {
     try {
       const updates: Record<string, string> = { status };
       const u = users.find((x) => x.id === userId);
       if (status === "approved") {
-        if (u) updates.whatsappLink = waLinks[u.plan] || "";
+        const link =
+          (u &&
+            ((Array.isArray(u.plans) ? u.plans : []).map((planId) => waLinks[planId]).find(Boolean) ||
+              waLinks[u.plan] ||
+              "")) ||
+          "";
+        updates.whatsappLink = link;
+        if (u && !link) {
+          addToast("Approved — but no WhatsApp link is saved for this plan yet.", "info");
+        }
       }
       if (status === "pending" || status === "rejected") {
         updates.whatsappLink = "";
@@ -108,7 +130,7 @@ export default function AdminPage() {
       // Send email notification
       if (u) {
         if (status === "approved") {
-          notifyUserApproval(u.email, u.name, planLabels[u.plan] || u.plan).catch(console.error);
+          notifyUserApproval(u.email, u.name, getPlanLabel(u.plan, customPlans)).catch(console.error);
         } else if (status === "rejected") {
           notifyUserRejection(u.email, u.name, reason || "").catch(console.error);
         }
@@ -148,9 +170,21 @@ export default function AdminPage() {
   };
 
   const downloadCSV = () => {
+    const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
     const header = "Name,Email,Phone,Plan,Status,Location,GPS,Date\n";
     const rows = filteredUsers.map((u) =>
-      `"${u.name}","${u.email}","${u.phone}","${planLabels[u.plan] || u.plan}","${u.status}","${u.gpsAddress || u.location}","${u.gpsLat},${u.gpsLng}","${u.createdAt?.toDate?.()?.toLocaleDateString() || ""}"`
+      [
+        u.name,
+        u.email,
+        u.phone,
+        getPlanLabel(u.plan, customPlans),
+        u.status,
+        u.gpsAddress || u.location,
+        `${u.gpsLat},${u.gpsLng}`,
+        formatDate(u.createdAt, ""),
+      ]
+        .map(escape)
+        .join(",")
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -197,13 +231,22 @@ export default function AdminPage() {
   };
 
   if (authLoading || loading) {
+    return <SkeletonPage cards={4} />;
+  }
+
+  if (!isAdmin) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-      </div>
+      <>
+        <Navigation />
+        <main className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+          <h1 className="font-display text-3xl text-white mb-3">Admin access required</h1>
+          <p className="text-sm text-gray-400 mb-6 max-w-md">
+            This area is restricted to administrators. Sign in with an admin account, or ask an owner to grant your
+            account the <code className="text-primary">admin</code> custom claim.
+          </p>
+          <Button onClick={() => router.replace("/auth?mode=signin")}>Go to sign in</Button>
+        </main>
+      </>
     );
   }
 
@@ -235,6 +278,31 @@ export default function AdminPage() {
             <StatCard label="Approved" value={stats.approved} color="text-emerald-400" />
             <StatCard label="Rejected" value={stats.rejected} color="text-red-400" />
           </div>
+
+          {/* System status */}
+          {(!isFirebaseConfigured || (health && (!health.cloudinaryConfigured || !health.emailProvider))) && (
+            <div className="mb-8 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.18A2 2 0 003.82 21h16.36a2 2 0 001.71-2.96L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-amber-200">Setup needs attention</h3>
+                  <p className="text-xs text-amber-200/70 mb-3">
+                    Some integrations are missing, so parts of the site will not work for members.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusPill ok={isFirebaseConfigured} label="Firebase" />
+                    <StatusPill ok={Boolean(health?.cloudinaryConfigured)} label="Cloudinary uploads" />
+                    <StatusPill ok={Boolean(health?.emailProvider)} label={`Email${health?.emailProvider ? ` (${health.emailProvider})` : ""}`} />
+                  </div>
+                  <p className="text-[11px] text-amber-200/60 mt-3">
+                    See <code>docs/FIREBASE_SETUP.md</code> for the full checklist.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="flex gap-1 mb-6 bg-white/[0.03] rounded-xl p-1 overflow-x-auto">
@@ -311,7 +379,7 @@ export default function AdminPage() {
                             <Badge status={u.status} />
                           </div>
                           <p className="text-xs text-gray-500">{u.email} • {u.phone}</p>
-                          <p className="text-xs text-gray-500">{planLabels[u.plan] || u.plan} • {u.gpsAddress || u.location || "No location"}</p>
+                          <p className="text-xs text-gray-500">{getPlanLabel(u.plan, customPlans)} • {u.gpsAddress || u.location || "No location"}</p>
                         </div>
 
                         {/* Actions */}
@@ -442,7 +510,10 @@ export default function AdminPage() {
           {/* === ANNOUNCEMENTS TAB === */}
           {activeTab === "announcements" && (
             <div className="space-y-4">
-              <AddAnnouncement onAdd={(a) => setAnnouncements((prev) => [a, ...prev])} />
+              <AddAnnouncement
+                customPlans={customPlans}
+                onAdd={(a) => setAnnouncements((prev) => [a, ...prev])}
+              />
               {announcements.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">No announcements yet.</p>
               ) : (
@@ -452,7 +523,10 @@ export default function AdminPage() {
                       <div>
                         <h3 className="font-bold text-white mb-1">{a.title}</h3>
                         <p className="text-sm text-gray-300">{a.message}</p>
-                        <p className="text-xs text-gray-500 mt-2">{a.createdAt?.toDate?.()?.toLocaleString()}</p>
+                        <p className="text-[11px] text-primary/70 mt-1">
+                          Audience: {a.planId ? getPlanLabel(a.planId, customPlans) : "All members"}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-2">{formatDateTime(a.createdAt)}</p>
                       </div>
                       <button onClick={async () => {
                         try {
@@ -495,18 +569,30 @@ export default function AdminPage() {
                         <p className="text-sm text-gray-300">Rate: GH₵{plan.amt} | Frequency: {plan.freq}</p>
                         <p className="text-sm text-emerald-400 font-semibold mt-1">Target Return: GH₵{plan.ret}</p>
                       </div>
-                      <button onClick={async () => {
-                        const newPlans = customPlans.filter(p => p.id !== plan.id);
-                        try {
-                          await setDoc(doc(db, "settings", "customPlans"), { plans: newPlans });
-                          setCustomPlans(newPlans);
-                          addToast("Plan deleted successfully!", "success");
-                        } catch (e) {
-                          addToast("Failed to delete plan", "error");
-                        }
-                      }} className="px-3 py-1.5 text-xs bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors cursor-pointer">
-                        Delete
-                      </button>
+                      <div className="flex gap-2 shrink-0">
+                        <EditCustomPlan
+                          plan={plan}
+                          onSave={async (updated) => {
+                            const newPlans = customPlans.map((p) => (p.id === updated.id ? updated : p));
+                            await setDoc(doc(db, "settings", "customPlans"), { plans: newPlans });
+                            setCustomPlans(newPlans);
+                            addToast("Plan updated on the live site!", "success");
+                          }}
+                        />
+                        <button onClick={async () => {
+                          if (!window.confirm(`Delete "${plan.name}"? Members already on this plan keep it, but it disappears from the live site.`)) return;
+                          const newPlans = customPlans.filter(p => p.id !== plan.id);
+                          try {
+                            await setDoc(doc(db, "settings", "customPlans"), { plans: newPlans });
+                            setCustomPlans(newPlans);
+                            addToast("Plan deleted successfully!", "success");
+                          } catch (e) {
+                            addToast("Failed to delete plan", "error");
+                          }
+                        }} className="px-3 py-1.5 text-xs bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30 transition-colors cursor-pointer">
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </Card>
                 ))
@@ -528,7 +614,7 @@ export default function AdminPage() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><span className="text-gray-500">Email:</span> <span className="text-white ml-1">{selectedUser.email}</span></div>
               <div><span className="text-gray-500">Phone:</span> <span className="text-white ml-1">{selectedUser.phone}</span></div>
-              <div><span className="text-gray-500">Plan:</span> <span className="text-white ml-1">{planLabels[selectedUser.plan] || selectedUser.plan}</span></div>
+              <div><span className="text-gray-500">Plan:</span> <span className="text-white ml-1">{getPlanLabel(selectedUser.plan, customPlans)}</span></div>
               <div><span className="text-gray-500">Status:</span> <Badge status={selectedUser.status} /></div>
               
               <div className="col-span-2 flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/10">
@@ -562,7 +648,7 @@ export default function AdminPage() {
               {/* OCR Result Badge */}
               {selectedUser.ghanaCardOcrResult && (
                 <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-3 flex items-center gap-2">
-                  {JSON.parse(selectedUser.ghanaCardOcrResult).valid ? (
+                  {isOcrValid(selectedUser.ghanaCardOcrResult) ? (
                     <>
                       <svg className="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -684,6 +770,35 @@ export default function AdminPage() {
   );
 }
 
+/**
+ * OCR results are stored as JSON strings. Older records may be plain text or
+ * malformed, which used to crash the whole admin dashboard with a JSON.parse error.
+ */
+function isOcrValid(raw: string): boolean {
+  try {
+    const parsed = JSON.parse(raw);
+    return Boolean(parsed?.valid);
+  } catch {
+    return false;
+  }
+}
+
+function StatusPill({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+        ok
+          ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+          : "bg-red-500/15 text-red-300 border-red-500/30"
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-emerald-400" : "bg-red-400"}`} />
+      {label}
+      {ok ? " ready" : " missing"}
+    </span>
+  );
+}
+
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <Card>
@@ -777,11 +892,18 @@ function AddStaticTestimonial({ onAdd }: { onAdd: (t: TestimonialItem) => void }
   );
 }
 
-function AddAnnouncement({ onAdd }: { onAdd: (a: any) => void }) {
+function AddAnnouncement({
+  onAdd,
+  customPlans = [],
+}: {
+  onAdd: (a: any) => void;
+  customPlans?: any[];
+}) {
   const { addToast } = useToastContext();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
+  const [planId, setPlanId] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleAdd = async () => {
@@ -791,18 +913,21 @@ function AddAnnouncement({ onAdd }: { onAdd: (a: any) => void }) {
       const docRef = await addDoc(collection(db, "announcements"), {
         title,
         message,
+        planId: planId || null,
         createdAt: Timestamp.now(),
       });
       onAdd({
         id: docRef.id,
         title,
         message,
+        planId: planId || null,
         createdAt: Timestamp.now(),
       });
-      addToast("Announcement pushed to users!", "success");
+      addToast(planId ? "Announcement sent to that plan's members!" : "Announcement pushed to all users!", "success");
       setOpen(false);
       setTitle("");
       setMessage("");
+      setPlanId("");
     } catch {
       addToast("Failed to create announcement", "error");
     } finally {
@@ -812,10 +937,25 @@ function AddAnnouncement({ onAdd }: { onAdd: (a: any) => void }) {
 
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)}>Create Global Announcement</Button>
+      <Button size="sm" onClick={() => setOpen(true)}>Create Announcement</Button>
       <Modal isOpen={open} onClose={() => setOpen(false)} title="New Announcement">
         <div className="space-y-4">
           <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Important Update" required />
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1.5">Audience</label>
+            <select
+              value={planId}
+              onChange={(e) => setPlanId(e.target.value)}
+              className="w-full px-4 py-3 bg-navy-dark/60 border border-gray-700 rounded-lg text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer"
+            >
+              <option value="">All members</option>
+              {Array.from(new Set([...Object.keys(planLabels), ...customPlans.map((p) => p.id)])).map((id) => (
+                <option key={id} value={id}>
+                  Only {getPlanLabel(id, customPlans)}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <p className="text-sm text-gray-300 mb-1">Message</p>
             <textarea
@@ -836,7 +976,7 @@ function AddCustomPlan({ onAdd }: { onAdd: (plan: any) => Promise<void> }) {
   const { addToast } = useToastContext();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState({ name: "", amt: "", freq: "", ret: "" });
+  const [plan, setPlan] = useState({ name: "", amt: "", freq: "", ret: "", slots: "" });
 
   const handleAdd = async () => {
     if (!plan.name || !plan.amt || !plan.freq || !plan.ret) {
@@ -851,10 +991,11 @@ function AddCustomPlan({ onAdd }: { onAdd: (plan: any) => Promise<void> }) {
         amt: Number(plan.amt),
         freq: plan.freq,
         ret: Number(plan.ret),
+        ...(plan.slots ? { slots: Number(plan.slots) } : {}),
       });
       addToast("Custom plan saved!", "success");
       setOpen(false);
-      setPlan({ name: "", amt: "", freq: "", ret: "" });
+      setPlan({ name: "", amt: "", freq: "", ret: "", slots: "" });
     } catch {
       addToast("Failed to save plan", "error");
     } finally {
@@ -871,8 +1012,66 @@ function AddCustomPlan({ onAdd }: { onAdd: (plan: any) => Promise<void> }) {
           <Input label="Contribution Amount (GH₵)" type="number" value={plan.amt} onChange={(e) => setPlan(p => ({ ...p, amt: e.target.value }))} required />
           <Input label="Frequency (e.g. Daily, 5 Days)" value={plan.freq} onChange={(e) => setPlan(p => ({ ...p, freq: e.target.value }))} required />
           <Input label="Target Return Amount (GH₵)" type="number" value={plan.ret} onChange={(e) => setPlan(p => ({ ...p, ret: e.target.value }))} required />
+          <Input label="Slots (optional)" type="number" value={plan.slots} onChange={(e) => setPlan(p => ({ ...p, slots: e.target.value }))} placeholder="e.g. 15" />
           
           <Button onClick={handleAdd} loading={loading} className="w-full">Save Plan to Live Site</Button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
+function EditCustomPlan({ plan, onSave }: { plan: any; onSave: (plan: any) => Promise<void> }) {
+  const { addToast } = useToastContext();
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    name: plan.name || "",
+    amt: String(plan.amt ?? ""),
+    freq: plan.freq || "",
+    ret: String(plan.ret ?? ""),
+    slots: plan.slots ? String(plan.slots) : "",
+  });
+
+  const handleSave = async () => {
+    if (!form.name || !form.amt || !form.freq || !form.ret) {
+      addToast("Please fill all required fields", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      await onSave({
+        ...plan,
+        name: form.name,
+        amt: Number(form.amt),
+        freq: form.freq,
+        ret: Number(form.ret),
+        ...(form.slots ? { slots: Number(form.slots) } : {}),
+      });
+      setOpen(false);
+    } catch {
+      addToast("Failed to update plan", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="px-3 py-1.5 text-xs bg-white/5 text-gray-300 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+      >
+        Edit
+      </button>
+      <Modal isOpen={open} onClose={() => setOpen(false)} title={`Edit ${plan.name}`}>
+        <div className="space-y-4">
+          <Input label="Plan Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+          <Input label="Contribution Amount (GH₵)" type="number" value={form.amt} onChange={(e) => setForm((f) => ({ ...f, amt: e.target.value }))} required />
+          <Input label="Frequency" value={form.freq} onChange={(e) => setForm((f) => ({ ...f, freq: e.target.value }))} required />
+          <Input label="Target Return Amount (GH₵)" type="number" value={form.ret} onChange={(e) => setForm((f) => ({ ...f, ret: e.target.value }))} required />
+          <Input label="Slots (optional)" type="number" value={form.slots} onChange={(e) => setForm((f) => ({ ...f, slots: e.target.value }))} />
+          <Button onClick={handleSave} loading={loading} className="w-full">Save Changes</Button>
         </div>
       </Modal>
     </>

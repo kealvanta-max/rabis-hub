@@ -12,6 +12,15 @@ export default function LoadingScreen() {
   const { t } = useTranslation();
 
   useEffect(() => {
+    // Only show the "Akwaaba" gate once per browser session – returning users
+    // should never be blocked behind it when they reload the app.
+    try {
+      if (sessionStorage.getItem("rabi-entered") === "1") {
+        setIsVisible(false);
+      }
+    } catch {
+      /* private mode – ignore */
+    }
     setMounted(true);
     // Hide scrollbar while loading screen is active
     if (isVisible) {
@@ -26,6 +35,12 @@ export default function LoadingScreen() {
   }, [isVisible]);
 
   const handleEnter = () => {
+    try {
+      sessionStorage.setItem("rabi-entered", "1");
+    } catch {
+      /* private mode – ignore */
+    }
+
     // Play audio
     const audioEl = document.getElementById("welcomeAudio") as HTMLAudioElement | null;
     if (audioEl) {
@@ -68,7 +83,7 @@ export default function LoadingScreen() {
               <div className="absolute -inset-10 bg-primary/20 blur-3xl rounded-full animate-pulse"></div>
               <div className="relative transform hover:scale-105 transition-transform duration-500 flex items-center justify-center">
                 <Image
-                  src="/images/business-card.png.jpg"
+                  src="/images/business-card.webp"
                   alt="Rabi's Saving Hub"
                   width={300}
                   height={180}

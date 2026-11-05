@@ -12,24 +12,26 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '20.x'
         cache: 'npm'
-        
+
     - name: Install Dependencies
       run: npm ci
-      
-    - name: Build and Lint
-      # We ignore build errors as a fail-safe for Vercel deployment, but it will check the types and linting
-      run: npm run lint || true && npm run build
-      env:
-        # Provide placeholder environment variables for build step
-        NEXT_PUBLIC_FIREBASE_API_KEY: "placeholder"
-        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "placeholder"
-        NEXT_PUBLIC_FIREBASE_PROJECT_ID: "placeholder"
-        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "placeholder"
-        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "placeholder"
-        NEXT_PUBLIC_FIREBASE_APP_ID: "placeholder"
+
+    - name: Lint
+      run: npm run lint
+
+    - name: Type check
+      run: npx tsc --noEmit
+
+    - name: Unit tests
+      run: npm test
+
+    - name: Build
+      # The app builds without Firebase env vars (it falls back to a clear
+      # "not configured" state) so CI does not need project secrets.
+      run: npm run build

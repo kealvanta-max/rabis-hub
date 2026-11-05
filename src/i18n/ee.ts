@@ -70,7 +70,7 @@ const ee = {
   auth_no_account: "Wò nuŋɔŋlɔ ɖeke meli o?",
   auth_create_one: "Wɔ ɖeka",
   auth_join_title: "Va ka Rabi ƒe Susu Ha ŋu",
-  auth_step_of: "Afɔɖeɖe {step} le 4 me",
+  auth_step_of: "Afɔɖeɖe {step} le 5 me",
   auth_first_name: "Wò ŋkɔ gbãtɔ",
   auth_last_name: "Wò ƒome ŋkɔ",
   auth_phone: "Wò telefon xexlẽ",

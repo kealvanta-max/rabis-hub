@@ -70,7 +70,7 @@ const ha = {
   auth_no_account: "Ba ku da asusu ba?",
   auth_create_one: "Ƙirƙiri ɗaya",
   auth_join_title: "Ku shigo cikin Rabi's Saving Hub",
-  auth_step_of: "Mataki na {step} daga cikin 4",
+  auth_step_of: "Mataki na {step} daga cikin 5",
   auth_first_name: "Sunan farko",
   auth_last_name: "Sunan iyali",
   auth_phone: "Lambar tarho",

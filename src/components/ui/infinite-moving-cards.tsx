@@ -42,6 +42,9 @@ export const InfiniteMovingCards = ({
 
   const addAnimation = React.useCallback(() => {
     if (containerRef.current && scrollerRef.current) {
+      // React 18 StrictMode mounts effects twice in development – guard so the
+      // cards are only duplicated once and the marquee keeps its speed.
+      if (scrollerRef.current.dataset.cloned === "true") return;
       const scrollerContent = Array.from(scrollerRef.current.children);
       // Clone items to create seamless infinite loop
       scrollerContent.forEach((item) => {
@@ -50,6 +53,7 @@ export const InfiniteMovingCards = ({
           scrollerRef.current.appendChild(duplicatedItem);
         }
       });
+      scrollerRef.current.dataset.cloned = "true";
       getDirection();
       getSpeed();
       setStart(true);

@@ -2,7 +2,18 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Ship smaller client bundles: only the icons/components actually imported
+  // are pulled in, and application console noise is stripped from production.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "framer-motion", "recharts"],
+  },
+  compiler:
+    process.env.NODE_ENV === "production"
+      ? { removeConsole: { exclude: ["error", "warn"] } }
+      : undefined,
   images: {
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [360, 420, 640, 768, 1024, 1280, 1536],
     remotePatterns: [
       {
         protocol: "https",
@@ -19,18 +30,43 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "firebasestorage.googleapis.com",
-      }
+      },
     ],
   },
+  webpack: (config) => {
+    // MediaPipe ships a UMD bundle that webpack flags with a harmless
+    // "critical dependency" warning on every compile.
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      { module: /@mediapipe\/tasks-vision/ },
+    ];
+    return config;
+  },
   async headers() {
+    const commonSecurityHeaders = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self)" },
+    ];
+
     return [
       {
-        source: "/(.*)",
+        // Public site, auth and dashboard pages. Deliberately no X-Frame-Options
+        // so the app can be embedded in preview/hosting dashboards.
+        source: "/:path*",
+        headers: commonSecurityHeaders,
+      },
+      {
+        // Admin panel: clickjacking protection. Framing is limited to the site
+        // itself and the hosted preview domain so admins can still review the
+        // panel in the preview environment. Remove `https://*.e2b.app` to lock
+        // the panel to your own domain only.
+        source: "/admin/:path*",
         headers: [
-          { key: "X-Frame-Options", value: "DENY" },
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self)" },
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'self' https://*.e2b.app",
+          },
         ],
       },
     ];
@@ -38,4 +74,3 @@ const nextConfig = {
 };
 
 export default nextConfig;
-

@@ -70,7 +70,7 @@ const ga = {
   auth_no_account: "Ni ni akontaa kɔ?",
   auth_create_one: "Yɛ bi",
   auth_join_title: "Shwa ba Rabi Susu Kuw",
-  auth_step_of: "Step {step} firi 4 mli",
+  auth_step_of: "Step {step} firi 5 mli",
   auth_first_name: "Ni din kɛ edi kan",
   auth_last_name: "Ni weku din",
   auth_phone: "Ni phone number",

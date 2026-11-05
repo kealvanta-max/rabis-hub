@@ -12,7 +12,10 @@ import Footer from "@/components/layout/footer";
 import Badge from "@/components/ui/badge";
 import Card from "@/components/ui/card";
 import Button from "@/components/ui/button";
-import { planLabels } from "@/lib/plans-data";
+import { getPlanLabel, planLabels } from "@/lib/plans-data";
+import { useCustomPlans } from "@/hooks/use-custom-plans";
+import { DashboardSkeleton } from "@/components/ui/skeleton";
+import { formatDateTime } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
 import { PlanItem } from "@/lib/types";
 import { MoveRight, Plus, CheckCircle2 } from "lucide-react";
@@ -33,15 +36,20 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { user, userData, loading, logout } = useAuth();
+  const { user, userData, loading, profileLoading, logout } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addToast } = useToastContext();
+  const { customPlans } = useCustomPlans();
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [addingPlan, setAddingPlan] = useState(false);
 
   const addPlanId = searchParams.get("addPlan");
-  const userPlans = userData?.plans || (userData?.plan ? [userData.plan] : []);
+  const userPlans = Array.isArray(userData?.plans) && userData.plans.length > 0
+    ? userData.plans
+    : userData?.plan
+    ? [userData.plan]
+    : [];
 
   useEffect(() => {
     if (!loading && !user) {
@@ -56,7 +64,7 @@ function DashboardContent() {
       await updateDoc(doc(db, "users", user.uid), {
         plans: arrayUnion(planId)
       });
-      addToast(`Plan ${planLabels[planId] || planId} added successfully!`, "success");
+      addToast(`Plan ${getPlanLabel(planId, customPlans)} added successfully!`, "success");
       router.replace("/dashboard");
     } catch (err) {
       addToast("Failed to add plan.", "error");
@@ -69,26 +77,25 @@ function DashboardContent() {
     if (user) {
       const fetchAnnouncements = async () => {
         try {
-          const q = query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(3));
+          const q = query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(10));
           const snap = await getDocs(q);
           setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         } catch (e) {
-          console.error("Failed to fetch announcements", e);
+          // Fallback for projects where announcements lack a createdAt value.
+          try {
+            const snap = await getDocs(collection(db, "announcements"));
+            setAnnouncements(snap.docs.slice(0, 10).map(d => ({ id: d.id, ...d.data() })));
+          } catch (fallbackError) {
+            console.error("Failed to fetch announcements", e, fallbackError);
+          }
         }
       };
       fetchAnnouncements();
     }
   }, [user]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-      </div>
-    );
+  if (loading || profileLoading) {
+    return <DashboardSkeleton />;
   }
 
   if (!user) {
@@ -108,10 +115,13 @@ function DashboardContent() {
             <p className="text-gray-400 text-sm">Manage your savings and track your progress.</p>
           </div>
 
-          {/* Announcements */}
-          {announcements.length > 0 && (
+          {/* Announcements (global + announcements targeted at the member's plans) */}
+          {announcements.filter((a) => !a.planId || userPlans.includes(a.planId)).length > 0 && (
             <div className="mb-8 space-y-3">
-              {announcements.map((a) => (
+              {announcements
+                .filter((a) => !a.planId || userPlans.includes(a.planId))
+                .slice(0, 3)
+                .map((a) => (
                 <div key={a.id} className="p-4 rounded-xl bg-orange-900/20 border border-orange-500/30 flex items-start gap-4">
                   <div className="bg-orange-500/20 p-2 rounded-full shrink-0 mt-1">
                     <svg className="w-5 h-5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -121,6 +131,9 @@ function DashboardContent() {
                   <div>
                     <h4 className="text-white font-bold m-0">{a.title}</h4>
                     <p className="text-sm text-gray-300 mt-1 leading-relaxed">{a.message}</p>
+                    {a.createdAt && (
+                      <p className="text-[11px] text-gray-500 mt-2">{formatDateTime(a.createdAt, "")}</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -137,7 +150,7 @@ function DashboardContent() {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white mb-1">Add New Plan?</h3>
-                  <p className="text-sm text-gray-400">You are about to add <span className="text-primary font-bold">{planLabels[addPlanId] || addPlanId}</span> to your account.</p>
+                  <p className="text-sm text-gray-400">You are about to add <span className="text-primary font-bold">{getPlanLabel(addPlanId, customPlans)}</span> to your account.</p>
                 </div>
               </div>
               <div className="flex gap-3 relative z-10 w-full md:w-auto">
@@ -146,6 +159,17 @@ function DashboardContent() {
                   Confirm & Join
                 </Button>
               </div>
+            </div>
+          )}
+
+          {/* Profile missing – usually a Firestore rules / partial signup issue */}
+          {!userData && (
+            <div className="mb-8 p-5 rounded-2xl border border-amber-500/30 bg-amber-900/10">
+              <h3 className="text-white font-bold mb-1">We could not load your profile</h3>
+              <p className="text-sm text-gray-300">
+                Your login works, but your registration details are missing. This usually means Firestore rules blocked
+                the save or signup was interrupted. Please contact support on WhatsApp so we can restore your account.
+              </p>
             </div>
           )}
 
@@ -195,7 +219,7 @@ function DashboardContent() {
                     <Badge status={userData?.status || "pending"} />
                   </div>
                   <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors mb-2">
-                    {planLabels[pId] || pId}
+                    {getPlanLabel(pId, customPlans)}
                   </h3>
                   <p className="text-sm text-gray-500 mb-6 uppercase tracking-widest font-medium">Active Subscription</p>
                   <div 
@@ -261,8 +285,8 @@ function DashboardContent() {
               <div><span className="text-gray-500">Name:</span> <span className="text-white ml-2">{userData?.name}</span></div>
               <div><span className="text-gray-500">Email:</span> <span className="text-white ml-2">{userData?.email}</span></div>
               <div><span className="text-gray-500">Phone:</span> <span className="text-white ml-2">{userData?.phone}</span></div>
-              <div><span className="text-gray-500">Main Plan:</span> <span className="text-white ml-2">{planLabels[userData?.plan || ""] || userData?.plan}</span></div>
-              <div className="sm:col-span-2"><span className="text-gray-500">All Active Plans:</span> <span className="text-primary ml-2 font-bold">{userPlans.map(p => planLabels[p] || p).join(", ")}</span></div>
+              <div><span className="text-gray-500">Main Plan:</span> <span className="text-white ml-2">{getPlanLabel(userData?.plan || "", customPlans)}</span></div>
+              <div className="sm:col-span-2"><span className="text-gray-500">All Active Plans:</span> <span className="text-primary ml-2 font-bold">{userPlans.map(p => getPlanLabel(p, customPlans)).join(", ")}</span></div>
             </div>
 
             {/* Document Thumbnails */}
