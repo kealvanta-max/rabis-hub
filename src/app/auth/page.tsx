@@ -18,6 +18,7 @@ import { useGeolocation } from "@/hooks/use-geolocation";
 import { getPlanLabel } from "@/lib/plans-data";
 import { Check, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useCustomPlans } from "@/hooks/use-custom-plans";
+import { track } from "@/lib/analytics";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import ImageUpload from "@/components/ui/image-upload";
@@ -63,6 +64,7 @@ function AuthContent() {
   const params = useSearchParams();
   const mode = params.get("mode") || "signup";
   const [isSignup, setIsSignup] = useState(mode === "signup");
+
 
   useEffect(() => {
     setIsSignup(mode === "signup");
@@ -186,6 +188,11 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const { addToast } = useToastContext();
   const { status: gpsStatus, gpsData, error: gpsError, requestLocation } = useGeolocation();
   const [step, setStep] = useState(1);
+
+  // Signup funnel — the admin Insights tab and PostHog both read this.
+  useEffect(() => {
+    track("signup_step_view", { step });
+  }, [step]);
   const [loading, setLoading] = useState(false);
   const { customPlans } = useCustomPlans();
   const [docVerdicts, setDocVerdicts] = useState<

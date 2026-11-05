@@ -1,28 +1,11 @@
 import { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
+import { rateLimit, clientKey } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const FROM_GMAIL = process.env.EMAIL_USER || "rabisavinghub@gmail.com";
 const FROM_RESEND = process.env.EMAIL_FROM || "Rabi's Saving Hub <onboarding@resend.dev>";
-
-/** Very small in-memory rate limiter – enough to stop accidental/abusive floods. */
-const RATE_LIMIT = 10;
-const RATE_WINDOW_MS = 60_000;
-const hits = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(key: string) {
-  const now = Date.now();
-  const entry = hits.get(key);
-
-  if (!entry || entry.resetAt < now) {
-    hits.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return false;
-  }
-
-  entry.count += 1;
-  return entry.count > RATE_LIMIT;
-}
 
 /** Reject requests that clearly come from another website. */
 function isAllowedOrigin(request: Request) {
@@ -95,13 +78,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Forbidden origin" }, { status: 403 });
     }
 
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      request.headers.get("x-real-ip") ||
-      "unknown";
-
-    if (isRateLimited(ip)) {
-      return NextResponse.json({ error: "Too many requests. Please try again shortly." }, { status: 429 });
+    const limits = await rateLimit(clientKey(request, "email"), 10, 60);
+    if (!limits.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again shortly." },
+        { status: 429, headers: { "Retry-After": String(Math.max(1, Math.ceil((limits.resetAt - Date.now()) / 1000))) } }
+      );
     }
 
     const { to, subject, html } = await request.json();

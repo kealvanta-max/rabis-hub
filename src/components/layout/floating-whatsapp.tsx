@@ -1,6 +1,19 @@
 "use client";
 
+import { usePathname } from "next/navigation";
+
+/**
+ * Support bubble. Hidden inside the app shell (dashboard / admin / signup)
+ * because those screens put "Continue", "Back" and primary actions in the
+ * bottom-right corner — the bubble used to sit on top of them on phones.
+ */
+const HIDDEN_ROUTES = ["/auth", "/dashboard", "/admin"];
+
 export default function FloatingWhatsApp() {
+  const pathname = usePathname();
+  const hide = HIDDEN_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  if (hide) return null;
+
   const phoneNumber = "233504701032";
   const message = "Hello Rabi! I'm interested in joining a savings plan.";
   const waUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
