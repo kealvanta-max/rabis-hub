@@ -6,6 +6,7 @@ import { AuthProvider } from "@/context/auth-context";
 import {
   SITE,
   KEYWORDS,
+  GOOGLE_SITE_VERIFICATION,
   ORGANIZATION_JSON_LD,
   WEBSITE_JSON_LD,
   FINANCIAL_SERVICE_JSON_LD,
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 },
   },
   verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || undefined,
+    google: GOOGLE_SITE_VERIFICATION,
     other: process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION
       ? { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION }
       : undefined,

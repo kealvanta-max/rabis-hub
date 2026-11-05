@@ -7,6 +7,17 @@ import type { Metadata } from "next";
  * `NEXT_PUBLIC_SITE_URL` in Vercel and every canonical, sitemap entry and
  * social card follows, with no code changes.
  */
+/**
+ * Google Search Console verification.
+ *
+ * The env var wins, but the token is committed as the default on purpose: the
+ * tag has to be present on *every* deployment of this repo, including any Vercel
+ * project whose environment someone forgot to fill in. A verification token is
+ * public by design (it sits in the page HTML), so there is nothing here to leak.
+ */
+export const GOOGLE_SITE_VERIFICATION =
+  process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "aLOSbTbcsM6ZdMqksPGFohnK_Z9nyVXVOtTkNOfUbjA";
+
 export const SITE = {
   name: "Rabi's Saving Hub",
   shortName: "RabiHub",
