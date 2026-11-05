@@ -2,7 +2,18 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Ship smaller client bundles: only the icons/components actually imported
+  // are pulled in, and application console noise is stripped from production.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "framer-motion", "recharts"],
+  },
+  compiler:
+    process.env.NODE_ENV === "production"
+      ? { removeConsole: { exclude: ["error", "warn"] } }
+      : undefined,
   images: {
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [360, 420, 640, 768, 1024, 1280, 1536],
     remotePatterns: [
       {
         protocol: "https",

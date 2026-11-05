@@ -4,6 +4,63 @@ Branch: `arena/5151289b-rabis-hub` · builds clean (`npm run lint`, `npx tsc --n
 
 ---
 
+## 🔐 Signup hardening + Liquid Glass redesign (mobile pass)
+
+### The hole: KYC could be faked in 30 seconds
+The screenshot of a **dog** accepted as "Ghana Card (Front)" was real — nothing
+inspected the upload. Any photo, any typed number, straight through to approval.
+
+**Now, on device, before anything is uploaded:**
+
+| Check | What it catches |
+| :--- | :--- |
+| Aspect ratio (1.15–2.1, landscape) | portraits, screenshots, pet photos |
+| OCR of the *front* | requires "GHANA" + issuing-authority markers |
+| Card-number cross-check | the printed number **must** match the typed one |
+| OCR of the back | Ghana markings or the same number |
+| Single-face + face-size check on the selfie | no face, group photos, a face too small to be a passport photo |
+| Perceptual-hash duplicate guard | same photo reused as front, back and selfie |
+| Blur/quality guard | rejects unusable photos before upload (saves mobile data too) |
+
+Anything the automatic check cannot read is marked **"Needs admin review"**
+instead of blocking the member — Rabi still sees every document, and the member
+is never trapped. The rules live in `src/lib/kyc-verification.ts` and are covered
+by **24 new unit tests** (`tests/kyc-verification.test.ts`).
+
+### The camera loop
+Step 3 opened the camera on page load (mobile browsers refuse a silent permission
+prompt) and could scan forever if the smile/blink was never detected.
+
+* camera is only requested **after a tap** — required by Chrome/Safari;
+* each challenge has a **22 s deadline**, "no face" aborts after 12 s;
+* "another app is using the camera" is now a **named** error (that is exactly
+  what a floating WhatsApp bubble causes — see screenshot);
+* always-available escapes: **record a 3-second clip**, or **continue with
+  manual review** (flagged on the profile as `livenessStatus: "manual_review"`).
+
+Honest note: a browser can never match Apple's Face ID. Face ID uses the
+TrueDepth IR projector inside the Secure Enclave, which the web has no access to.
+What we ship is the best web equivalent — a guided smile/blink liveness challenge
+plus a recorded clip for the human reviewer — and the UI now behaves like Face ID
+(one tap, one ring, no dead ends).
+
+### Design + performance
+* **Liquid Glass design system** (`.glass`, `.glass-emerald`, `.glass-sheen`,
+  `.glass-soft`) — layered translucency, specular edge, 24 px backdrop blur.
+* **Floating glass tab bar** on mobile (Home / Hub / Pay / Guide / Admin) with
+  safe-area padding for iOS; hidden during signup so the flow stays focused.
+* **Plan picker** replaces the 15-row native `<select>`: category chips +
+  two-tap plan cards showing what you pay and what you receive.
+* **Skeleton screens** for dashboard, payments and admin — the layout is painted
+  immediately, so the app *feels* instant on a slow connection.
+* **AI assistant removed** (it was a dead button).
+* **Faster:** Tesseract and MediaPipe are now loaded on demand (only when a card
+  or a face is actually scanned), `optimizePackageImports` trims icon imports,
+  console noise is stripped in production, and `/auth` first-load JS dropped
+  from 21.2 kB to 15.6 kB route JS with the heavy engines split out.
+
+---
+
 ## ⚠️ The 3 things that must be configured for the live site
 
 1. `NEXT_PUBLIC_FIREBASE_*` environment variables (Vercel + local `.env.local`).

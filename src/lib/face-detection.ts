@@ -1,10 +1,10 @@
 import type { FaceDetector } from "@mediapipe/tasks-vision";
+import type { FaceCheck } from "@/lib/kyc-verification";
 
-export interface FaceDetectionResult {
+export interface FaceDetectionResult extends FaceCheck {
   isHuman: boolean;
-  confidence: number;
   message: string;
-  /** True when the check could not run (network/model failure) and the image was accepted for manual review. */
+  /** True when the check could not run (network/model failure). */
   skipped?: boolean;
 }
 
@@ -15,12 +15,6 @@ const MODEL_URL =
 let detectorPromise: Promise<FaceDetector> | null = null;
 let detectorInstance: FaceDetector | null = null;
 
-/**
- * Lazily creates a MediaPipe face detector.
- *
- * We reuse the same MediaPipe runtime that powers the liveness scan
- * (face-scan.tsx) instead of pulling in a second, unmaintained face library.
- */
 async function getDetector(): Promise<FaceDetector> {
   if (detectorInstance) return detectorInstance;
   if (!detectorPromise) {
@@ -60,15 +54,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-export async function detectHumanFace(imageUrl: string): Promise<FaceDetectionResult> {
+/**
+ * Detects faces in a photo. Accepts a remote URL, a Blob or a File so the check
+ * can run on the *local* file before anything is uploaded.
+ */
+export async function detectHumanFace(image: string | Blob): Promise<FaceDetectionResult> {
   try {
     const [detector, bitmap] = await withTimeout(
       Promise.all([
         getDetector(),
         (async () => {
-          const response = await fetch(imageUrl, { mode: "cors" });
-          if (!response.ok) throw new Error(`Image fetch failed (${response.status})`);
-          return createImageBitmap(await response.blob());
+          if (typeof image === "string") {
+            const response = await fetch(image, { mode: "cors" });
+            if (!response.ok) throw new Error(`Image fetch failed (${response.status})`);
+            return createImageBitmap(await response.blob());
+          }
+          return createImageBitmap(image);
         })(),
       ]),
       20000,
@@ -76,35 +77,64 @@ export async function detectHumanFace(imageUrl: string): Promise<FaceDetectionRe
     );
 
     const result = detector.detect(bitmap);
-    bitmap.close?.();
+    const detections = result.detections ?? [];
+    const imageArea = bitmap.width * bitmap.height;
 
-    const best = result.detections?.[0];
-    const confidence = best?.categories?.[0]?.score ?? 0;
-
-    if (best) {
-      return {
-        isHuman: true,
-        confidence: Math.round(confidence * 100),
-        message: "Human face detected.",
-      };
+    let areaRatio = 0;
+    for (const detection of detections) {
+      const box = detection.boundingBox;
+      if (!box || !imageArea) continue;
+      areaRatio = Math.max(areaRatio, (box.width * box.height) / imageArea);
     }
 
+    const confidence = detections[0]?.categories?.[0]?.score ?? 0;
+    bitmap.close?.();
+
     return {
-      isHuman: false,
-      confidence: 0,
+      isHuman: detections.length > 0,
+      faceCount: detections.length,
+      areaRatio,
+      confidence,
       message:
-        "No human face detected. Please upload a clear photo of your face (head and shoulders, good lighting).",
+        detections.length === 0
+          ? "No human face detected."
+          : `${detections.length} face${detections.length > 1 ? "s" : ""} detected.`,
     };
   } catch (error) {
     console.error("Face detection failed:", error);
-    // Technical failure (offline CDN, CORS, WebGL unavailable…). Don't block a
-    // real signup because of it — flag the photo for manual admin review.
+    // Technical failure (offline CDN, WebGL unavailable…). Don't block a real
+    // signup because of it — flag the photo for manual admin review.
     return {
       isHuman: true,
+      faceCount: 0,
+      areaRatio: 0,
       confidence: 0,
       skipped: true,
       message:
         "Automatic face check is unavailable right now. Your photo will be reviewed manually by an admin.",
     };
   }
+}
+
+/** Snapshot of pixels for the duplicate-image guard (9×8 greyscale). */
+export async function fingerprintImage(image: Blob): Promise<{ hash: string; width: number; height: number }> {
+  const { differenceHash } = await import("@/lib/kyc-verification");
+  const bitmap = await createImageBitmap(image);
+  const { width, height } = bitmap;
+  const canvas = document.createElement("canvas");
+  canvas.width = 9;
+  canvas.height = 8;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close?.();
+    return { hash: "", width, height };
+  }
+  context.drawImage(bitmap, 0, 0, 9, 8);
+  bitmap.close?.();
+  const { data } = context.getImageData(0, 0, 9, 8);
+  const pixels: number[] = [];
+  for (let i = 0; i < data.length; i += 4) {
+    pixels.push(Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]));
+  }
+  return { hash: differenceHash(pixels, 9, 8), width, height };
 }

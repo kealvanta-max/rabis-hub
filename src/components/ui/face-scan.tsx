@@ -1,18 +1,42 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FaceLandmarker } from "@mediapipe/tasks-vision";
+import {
+  Camera,
+  CameraOff,
+  Check,
+  Info,
+  Loader2,
+  ScanFace,
+  ShieldCheck,
+  Smile,
+  Upload,
+} from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { cn } from "@/lib/utils";
 
 interface FaceScanProps {
   onComplete: (videoUrl: string) => void;
+  /** Called when the member cannot use a camera; an admin reviews manually. */
+  onManualReview?: (reason: string) => void;
 }
 
-type Challenge = "idle" | "smile" | "blink" | "recording" | "uploading" | "done" | "error";
+type Status =
+  | "intro"
+  | "starting"
+  | "smile"
+  | "blink"
+  | "recording"
+  | "uploading"
+  | "done"
+  | "fallback"
+  | "error";
 
 const CLIP_MS = 3000;
+const CHALLENGE_MS = 22000;
+const NO_FACE_MS = 12000;
 
-/** Rejects after `ms` so a slow/blocked CDN can never freeze the signup flow. */
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(`${label} timed out`)), ms);
@@ -29,374 +53,486 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-export default function FaceScan({ onComplete }: FaceScanProps) {
+/**
+ * Liveness check.
+ *
+ * Design rules learned from the field:
+ *  - the camera is only requested after an explicit tap (mobile browsers refuse
+ *    a silent permission prompt);
+ *  - every challenge has a deadline, so the scan can never loop forever;
+ *  - there is always a way forward: record a short clip, or ask for manual
+ *    review. A blocked camera must never trap someone in the signup flow.
+ */
+export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const onCompleteRef = useRef(onComplete);
+  const landmarkerRef = useRef<FaceLandmarker | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const timersRef = useRef<number[]>([]);
+  const doneRef = useRef(false);
 
-  const [hasCamera, setHasCamera] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [aiUnavailable, setAiUnavailable] = useState(false);
-  const [challenge, setChallenge] = useState<Challenge>("idle");
+  const [status, setStatus] = useState<Status>("intro");
+  const [message, setMessage] = useState("");
   const [progress, setProgress] = useState(0);
-  const [retryKey, setRetryKey] = useState(0);
+  const [recorderReady, setRecorderReady] = useState(false);
+  const [cameraBlocked, setCameraBlocked] = useState(false);
 
-  // Keep the parent callback in a ref: an inline arrow prop used to re-run the
-  // whole camera effect on every render, which restarted the scan forever.
-  useEffect(() => {
-    onCompleteRef.current = onComplete;
-  }, [onComplete]);
+  const clearTimers = useCallback(() => {
+    timersRef.current.forEach((timer) => window.clearTimeout(timer));
+    timersRef.current = [];
+  }, []);
 
-  useEffect(() => {
-    let active = true;
-    let landmarker: FaceLandmarker | null = null;
-    let stream: MediaStream | null = null;
-    let animationFrameId: number | null = null;
-    let uploaded = false;
+  const teardown = useCallback(() => {
+    clearTimers();
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
 
-    const upload = async (blob: Blob) => {
-      if (uploaded) return;
-      uploaded = true;
-      setChallenge("uploading");
+    const landmarker = landmarkerRef.current;
+    landmarkerRef.current = null;
+    if (landmarker) {
       try {
-        const file = new File([blob], `face_scan_${Date.now()}.webm`, { type: blob.type || "video/webm" });
-        const url = await uploadToCloudinary(file);
-        if (!active) return;
-        setChallenge("done");
-        setProgress(100);
-        onCompleteRef.current(url);
-      } catch (uploadError) {
-        console.error("Liveness upload failed:", uploadError);
-        if (!active) return;
-        uploaded = false;
-        setError("Could not upload your verification clip. Check your connection and try again.");
-        setChallenge("error");
+        landmarker.close();
+      } catch {
+        /* ignore */
       }
-    };
+    }
 
-    const stopRecording = () => {
-      const recorder = mediaRecorderRef.current;
-      if (recorder && recorder.state === "recording") recorder.stop();
-    };
-
-    const startRecording = () => {
-      const recorder = mediaRecorderRef.current;
-      if (!recorder || recorder.state !== "inactive") return;
-      chunksRef.current = [];
-      setChallenge("recording");
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.onstop = null;
       try {
-        recorder.start();
-      } catch (recordingError) {
-        console.error("Unable to start recording:", recordingError);
-        setError("Your browser could not start the video recorder.");
-        setChallenge("error");
-        return;
+        recorder.stop();
+      } catch {
+        /* ignore */
       }
-      window.setTimeout(stopRecording, CLIP_MS);
-    };
+    }
+    recorderRef.current = null;
 
-    const setup = async () => {
-      // 1. Camera first – if this fails nothing else matters.
+    const stream = streamRef.current;
+    streamRef.current = null;
+    stream?.getTracks().forEach((track) => track.stop());
+  }, [clearTimers]);
+
+  useEffect(() => teardown, [teardown]);
+
+  const uploadClip = useCallback(
+    async (blob: Blob) => {
+      if (doneRef.current) return;
+      setStatus("uploading");
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: false,
+        const file = new File([blob], `liveness_${Date.now()}.webm`, {
+          type: blob.type || "video/webm",
         });
-      } catch (cameraError) {
-        console.error("Camera error:", cameraError);
-        if (!active) return;
-        setLoading(false);
-        setError(
-          "Camera access is required for the liveness check. Allow camera access in your browser settings and try again."
+        const url = await uploadToCloudinary(file);
+        doneRef.current = true;
+        setStatus("done");
+        setProgress(100);
+        teardown();
+        onComplete(url);
+      } catch (error) {
+        console.error("Liveness upload failed:", error);
+        setStatus("error");
+        setMessage(
+          "Your clip was recorded but could not be uploaded. Check your connection and try again — or continue with manual review."
         );
-        setChallenge("error");
-        return;
       }
+    },
+    [onComplete, teardown]
+  );
 
-      if (!active) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
+  const startClipRecording = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder) {
+      setStatus("error");
+      setMessage(
+        "Your browser cannot record video, so the face check cannot finish. You can continue with manual review."
+      );
+      return;
+    }
+    if (recorder.state !== "inactive") return;
+    chunksRef.current = [];
+    setStatus("recording");
+    setProgress(0);
+    try {
+      recorder.start();
+    } catch {
+      setStatus("error");
+      setMessage("Your browser could not start the video recorder. You can continue with manual review.");
+      return;
+    }
+    timersRef.current.push(
+      window.setTimeout(() => {
+        if (recorder.state === "recording") recorder.stop();
+      }, CLIP_MS)
+    );
+  }, []);
+
+  const fail = useCallback(
+    (copy: string, blocked = false) => {
+      teardown();
+      setCameraBlocked(blocked);
+      setStatus("error");
+      setMessage(copy);
+    },
+    [teardown]
+  );
+
+  const start = useCallback(async () => {
+    setStatus("starting");
+    setMessage("");
+    setProgress(0);
+    doneRef.current = false;
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      fail(
+        "This browser cannot open the camera. Use Chrome or Safari on a phone, or continue with manual review."
+      );
+      return;
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+        audio: false,
+      });
+    } catch (error) {
+      const name = (error as { name?: string })?.name ?? "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") {
+        fail(
+          "Camera permission is blocked for this site. Tap the padlock in the address bar → Permissions → Camera → Allow, then press Try again.",
+          true
+        );
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        fail("No camera was found on this device. You can continue with manual review.");
+      } else if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError") {
+        fail(
+          "Another app is using the camera right now. Close floating bubbles (WhatsApp chat heads, Instagram, TikTok, screen recorders) or any other app holding the camera, then press Try again.",
+          true
+        );
+      } else {
+        fail("We could not start the camera. Close other apps using it, then press Try again.");
       }
+      return;
+    }
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        try {
-          await videoRef.current.play();
-        } catch {
-          /* autoplay with muted should work; ignore */
-        }
-      }
-      setHasCamera(true);
-      setLoading(false);
-      setChallenge("smile");
+    streamRef.current = stream;
 
-      // 2. Recorder
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
       try {
-        const supportsWebm = typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("video/webm");
-        mediaRecorderRef.current = new MediaRecorder(stream, supportsWebm ? { mimeType: "video/webm" } : undefined);
-        mediaRecorderRef.current.ondataavailable = (event) => {
-          if (event.data.size > 0) chunksRef.current.push(event.data);
-        };
-        mediaRecorderRef.current.onstop = () => {
-          if (!active) return;
-          const blob = new Blob(chunksRef.current, { type: "video/webm" });
-          if (blob.size === 0) {
-            setError("The recording was empty. Please try again.");
-            setChallenge("error");
+        await videoRef.current.play();
+      } catch {
+        /* muted autoplay — ignore */
+      }
+    }
+
+    // Recorder -----------------------------------------------------------------
+    try {
+      const supportsWebm =
+        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("video/webm");
+      const recorder = new MediaRecorder(stream, supportsWebm ? { mimeType: "video/webm" } : undefined);
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: "video/webm" });
+        if (blob.size === 0) {
+          setStatus("error");
+          setMessage("The recording came out empty. Please try again.");
+          return;
+        }
+        void uploadClip(blob);
+      };
+      recorderRef.current = recorder;
+      setRecorderReady(true);
+    } catch {
+      setRecorderReady(false);
+    }
+
+    setStatus("smile");
+
+    // Liveness model (optional) -------------------------------------------------
+    try {
+      const { FaceLandmarker: Landmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
+      const fileset = await withTimeout(
+        FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm"),
+        15000,
+        "Face model download"
+      );
+
+      const create = (delegate: "GPU" | "CPU") =>
+        Landmarker.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath:
+              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+            delegate,
+          },
+          outputFaceBlendshapes: true,
+          runningMode: "VIDEO",
+          numFaces: 1,
+        });
+
+      const landmarker = await withTimeout(create("GPU"), 20000, "Face model").catch(() =>
+        withTimeout(create("CPU"), 25000, "Face model")
+      );
+
+      landmarkerRef.current = landmarker;
+
+      let lastVideoTime = -1;
+      let smileDone = false;
+      const startedAt = performance.now();
+      let lastFaceAt = startedAt;
+      let blinkedOnce = false;
+
+      const loop = () => {
+        const video = videoRef.current;
+        const active = landmarkerRef.current;
+        if (!active || !video || doneRef.current) return;
+
+        if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+          lastVideoTime = video.currentTime;
+
+          let results;
+          try {
+            results = active.detectForVideo(video, performance.now());
+          } catch {
+            results = undefined;
+          }
+
+          const shapes = results?.faceBlendshapes?.[0]?.categories;
+
+          if (shapes && shapes.length) {
+            lastFaceAt = performance.now();
+            const scoreOf = (name: string) =>
+              shapes.find((shape) => shape.categoryName === name)?.score ?? 0;
+            const smile = Math.max(scoreOf("mouthSmileLeft"), scoreOf("mouthSmileRight"));
+            const blink = Math.min(scoreOf("eyeBlinkLeft"), scoreOf("eyeBlinkRight"));
+
+            if (!smileDone) {
+              setProgress(Math.min(Math.round(smile * 100), 100));
+              if (smile > 0.5) {
+                smileDone = true;
+                setProgress(0);
+                setStatus("blink");
+                timersRef.current.push(
+                  window.setTimeout(() => {
+                    if (!blinkedOnce) {
+                      setStatus("fallback");
+                      setMessage("We could not detect a blink. Record a short clip instead — it takes 3 seconds.");
+                    }
+                  }, CHALLENGE_MS)
+                );
+              }
+            } else if (blink > 0.35) {
+              blinkedOnce = true;
+              setProgress(0);
+              startClipRecording();
+              return;
+            } else {
+              setProgress(Math.min(Math.round(blink * 100), 100));
+            }
+          }
+
+          const now = performance.now();
+          if (!smileDone && now - startedAt > CHALLENGE_MS) {
+            setStatus("fallback");
+            setMessage(
+              "We could not detect a smile. Record a short 3-second clip instead — an admin will review it."
+            );
             return;
           }
-          void upload(blob);
-        };
-      } catch (recorderError) {
-        console.error("MediaRecorder unavailable:", recorderError);
-        setAiUnavailable(true);
-        setError("Your browser does not support video recording, so the liveness check cannot complete.");
-        setChallenge("error");
-        return;
-      }
-
-      // 3. MediaPipe liveness model (optional). If it fails we degrade to a
-      //    timed recording so registration is never blocked by the CDN.
-      try {
-        const { FaceLandmarker: Landmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-        const filesetResolver = await withTimeout(
-          FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm"),
-          20000,
-          "Face model download"
-        );
-
-        const create = (delegate: "GPU" | "CPU") =>
-          Landmarker.createFromOptions(filesetResolver, {
-            baseOptions: {
-              modelAssetPath:
-                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-              delegate,
-            },
-            outputFaceBlendshapes: true,
-            runningMode: "VIDEO",
-            numFaces: 1,
-          });
-
-        landmarker = await withTimeout(create("GPU"), 25000, "Face model").catch(() =>
-          withTimeout(create("CPU"), 25000, "Face model")
-        );
-
-        if (!active || !landmarker) return;
-
-        let lastVideoTime = -1;
-        let smileDetected = false;
-        let challengeStarted = false;
-
-        const predictWebcam = () => {
-          const video = videoRef.current;
-          if (!active || !video || !landmarker) return;
-
-          if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
-            lastVideoTime = video.currentTime;
-
-            let results;
-            try {
-              results = landmarker.detectForVideo(video, performance.now());
-            } catch {
-              results = undefined;
-            }
-
-            const shapes = results?.faceBlendshapes?.[0]?.categories;
-            if (shapes && shapes.length) {
-              const scoreOf = (name: string) => shapes.find((s) => s.categoryName === name)?.score || 0;
-              const smileScore = Math.max(scoreOf("mouthSmileLeft"), scoreOf("mouthSmileRight"));
-              const blinkScore = Math.max(scoreOf("eyeBlinkLeft"), scoreOf("eyeBlinkRight"));
-
-              if (!challengeStarted) {
-                challengeStarted = true;
-                setChallenge("smile");
-              }
-
-              setChallenge((current) => {
-                if (current === "smile") {
-                  setProgress(Math.min(Math.round(smileScore * 100), 100));
-                  if (smileScore > 0.55) {
-                    smileDetected = true;
-                    setProgress(0);
-                    return "blink";
-                  }
-                } else if (current === "blink") {
-                  setProgress(Math.min(Math.round(blinkScore * 100), 100));
-                  if (blinkScore > 0.35 && smileDetected) {
-                    // Defer so the state updater stays pure.
-                    window.setTimeout(startRecording, 0);
-                    return "recording";
-                  }
-                }
-                return current;
-              });
-            }
+          if (now-lastFaceAt > NO_FACE_MS && !smileDone) {
+            setStatus("fallback");
+            setMessage("We could not see your face clearly. Move into better light, then record a short clip.");
+            return;
           }
-
-          if (active) animationFrameId = requestAnimationFrame(predictWebcam);
-        };
-
-        animationFrameId = requestAnimationFrame(predictWebcam);
-      } catch (modelError) {
-        console.warn("Liveness model unavailable, using manual recording fallback:", modelError);
-        if (!active) return;
-        setAiUnavailable(true);
-      }
-    };
-
-    setup();
-
-    return () => {
-      active = false;
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-      const recorder = mediaRecorderRef.current;
-      if (recorder && recorder.state !== "inactive") {
-        recorder.onstop = null;
-        try {
-          recorder.stop();
-        } catch {
-          /* ignore */
         }
-      }
-      if (stream) stream.getTracks().forEach((track) => track.stop());
-      if (landmarker) {
-        try {
-          landmarker.close();
-        } catch {
-          /* ignore */
-        }
-      }
-    };
-  }, [retryKey]);
 
-  const restart = () => {
-    setError("");
-    setAiUnavailable(false);
+        rafRef.current = requestAnimationFrame(loop);
+      };
+
+      rafRef.current = requestAnimationFrame(loop);
+    } catch (error) {
+      console.warn("Liveness model unavailable, using clip fallback:", error);
+      setStatus("fallback");
+      setMessage(
+        "The automatic face detector could not load on this connection. Record a 3-second clip instead — an admin reviews it."
+      );
+    }
+  }, [fail, startClipRecording, uploadClip]);
+
+  const retry = () => {
+    teardown();
+    setCameraBlocked(false);
+    setMessage("");
     setProgress(0);
-    setChallenge("idle");
-    setLoading(true);
-    setHasCamera(false);
-    setRetryKey((key) => key + 1);
+    setStatus("intro");
   };
 
-  const startFallbackRecording = () => {
-    const recorder = mediaRecorderRef.current;
-    if (!recorder || recorder.state !== "inactive") return;
-    chunksRef.current = [];
-    setChallenge("recording");
-    recorder.start();
-    window.setTimeout(() => {
-      if (recorder.state === "recording") recorder.stop();
-    }, CLIP_MS);
+  const manualReview = () => {
+    teardown();
+    onManualReview?.("manual_review");
   };
 
   return (
-    <div className="w-full max-w-md mx-auto space-y-4">
-      <div className="relative aspect-video rounded-2xl overflow-hidden bg-black/50 border border-white/10">
+    <div className="mx-auto w-full max-w-md space-y-4">
+      {/* Camera viewport */}
+      <div className="glass relative aspect-[4/5] overflow-hidden rounded-3xl sm:aspect-video">
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className={`w-full h-full object-cover ${hasCamera && challenge !== "done" ? "scale-x-[-1]" : "hidden"}`}
+          className={cn(
+            "h-full w-full scale-x-[-1] object-cover",
+            (status === "intro" || status === "starting" || status === "error") && "opacity-0"
+          )}
         />
 
-        {loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-primary">
-            <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin mb-3"></div>
-            <p className="text-sm font-medium">Initializing AI Camera...</p>
-            <p className="text-xs text-gray-500 mt-1 px-6 text-center">Allow camera access when your browser asks.</p>
-          </div>
-        )}
-
-        {(error || challenge === "error") && !loading && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-red-900/30 p-6 text-center">
-            <p className="text-red-300 text-sm font-semibold">{error || "Liveness check failed."}</p>
+        {/* Idle / intro */}
+        {status === "intro" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <span className="glass flex h-14 w-14 items-center justify-center rounded-full">
+              <ScanFace className="h-7 w-7 text-emerald-300" />
+            </span>
+            <p className="text-sm font-semibold text-white">Quick face check</p>
+            <p className="text-xs leading-relaxed text-gray-400">
+              We will ask you to <strong className="text-gray-200">smile</strong> and{" "}
+              <strong className="text-gray-200">blink</strong>. It takes about 5 seconds and proves you are a
+              real person.
+            </p>
             <button
               type="button"
-              onClick={restart}
-              className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors cursor-pointer"
+              onClick={start}
+              className="glass-emerald glass-sheen mt-1 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-emerald-50"
             >
-              Try again
+              <Camera className="h-4 w-4" /> Start camera
             </button>
           </div>
         )}
 
-        {challenge === "smile" && (
-          <div className="absolute top-4 left-0 right-0 text-center">
-            <div className="inline-block bg-primary text-black px-4 py-2 rounded-full font-bold text-sm shadow-lg animate-pulse">
-              Please Smile 😊
-            </div>
-            <div className="mt-2 w-32 h-1.5 bg-black/50 rounded-full mx-auto overflow-hidden">
-              <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+        {status === "starting" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
+            <p className="text-sm text-gray-300">Waiting for camera permission…</p>
+            <p className="px-8 text-center text-[11px] text-gray-500">
+              Tap <strong>Allow</strong> when your browser asks.
+            </p>
+          </div>
+        )}
+
+        {/* Live guidance */}
+        {status === "smile" && (
+          <div className="absolute inset-x-0 top-4 flex flex-col items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-emerald-400 px-4 py-2 text-sm font-bold text-[#02160C] shadow-lg">
+              <Smile className="h-4 w-4" /> Smile at the camera
+            </span>
+            <div className="h-1.5 w-36 overflow-hidden rounded-full bg-black/50">
+              <div
+                className="h-full bg-emerald-400 transition-all duration-200"
+                style={{ width: `${progress}%` }}
+              />
             </div>
           </div>
         )}
 
-        {challenge === "blink" && (
-          <div className="absolute top-4 left-0 right-0 text-center">
-            <div className="inline-block bg-blue-500 text-white px-4 py-2 rounded-full font-bold text-sm shadow-lg animate-pulse">
-              Now Blink Your Eyes 👀
-            </div>
-            <div className="mt-2 w-32 h-1.5 bg-black/50 rounded-full mx-auto overflow-hidden">
-              <div className="h-full bg-blue-500 transition-all" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
-        )}
-
-        {challenge === "recording" && (
-          <div className="absolute top-4 left-0 right-0 text-center">
-            <div className="inline-flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-full font-bold text-sm shadow-lg animate-pulse">
-              <span className="w-2 h-2 rounded-full bg-white" />
-              Recording Verification
+        {status === "blink" && (
+          <div className="absolute inset-x-0 top-4 flex flex-col items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-sky-400 px-4 py-2 text-sm font-bold text-[#02160C] shadow-lg">
+              <ShieldCheck className="h-4 w-4" /> Now blink once
+            </span>
+            <div className="h-1.5 w-36 overflow-hidden rounded-full bg-black/50">
+              <div
+                className="h-full bg-sky-400 transition-all duration-200"
+                style={{ width: `${progress}%` }}
+              />
             </div>
           </div>
         )}
 
-        {challenge === "uploading" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80">
-            <div className="w-8 h-8 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin mb-3"></div>
-            <p className="text-emerald-400 text-sm font-bold">Securely uploading...</p>
+        {status === "recording" && (
+          <div className="absolute inset-x-0 bottom-4 flex justify-center">
+            <span className="inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-bold text-white shadow-lg">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-white" /> Recording 3 seconds…
+            </span>
           </div>
         )}
 
-        {challenge === "done" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-emerald-900/40">
-            <svg className="w-12 h-12 text-emerald-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <p className="text-emerald-400 font-bold">Liveness Verified</p>
+        {status === "uploading" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80">
+            <Upload className="h-7 w-7 animate-pulse text-emerald-300" />
+            <p className="text-sm font-semibold text-emerald-300">Securing your check…</p>
+          </div>
+        )}
+
+        {status === "done" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-emerald-900/50">
+            <Check className="h-10 w-10 text-emerald-300" />
+            <p className="font-bold text-emerald-200">Liveness verified</p>
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <CameraOff className="h-8 w-8 text-red-300" />
+            <p className="text-xs leading-relaxed text-red-200">{message}</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={retry}
+                className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white hover:bg-white/20"
+              >
+                Try again
+              </button>
+              <button
+                type="button"
+                onClick={manualReview}
+                className="rounded-full bg-white/[0.06] px-4 py-2 text-xs font-semibold text-gray-300 hover:text-white"
+              >
+                Continue with manual review
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {aiUnavailable && hasCamera && !error && challenge !== "done" && challenge !== "recording" && challenge !== "uploading" && (
-        <div className="bg-amber-900/20 border border-amber-600/40 rounded-xl p-4 text-center space-y-3">
-          <p className="text-xs text-amber-200">
-            The automatic smile/blink detector is unavailable right now. You can still record a short 3-second
-            verification clip — an admin will review it manually.
-          </p>
+      {/* Helper panel below the viewport */}
+      {status === "intro" && (
+        <div className="glass-soft flex items-start gap-2 rounded-2xl p-3 text-[11px] leading-relaxed text-gray-400">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+          <span>
+            Close floating chat bubbles (WhatsApp, Instagram) and any app using the camera first — Android
+            blocks the request while another app holds it.
+          </span>
+        </div>
+      )}
+
+      {(status === "fallback" || (status === "smile" && !recorderReady)) && (
+        <div className="glass-soft space-y-2 rounded-2xl p-4 text-center">
+          <p className="text-[11px] leading-relaxed text-amber-200">{message}</p>
           <button
             type="button"
-            onClick={startFallbackRecording}
-            className="px-4 py-2 rounded-lg bg-primary text-black text-xs font-bold hover:brightness-110 transition-all cursor-pointer"
+            onClick={startClipRecording}
+            disabled={!recorderReady}
+            className="glass-emerald inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold text-emerald-50 disabled:opacity-40"
           >
-            Record verification clip
+            <Camera className="h-3.5 w-3.5" /> Record 3-second clip
           </button>
         </div>
       )}
 
-      <div className="bg-white/5 p-4 rounded-xl border border-white/10 text-sm text-gray-400 text-center">
-        {challenge === "idle" || loading
-          ? "Please allow camera access to continue."
-          : challenge === "done"
-          ? "Verification complete. You can proceed to the next step."
-          : challenge === "error"
-          ? "Camera unavailable. Fix the issue above and retry."
-          : "Follow the on-screen instructions. This confirms you are a real person."}
-      </div>
+      {status !== "done" && status !== "uploading" && (
+        <button
+          type="button"
+          onClick={manualReview}
+          className="w-full text-center text-[11px] text-gray-500 underline-offset-4 hover:text-gray-300 hover:underline"
+        >
+          Camera not working? Ask for manual review
+        </button>
+      )}
     </div>
   );
 }

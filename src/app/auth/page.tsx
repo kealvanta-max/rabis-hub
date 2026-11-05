@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   createUserWithEmailAndPassword,
@@ -14,12 +15,22 @@ import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 import { useToastContext } from "@/components/layout/toast-provider";
 import { useAuth } from "@/context/auth-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
-import { getPlanOptions, getPlanLabel } from "@/lib/plans-data";
+import { getPlanLabel } from "@/lib/plans-data";
+import { Check, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useCustomPlans } from "@/hooks/use-custom-plans";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import ImageUpload from "@/components/ui/image-upload";
-import FaceScan from "@/components/ui/face-scan";
+import PlanPicker from "@/components/ui/plan-picker";
+import { isDuplicateImage, type DocVerdict } from "@/lib/kyc-verification";
+
+// MediaPipe + camera code is only downloaded when step 3 is reached.
+const FaceScan = dynamic(() => import("@/components/ui/face-scan"), {
+  ssr: false,
+  loading: () => (
+    <div className="glass-soft mx-auto aspect-[4/5] w-full max-w-md animate-pulse rounded-3xl sm:aspect-video" />
+  ),
+});
 import Navigation from "@/components/layout/navigation";
 import { formatGhanaCardInput, validateGhanaCardFormat } from "@/lib/ghana-card";
 import { isValidGhanaPhone, normalizeGhanaPhone } from "@/lib/phone";
@@ -177,7 +188,13 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const { customPlans } = useCustomPlans();
-  const basePlanOptions = getPlanOptions();
+  const [docVerdicts, setDocVerdicts] = useState<
+    Partial<Record<"front" | "back" | "selfie", DocVerdict | null>>
+  >({});
+  const [docHashes, setDocHashes] = useState<
+    Partial<Record<"front" | "back" | "selfie", string | null>>
+  >({});
+  const [livenessMode, setLivenessMode] = useState<"video" | "manual_review" | null>(null);
 
   // Math Captcha State
   const [mathObj, setMathObj] = useState({ a: 0, b: 0 });
@@ -213,10 +230,24 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     emailValid &&
     passwordValid &&
     phoneValid;
-  const canStep3 = Boolean(
-    form.ghanaCardNumber && form.ghanaCardValid && form.ghanaCardFront && form.ghanaCardBack && form.passportPhoto
+  // The same photo may not be reused for the card front, the card back and the
+  // selfie — that was the easiest way to fake a KYC record.
+  const duplicateDocs = useMemo(
+    () =>
+      isDuplicateImage(docHashes.front, docHashes.back) ||
+      isDuplicateImage(docHashes.front, docHashes.selfie) ||
+      isDuplicateImage(docHashes.back, docHashes.selfie),
+    [docHashes]
   );
-  const canStep4 = Boolean(form.faceScanVideo);
+
+  const frontReady = Boolean(form.ghanaCardFront) && docVerdicts.front?.status !== "rejected";
+  const backReady = Boolean(form.ghanaCardBack) && docVerdicts.back?.status !== "rejected";
+  const selfieReady = Boolean(form.passportPhoto) && docVerdicts.selfie?.status !== "rejected";
+
+  const canStep3 = Boolean(
+    form.ghanaCardNumber && form.ghanaCardValid && frontReady && backReady && selfieReady && !duplicateDocs
+  );
+  const canStep4 = Boolean(form.faceScanVideo) || livenessMode === "manual_review";
   const canStep5 = gpsStatus === "success";
   const mathPassed = mathAns.trim() === (mathObj.a + mathObj.b).toString();
 
@@ -253,6 +284,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         ghanaCardBack: form.ghanaCardBack,
         passportPhoto: form.passportPhoto,
         faceScanVideo: form.faceScanVideo || "",
+        livenessStatus: livenessMode === "manual_review" ? "manual_review" : "video",
         gpsLat: gpsData?.lat || 0,
         gpsLng: gpsData?.lng || 0,
         gpsAddress: gpsData?.address || "",
@@ -340,32 +372,11 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             required
           />
 
-          {/* Plan Select */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Choose a Plan</label>
-            <select
-              value={form.plan}
-              onChange={(e) => update("plan", e.target.value)}
-              className="w-full px-4 py-3 bg-navy-dark/60 border border-gray-700 rounded-xl text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all cursor-pointer"
-              required
-            >
-              <option value="">Select a plan...</option>
-              {customPlans.length > 0 && (
-                <optgroup label="🌟 New Custom Plans (Admin)">
-                  {customPlans.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.name} ({opt.freq} - Target: GH₵{opt.ret})</option>
-                  ))}
-                </optgroup>
-              )}
-              {basePlanOptions.map((group) => (
-                <optgroup key={group.label} label={group.label}>
-                  {group.options.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
+          <PlanPicker
+            value={form.plan}
+            onChange={(planId) => update("plan", planId)}
+            customPlans={customPlans}
+          />
 
           <Button onClick={() => setStep(2)} disabled={!canStep2} className="w-full">
             Continue
@@ -376,51 +387,121 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       {/* STEP 2 — Documents */}
       {step === 2 && (
         <div className="space-y-5">
-          <p className="text-sm text-gray-400 mb-2">Provide your Ghana Card details and upload clear photos.</p>
-          
+          <div className="flex items-start gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+            <p className="text-[11px] leading-relaxed text-gray-400">
+              Your card number must match the photo. Images are checked on your device before they are
+              uploaded, then reviewed by Rabi before your account is approved.
+            </p>
+          </div>
+
           <div className="relative">
-            <Input 
-              label="Ghana Card Number (GHA-XXXXXXXXX-X)" 
-              value={form.ghanaCardNumber || ""} 
+            <Input
+              label="Ghana Card Number (GHA-XXXXXXXXX-X)"
+              value={form.ghanaCardNumber || ""}
               onChange={(e) => {
                 const formatted = formatGhanaCardInput(e.target.value);
                 const isValid = validateGhanaCardFormat(formatted);
-                setForm(prev => ({ ...prev, ghanaCardNumber: formatted, ghanaCardValid: isValid }));
-              }} 
+                setForm((prev) => ({ ...prev, ghanaCardNumber: formatted, ghanaCardValid: isValid }));
+              }}
               placeholder="GHA-123456789-0"
-              required 
+              required
             />
             {form.ghanaCardNumber && form.ghanaCardNumber.length > 3 && (
               <div className="absolute right-3 top-9">
                 {form.ghanaCardValid ? (
-                  <span className="text-emerald-400 font-bold">✓</span>
+                  <span className="font-bold text-emerald-400">✓</span>
                 ) : (
-                  <span className="text-red-400 font-bold text-xs uppercase tracking-widest">Invalid</span>
+                  <span className="text-xs font-bold uppercase tracking-widest text-red-400">Invalid</span>
                 )}
               </div>
             )}
           </div>
 
-          <ImageUpload 
-            label="Ghana Card (Front)" 
-            value={form.ghanaCardFront} 
-            onUpload={(url) => update("ghanaCardFront", url)}
-            enableOcr={true}
+          <ImageUpload
+            label="Ghana Card — Front"
+            value={form.ghanaCardFront}
+            verify="id-front"
             declaredCardNumber={form.ghanaCardNumber || ""}
-            onOcrResult={(r) => update("ghanaCardOcrResult", JSON.stringify(r))}
-          />
-          <ImageUpload label="Ghana Card (Back)" value={form.ghanaCardBack} onUpload={(url) => update("ghanaCardBack", url)} />
-          <ImageUpload 
-            label="Passport Photo / Clear Selfie" 
-            value={form.passportPhoto} 
-            onUpload={(url) => update("passportPhoto", url)}
-            enableFaceDetection={true}
-            onFaceDetectionResult={(r) => { if (!r.isHuman) addToast(r.message, "error"); }}
+            hint="Lay the card flat on a table, all four corners inside the frame, no glare."
+            onUpload={(url) => update("ghanaCardFront", url)}
+            onVerdict={(verdict, hash) => {
+              setDocVerdicts((prev) => ({ ...prev, front: verdict }));
+              setDocHashes((prev) => ({ ...prev, front: hash ?? null }));
+              if (verdict) update("ghanaCardOcrResult", JSON.stringify(verdict));
+            }}
           />
 
+          <ImageUpload
+            label="Ghana Card — Back"
+            value={form.ghanaCardBack}
+            verify="id-back"
+            declaredCardNumber={form.ghanaCardNumber || ""}
+            hint="Flip the card over — the barcode side. Keep the whole card in frame."
+            onUpload={(url) => update("ghanaCardBack", url)}
+            onVerdict={(verdict, hash) => {
+              setDocVerdicts((prev) => ({ ...prev, back: verdict }));
+              setDocHashes((prev) => ({ ...prev, back: hash ?? null }));
+            }}
+          />
+
+          <ImageUpload
+            label="Passport Photo / Selfie"
+            value={form.passportPhoto}
+            verify="selfie"
+            hint="Head and shoulders, good light, only you in the photo."
+            onUpload={(url) => update("passportPhoto", url)}
+            onVerdict={(verdict, hash) => {
+              setDocVerdicts((prev) => ({ ...prev, selfie: verdict }));
+              setDocHashes((prev) => ({ ...prev, selfie: hash ?? null }));
+            }}
+          />
+
+          {duplicateDocs && (
+            <p className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
+              The same photo was used for more than one document. Upload a separate photo for each.
+            </p>
+          )}
+
+          <div className="glass-soft rounded-2xl p-4">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+              Document status
+            </p>
+            <div className="divide-y divide-white/5">
+              {([
+                ["Card front", docVerdicts.front, Boolean(form.ghanaCardFront)],
+                ["Card back", docVerdicts.back, Boolean(form.ghanaCardBack)],
+                ["Selfie", docVerdicts.selfie, Boolean(form.passportPhoto)],
+              ] as const).map(([label, verdict, uploaded]) => (
+                <div key={label} className="flex items-center justify-between py-1.5">
+                  <span className="text-xs text-gray-400">{label}</span>
+                  {!uploaded ? (
+                    <span className="text-[11px] text-gray-600">Not uploaded</span>
+                  ) : verdict?.status === "verified" ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300">
+                      <Check className="h-3 w-3" /> Verified
+                    </span>
+                  ) : verdict?.status === "rejected" ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-300">
+                      <TriangleAlert className="h-3 w-3" /> Rejected
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-300">
+                      <TriangleAlert className="h-3 w-3" /> Admin review
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => setStep(1)} className="flex-1">Back</Button>
-            <Button onClick={() => setStep(3)} disabled={!canStep3} className="flex-1">Continue</Button>
+            <Button variant="secondary" onClick={() => setStep(1)} className="flex-1">
+              Back
+            </Button>
+            <Button onClick={() => setStep(3)} disabled={!canStep3} className="flex-1">
+              Continue
+            </Button>
           </div>
         </div>
       )}
@@ -428,13 +509,36 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       {/* STEP 3 — Liveness Face Scan */}
       {step === 3 && (
         <div className="space-y-5">
-          <p className="text-sm text-gray-400 mb-2">To prevent fake accounts, please complete a quick liveness check.</p>
-          
-          <FaceScan onComplete={handleFaceScanComplete} />
+          <div className="text-center">
+            <h2 className="font-display text-lg text-white">Face verification</h2>
+            <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-gray-400">
+              A five-second check that you are a real person. Nothing is posted publicly.
+            </p>
+          </div>
+
+          <FaceScan
+            onComplete={handleFaceScanComplete}
+            onManualReview={() => {
+              setLivenessMode("manual_review");
+              update("faceScanVideo", "");
+              addToast("No problem — Rabi will verify you manually.", "info");
+            }}
+          />
+
+          {livenessMode === "manual_review" && (
+            <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">
+              Manual review requested. You can continue — your account stays pending until Rabi confirms
+              your identity.
+            </p>
+          )}
 
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => setStep(2)} className="flex-1">Back</Button>
-            <Button onClick={() => setStep(4)} disabled={!canStep4} className="flex-1">Continue</Button>
+            <Button variant="secondary" onClick={() => setStep(2)} className="flex-1">
+              Back
+            </Button>
+            <Button onClick={() => setStep(4)} disabled={!canStep4} className="flex-1">
+              Continue
+            </Button>
           </div>
         </div>
       )}

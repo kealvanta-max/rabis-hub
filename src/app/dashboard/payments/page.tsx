@@ -12,6 +12,7 @@ import {
 } from "@/lib/payment-tracker";
 import { getPlanAmount, getPlanLabel } from "@/lib/plans-data";
 import { useCustomPlans } from "@/hooks/use-custom-plans";
+import { PaymentsSkeleton } from "@/components/ui/skeleton";
 import { useToastContext } from "@/components/layout/toast-provider";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import Navigation from "@/components/layout/navigation";
@@ -78,8 +79,8 @@ export default function UserPaymentsPage() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-[#020C06] flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin"></div>
+      <div className="min-h-screen bg-[#020C06] text-white">
+        <PaymentsSkeleton />
       </div>
     );
   }

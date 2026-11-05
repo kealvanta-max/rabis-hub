@@ -1,253 +1,260 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
+import { Camera, Check, Loader2, ShieldAlert, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
-import { verifyGhanaCardWithOCR, type OcrResult } from "@/lib/ghana-card-ocr";
-import { detectHumanFace, type FaceDetectionResult } from "@/lib/face-detection";
+import { recognizeDocument } from "@/lib/ghana-card-ocr";
+import { detectHumanFace, fingerprintImage } from "@/lib/face-detection";
+import {
+  checkCardAspectRatio,
+  evaluateIdBack,
+  evaluateIdFront,
+  evaluateSelfie,
+  type DocVerdict,
+} from "@/lib/kyc-verification";
+import { cn } from "@/lib/utils";
+
+export type VerifyMode = "id-front" | "id-back" | "selfie";
 
 interface ImageUploadProps {
   label: string;
   value: string;
   onUpload: (url: string) => void;
-  accept?: string;
-  enableOcr?: boolean;
+  /** Document checks to run before the file is uploaded. */
+  verify?: VerifyMode;
   declaredCardNumber?: string;
-  onOcrResult?: (result: OcrResult) => void;
-  enableFaceDetection?: boolean;
-  onFaceDetectionResult?: (result: FaceDetectionResult) => void;
+  hint?: string;
+  onVerdict?: (verdict: DocVerdict | null, fingerprint?: string | null) => void;
 }
+
+const modeCopy: Record<VerifyMode, string> = {
+  "id-front": "Reading your card…",
+  "id-back": "Checking the back of your card…",
+  selfie: "Looking for your face…",
+};
 
 export default function ImageUpload({
   label,
   value,
   onUpload,
-  accept = "image/*",
-  enableOcr = false,
+  verify,
   declaredCardNumber = "",
-  onOcrResult,
-  enableFaceDetection = false,
-  onFaceDetectionResult,
+  hint,
+  onVerdict,
 }: ImageUploadProps) {
-  const [uploading, setUploading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
-  const [faceDetectionResult, setFaceDetectionResult] = useState<FaceDetectionResult | null>(null);
-  const [verifying, setVerifying] = useState(false);
+  const [verdict, setVerdict] = useState<DocVerdict | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const reset = () => {
+    onUpload("");
+    setVerdict(null);
+    setError(null);
+    onVerdict?.(null, null);
+    if (inputRef.current) inputRef.current.value = "";
+  };
 
   const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file.");
+      setError("Please choose a photo (JPG, PNG or HEIC).");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("File too large. Max 10MB.");
+    if (file.size > 12 * 1024 * 1024) {
+      setError("That photo is larger than 12 MB. Take a new one or compress it first.");
       return;
     }
 
-    setUploading(true);
+    setBusy(true);
     setError(null);
-    setOcrResult(null);
-    setFaceDetectionResult(null);
+    setVerdict(null);
+    setStage("Preparing…");
 
     try {
+      const fingerprint = await fingerprintImage(file).catch(() => ({ hash: "", width: 0, height: 0 }));
+
+      let nextVerdict: DocVerdict | null = null;
+
+      if (verify === "id-front" || verify === "id-back") {
+        setStage("Checking the photo…");
+        const aspect = checkCardAspectRatio(fingerprint.width, fingerprint.height);
+
+        if (!aspect.ok) {
+          nextVerdict = {
+            status: "rejected",
+            confidence: 0,
+            message: aspect.reason ?? "That does not look like a card.",
+            reasons: ["aspect-ratio"],
+          };
+        } else {
+          setStage(modeCopy[verify]);
+          try {
+            const ocr = await recognizeDocument(file);
+            nextVerdict =
+              verify === "id-front"
+                ? evaluateIdFront(ocr.text, declaredCardNumber, aspect)
+                : evaluateIdBack(ocr.text, declaredCardNumber, aspect);
+          } catch {
+            // The reader itself failed (slow network, CDN blocked, exotic format).
+            // Never trap the member: accept the photo for manual admin review.
+            nextVerdict = {
+              status: "review",
+              confidence: 0,
+              message:
+                "We could not read the card automatically on this connection. Rabi will check this photo manually.",
+              reasons: ["ocr-unavailable"],
+            };
+          }
+        }
+      }
+
+      if (verify === "selfie") {
+        setStage(modeCopy.selfie);
+        const face = await detectHumanFace(file);
+        nextVerdict = evaluateSelfie(
+          { faceCount: face.faceCount, areaRatio: face.areaRatio, confidence: face.confidence },
+          face.skipped
+        );
+      }
+
+      if (nextVerdict) {
+        setVerdict(nextVerdict);
+        onVerdict?.(nextVerdict, fingerprint.hash);
+
+        if (nextVerdict.status === "rejected") {
+          setError(nextVerdict.message);
+          if (inputRef.current) inputRef.current.value = "";
+          return;
+        }
+      }
+
+      setStage("Uploading…");
       const url = await uploadToCloudinary(file);
       onUpload(url);
-
-      // Run OCR if enabled
-      if (enableOcr && declaredCardNumber) {
-        setVerifying(true);
-        try {
-          const result = await verifyGhanaCardWithOCR(url, declaredCardNumber);
-          setOcrResult(result);
-          if (onOcrResult) onOcrResult(result);
-        } catch (err) {
-          console.error("OCR failed:", err);
-          setOcrResult({
-            valid: false,
-            confidence: 0,
-            message: "OCR verification unavailable.",
-          });
-        } finally {
-          setVerifying(false);
-        }
-      }
-
-      // Run face detection if enabled
-      if (enableFaceDetection) {
-        setVerifying(true);
-        try {
-          const result = await detectHumanFace(url);
-          setFaceDetectionResult(result);
-          if (onFaceDetectionResult) onFaceDetectionResult(result);
-
-          // Clear the image if no face detected
-          if (!result.isHuman) {
-            onUpload("");
-            if (inputRef.current) inputRef.current.value = "";
-          }
-        } catch (err) {
-          console.error("Face detection failed:", err);
-          setFaceDetectionResult({
-            isHuman: true,
-            confidence: 0,
-            skipped: true,
-            message: "Face detection unavailable — an admin will verify manually.",
-          });
-        } finally {
-          setVerifying(false);
-        }
-      }
-    } catch {
-      setError("Upload failed. Please try again.");
+      onVerdict?.(nextVerdict, fingerprint.hash);
+    } catch (uploadError) {
+      console.error("Upload failed:", uploadError);
+      setError("Upload failed. Check your connection and try again.");
     } finally {
-      setUploading(false);
+      setBusy(false);
+      setStage("");
     }
   };
 
+  const tone =
+    verdict?.status === "verified"
+      ? "emerald"
+      : verdict?.status === "review"
+      ? "amber"
+      : verdict?.status === "rejected"
+      ? "red"
+      : null;
+
   return (
     <div className="w-full">
-      <p className="text-sm font-medium text-gray-300 mb-2">{label}</p>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-sm font-medium text-gray-200">{label}</p>
+        {verdict && (
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
+              tone === "emerald" && "bg-emerald-500/15 text-emerald-300",
+              tone === "amber" && "bg-amber-500/15 text-amber-300",
+              tone === "red" && "bg-red-500/15 text-red-300"
+            )}
+          >
+            {tone === "emerald" ? (
+              <ShieldCheck className="h-3 w-3" />
+            ) : tone === "amber" ? (
+              <ShieldAlert className="h-3 w-3" />
+            ) : (
+              <TriangleAlert className="h-3 w-3" />
+            )}
+            {verdict.status === "verified" ? "Verified" : verdict.status === "review" ? "Review" : "Rejected"}
+          </span>
+        )}
+      </div>
+
+      {hint && !value && <p className="mb-2 text-xs leading-relaxed text-gray-500">{hint}</p>}
 
       {value ? (
-        <div className="w-full">
-          <div className="relative group">
+        <div>
+          <div className="group relative overflow-hidden rounded-2xl border border-white/10">
             <Image
               src={value}
               alt={label}
-              width={400}
-              height={160}
-              className="w-full h-40 object-cover rounded-xl border border-gray-700"
+              width={720}
+              height={440}
+              className="h-40 w-full object-cover"
             />
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
-              <button
-                type="button"
-                onClick={() => {
-                  onUpload("");
-                  if (inputRef.current) inputRef.current.value = "";
-                  setOcrResult(null);
-                  setFaceDetectionResult(null);
-                }}
-                className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
-              >
-                Remove
-              </button>
-            </div>
-            <div className="absolute top-2 right-2 bg-emerald-600 rounded-full p-1">
-              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
+            <button
+              type="button"
+              onClick={reset}
+              aria-label={`Remove ${label}`}
+              className="absolute right-2 top-2 rounded-xl bg-black/60 p-2 text-white/90 backdrop-blur transition-colors hover:bg-red-600"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+            {verdict?.status !== "rejected" && (
+              <div className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-1 text-[10px] text-white/80 backdrop-blur">
+                <Check className="h-3 w-3 text-emerald-400" /> Uploaded
+              </div>
+            )}
           </div>
 
-          {/* OCR Result Badge */}
-          {ocrResult && (
-            <div className={`mt-3 p-3 rounded-lg flex items-center gap-2 ${
-              ocrResult.valid
-                ? "bg-green-900/30 border border-green-700/50"
-                : "bg-amber-900/30 border border-amber-700/50"
-            }`}>
-              {ocrResult.valid ? (
-                <>
-                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-xs text-green-300">OCR: Card pattern detected</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-xs text-amber-300">OCR: Could not verify card pattern — admin will review</span>
-                </>
+          {verdict && verdict.status !== "rejected" && (
+            <p
+              className={cn(
+                "mt-2 text-xs leading-relaxed",
+                verdict.status === "verified" ? "text-emerald-300" : "text-amber-300"
               )}
-            </div>
-          )}
-
-          {/* Face Detection Result Badge */}
-          {faceDetectionResult && (
-            <div className={`mt-3 p-3 rounded-lg flex items-center gap-2 ${
-              faceDetectionResult.skipped
-                ? "bg-amber-900/30 border border-amber-700/50"
-                : faceDetectionResult.isHuman
-                ? "bg-green-900/30 border border-green-700/50"
-                : "bg-red-900/30 border border-red-700/50"
-            }`}>
-              {faceDetectionResult.skipped ? (
-                <>
-                  <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-xs text-amber-300">{faceDetectionResult.message}</span>
-                </>
-              ) : faceDetectionResult.isHuman ? (
-                <>
-                  <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-xs text-green-300">Face detected ✓</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-xs text-red-300">No face detected — please upload a clear photo of your face</span>
-                </>
-              )}
-            </div>
-          )}
-
-          {verifying && (
-            <div className="mt-3 p-3 rounded-lg bg-blue-900/30 border border-blue-700/50 flex items-center gap-2">
-              <svg className="animate-spin h-4 w-4 text-blue-400" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span className="text-xs text-blue-300">Verifying...</span>
-            </div>
+            >
+              {verdict.message}
+            </p>
           )}
         </div>
       ) : (
         <label
-          className={`flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
-            uploading
+          className={cn(
+            "flex h-36 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed transition-all",
+            busy
               ? "border-primary/50 bg-primary/5"
-              : "border-gray-600 hover:border-primary/40 hover:bg-white/[0.02]"
-          }`}
+              : error
+              ? "border-red-500/40 bg-red-500/5 hover:border-red-400/60"
+              : "border-white/15 bg-white/[0.02] hover:border-emerald-400/40 hover:bg-white/[0.04]"
+          )}
         >
-          {uploading ? (
-            <div className="flex flex-col items-center gap-2">
-              <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <span className="text-xs text-gray-400">Uploading...</span>
-            </div>
+          {busy ? (
+            <>
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              <span className="px-4 text-center text-xs text-gray-400">{stage || "Working…"}</span>
+            </>
           ) : (
-            <div className="flex flex-col items-center gap-2">
-              <svg className="w-8 h-8 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span className="text-xs text-gray-400">Click to upload</span>
-            </div>
+            <>
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.06]">
+                <Camera className="h-5 w-5 text-gray-300" />
+              </span>
+              <span className="text-xs font-semibold text-gray-300">Take a photo or choose a file</span>
+              <span className="text-[10px] text-gray-500">JPG or PNG · good light · no glare</span>
+            </>
           )}
           <input
             ref={inputRef}
             type="file"
-            accept={accept}
+            accept="image/*"
             className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
+            disabled={busy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) void handleFile(file);
             }}
           />
         </label>
       )}
 
-      {error && <p className="mt-1.5 text-xs text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-xs leading-relaxed text-red-400">{error}</p>}
     </div>
   );
 }

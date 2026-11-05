@@ -1,56 +1,38 @@
-import Tesseract from "tesseract.js";
+/**
+ * Browser-side OCR for KYC documents.
+ *
+ * Tesseract is ~1 MB of WASM, so it is imported **on demand** — the signup page
+ * only pays for it on the step where a card is actually scanned.
+ */
 
-export interface OcrResult {
-  valid: boolean;
+export interface OcrTextResult {
+  text: string;
   confidence: number;
-  message: string;
 }
 
-export const GHANA_CARD_SAMPLES = [
-  "https://drive.google.com/file/d/1p02pxHMhEoLyDZ8FI27CmUUKEm-NZezZ/view?usp=drivesdk",
-  "https://drive.google.com/file/d/1l0bIilZrdaeTZqe0n-3iZ4Z2UPMubHlL/view?usp=drivesdk",
-  "https://drive.google.com/file/d/1CANZrqIcPkO6FtJOdyuaP0HVZnt_lZyn/view?usp=drivesdk",
-  "https://drive.google.com/file/d/1pIKW4N3yl3xswYlZwoHAfRheqI6WiSwW/view?usp=drivesdk"
-];
+let recognitionCount = 0;
 
-export async function verifyGhanaCardWithOCR(
-  imageUrl: string,
-  declaredCardNumber: string
-): Promise<OcrResult> {
+export async function recognizeDocument(image: File | Blob | string): Promise<OcrTextResult> {
+  const { default: Tesseract } = await import("tesseract.js");
+
+  const source =
+    typeof image === "string" ? image : URL.createObjectURL(image as Blob);
+
   try {
-    const result = await Tesseract.recognize(imageUrl, "eng");
-    const extractedText = result.data.text.toUpperCase();
-    const ghanaCardMarkers = ["GHANA CARD", "REPUBLIC OF GHANA", "NATIONAL IDENTIFICATION AUTHORITY", "NIA", "GHA-"];
-    const cardNumberPattern = declaredCardNumber.toUpperCase();
-    const cardNumberFound = extractedText.includes(cardNumberPattern);
-    const markersFound = ghanaCardMarkers.some((marker) => extractedText.includes(marker));
-
-    if (cardNumberFound && markersFound) {
-      return { valid: true, confidence: 95, message: "Ghana Card verified with high confidence." };
-    } else if (cardNumberFound) {
-      return { valid: true, confidence: 60, message: "Card number detected, but visual markers are unclear. Admin will verify manually." };
-    } else if (markersFound) {
-       return { valid: false, confidence: 30, message: "Ghana Card markers detected, but the card number does not match your input. Please re-upload." };
-    } else {
-      return { valid: false, confidence: 0, message: "The card image does not appear to be a valid Ghana Card. Please upload a clear image." };
-    }
-  } catch (error) {
-    console.error("OCR verification failed:", error);
-    return { valid: false, confidence: 0, message: "OCR verification failed. Please ensure the image is clear and try again." };
+    const result = await Tesseract.recognize(source, "eng", {
+      // Keep the console quiet; failures are handled by the caller.
+      logger: () => undefined,
+    });
+    recognitionCount += 1;
+    return {
+      text: result.data.text ?? "",
+      confidence: Math.round(result.data.confidence ?? 0),
+    };
+  } finally {
+    if (typeof image !== "string") URL.revokeObjectURL(source);
   }
 }
 
-export const ghanaCardReferenceData = {
-  front: {
-    title: "Front Side",
-    description: "Contains the following elements:",
-    elements: ["Header: 'REPUBLIC OF GHANA'", "Issuing Authority: 'NATIONAL IDENTIFICATION AUTHORITY'", "Holder's Name", "Date of Birth", "Ghana Card Number (Format: GHA-XXXXXXXXX-X)", "Holder's Photograph", "Security Features: Hologram, microprint"],
-    samples: GHANA_CARD_SAMPLES.slice(0, 2)
-  },
-  back: {
-    title: "Back Side",
-    description: "Contains the following elements:",
-    elements: ["NIA Logo", "Barcode / QR Code Zone", "Additional Personal Data Fields", "Emergency Contact Information", "Signature Area", "Security Features: Hologram, microprint"],
-    samples: GHANA_CARD_SAMPLES.slice(2)
-  },
-};
+export function getOcrRunCount() {
+  return recognitionCount;
+}

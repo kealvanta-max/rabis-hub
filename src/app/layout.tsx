@@ -6,10 +6,10 @@ import { AuthProvider } from "@/context/auth-context";
 import { I18nProvider } from "@/context/i18n-context";
 import { ToastProvider } from "@/components/layout/toast-provider";
 import FloatingWhatsApp from "@/components/layout/floating-whatsapp";
+import FloatingTabBar from "@/components/layout/floating-tab-bar";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
 import AudioPlayer from "@/components/ui/audio-player";
 import LoadingScreen from "@/components/ui/loading-screen";
-import AIAssistantButton from "@/components/ui/ai-assistant-button";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -71,6 +71,7 @@ export const viewport: Viewport = {
   themeColor: "#020C06",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -102,7 +103,7 @@ export default function RootLayout({
                 <div id="main-content">{children}</div>
                 <FloatingWhatsApp />
                 <AudioPlayer />
-                <AIAssistantButton />
+                <FloatingTabBar />
               </ToastProvider>
             </AuthProvider>
           </I18nProvider>
