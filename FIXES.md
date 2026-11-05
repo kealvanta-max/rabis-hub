@@ -246,6 +246,99 @@ load is 287 kB and nothing 3D is downloaded until step 3 is reached.
 
 ---
 
+## 🧑‍💼 Admin dashboard — rebuilt for a thumb, not a desktop
+
+The four screens in the audit were one 1,092-line component. That file is now
+split into six focused modules, and every reported failure is fixed at its root
+cause rather than patched with a nicer colour.
+
+### Screen 1 · member list
+| Bug | Root cause | Fix |
+| :--- | :--- | :--- |
+| Badges overlapped the buttons | badge sat in the same wrapping flex row as the action cluster | three fixed zones — identity (name + badge, `flex-wrap`), facts, actions in their **own footer** |
+| Avatars stretched | image had no frame of its own | `MemberAvatar`: `aspect-square` + `overflow-hidden` + `object-cover`, with initials as the fallback for a broken upload |
+| `•` characters everywhere | separators typed into the markup | a real `<dl>` grid with icons; email and phone are now `mailto:` / `tel:` links |
+| Everything on its own line | no column strategy | 1 → 2 → 3 responsive fact columns, so a whole member fits one thumb-screen |
+
+### Screen 2 · WhatsApp links
+* Inputs are full-width blocks with labels **above** them (`w-full min-w-0`) — the
+  old `w-40 shrink-0` label beside the field is exactly what pushed the page past
+  the viewport and enabled horizontal scroll.
+* Headings moved from the marketing serif to `font-grotesk`.
+* 17 plans grouped into **Daily · Weekly · 6-month · Achiever · Monthly · Other**
+  with a search filter and a "test link" shortcut per row.
+* Save is a **sticky bar** that reports how many changes are pending; the button is
+  the solid emerald brand action, not a green→gold gradient.
+
+### Screen 3 · member review
+* Email/phone/plan/location are single-column on phones, `break-words`, so long
+  addresses can no longer collide.
+* GPS is now **"Open in Google Maps"** plus a tap-to-copy coordinate chip.
+* The OCR warning explains *what happened and what to do* ("compare the card photo
+  with the number above") and links to the documents section.
+* Video uses native `controls`, `preload="metadata"`, a proper `aspect-video`
+  frame; download is a separate control instead of an overlay fighting the player.
+* The dialog itself now has `role="dialog"`, `aria-modal`, Escape-to-close and
+  focus transfer — previously keyboard users were stranded behind the overlay.
+
+### Screen 4 · reviews
+* Actions moved into a footer grid (2 columns, Delete spans both on phones) — they
+  can no longer bleed off the right edge.
+* Status chips are anchored in the card header with the name, never in the quote.
+* Approve = filled affirmative, Reject = outlined destructive, Delete = quiet ghost:
+  three distinct weights, so nothing competes with the safe action.
+* Added Pending / Approved / Rejected filters with live counts.
+
+### Cross-cutting
+* **Tabs** are a real `role="tablist"` with arrow-key navigation, a full-bleed
+  scroll rail, hidden scrollbar and a masked edge fade that shows there is more.
+* Panel semantics (`aria-labelledby` ↔ `aria-controls`) for every section.
+* `pb-28` on the admin main so the floating dock never covers the last card.
+* **21 new tests** (96 total): grouped-plan logic, member filtering, and a
+  *design guardrail* suite that fails the build if a bullet separator, an absolutely
+  positioned badge, a `w-40` label beside an input, a stretched avatar or a serif
+  admin heading ever comes back.
+
+**Gates:** lint ✅ · `tsc` ✅ · 96 tests ✅ · build ✅ (`/admin` 20.6 kB, split into components)
+
+---
+
+## 🔒 Security pass before handover (hacker's-eye audit)
+
+Full report: **`docs/SECURITY_AUDIT.md`**. Handover for Rabi: **`docs/HANDOVER.md`**.
+Readiness verdict: **`docs/PRODUCTION_READINESS.md`**.
+
+### Two vulnerabilities that had to die first
+1. **`/api/email` was an open relay.** No authentication, and a missing `Origin`
+   header was treated as trusted — so `curl` could send any HTML to any address
+   from Rabi's verified Resend domain. That is a ready-made phishing kit aimed at
+   her own members. Now: Firebase ID token required (verified server-side through
+   Google Identity Toolkit), recipient policy enforced per role, member HTML
+   stripped of scripts/iframes/handlers, rate limit keyed per user, subject
+   sanitised against CRLF header injection.
+2. **Unsigned Cloudinary writes.** The upload preset in the bundle was a public
+   write key. Uploads now go through `POST /api/upload`: authenticated, signed with
+   the API secret, JPG/PNG/WEBP only, ≤ 8 MB, forced folder, re-encoded to
+   ≤ 1600 px. If the secret is missing the proxy still authenticates the request
+   rather than falling back to browser-direct writes.
+
+### Also hardened
+* **Firestore rules** — owner-email admin fallback now requires a *verified*
+  address; profile creation validates required fields and lengths; testimonials
+  validate rating and length; self-updates still cannot touch `status`.
+* **`/api/errors`** — 16 KB body cap, e-mails/phones/tokens scrubbed before
+  reaching Sentry, context capped.
+* **Browser hardening** — CSP, HSTS, `nosniff`, Referrer-Policy,
+  Permissions-Policy and COOP on every response (the CSP keeps only the
+  permissive bits Next/Firebase/MediaPipe/Tesseract genuinely need).
+* **Dependencies** — nodemailer patched (CRLF injection); remaining advisories
+  documented with their real exposure in the readiness report.
+
+**Gates:** lint ✅ · `tsc` ✅ · **120 tests** ✅ · build ✅
+The email and upload routes now return **401 without a token** (verified with curl).
+
+---
+
 ## ⚠️ The 3 things that must be configured for the live site
 
 1. `NEXT_PUBLIC_FIREBASE_*` environment variables (Vercel + local `.env.local`).

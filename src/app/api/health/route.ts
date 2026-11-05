@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 
+import { criticalGaps, integrationStatus } from "@/lib/integrations";
+
 export const dynamic = "force-dynamic";
 
 /**
- * Lightweight configuration probe used by the admin "System status" card.
- * Never returns secret values – only whether each integration is present.
+ * Configuration probe, used by the admin "System status" card and by Rabi after
+ * pasting keys into Vercel. Returns presence and shape only — never a value.
  */
 export async function GET() {
   const emailProvider = process.env.RESEND_API_KEY
@@ -15,13 +17,26 @@ export async function GET() {
     ? "brevo"
     : null;
 
-  return NextResponse.json({
-    firebaseConfigured: Boolean(
-      process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-    ),
-    cloudinaryConfigured: Boolean(process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME),
-    emailProvider,
-    appUrl: process.env.NEXT_PUBLIC_APP_URL || null,
-    checkedAt: new Date().toISOString(),
-  });
+  const integrations = integrationStatus();
+  const gaps = criticalGaps();
+
+  return NextResponse.json(
+    {
+      status: gaps.length === 0 ? "ready" : "misconfigured",
+      firebaseConfigured: integrations.find((i) => i.id === "firebase")?.configured ?? false,
+      cloudinaryConfigured: integrations.find((i) => i.id === "cloudinary")?.configured ?? false,
+      emailProvider,
+      appUrl: process.env.NEXT_PUBLIC_APP_URL || null,
+      integrations: integrations.map(({ id, label, category, configured, missing }) => ({
+        id,
+        label,
+        category,
+        configured,
+        missing,
+      })),
+      criticalGaps: gaps,
+      checkedAt: new Date().toISOString(),
+    },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

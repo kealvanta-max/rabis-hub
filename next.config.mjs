@@ -11,6 +11,7 @@ const nextConfig = {
     process.env.NODE_ENV === "production"
       ? { removeConsole: { exclude: ["error", "warn"] } }
       : undefined,
+
   images: {
     formats: ["image/avif", "image/webp"],
     deviceSizes: [360, 420, 640, 768, 1024, 1280, 1536],
@@ -43,10 +44,47 @@ const nextConfig = {
     return config;
   },
   async headers() {
+    /*
+     * Content Security Policy.
+     *
+     * Permissive exactly where the stack genuinely needs it — `unsafe-inline`
+     * for Next hydration, `wasm-unsafe-eval` + `blob:` workers for the on-device
+     * MediaPipe / Tesseract models — but the page is still pinned to a known set
+     * of origins, so injected script cannot exfiltrate a member's data to an
+     * attacker's server.
+     *
+     * `frame-ancestors` allows the hosting preview domain (the app is embedded
+     * there during review) while blocking every other site from framing it.
+     */
+    const csp = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://*.posthog.com",
+      "worker-src 'self' blob:",
+      "child-src 'self' blob:",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://res.cloudinary.com https://lh3.googleusercontent.com https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+      "font-src 'self' data:",
+      "media-src 'self' blob: https://res.cloudinary.com",
+      // Google sign-in popups and the Firebase auth handler frame.
+      "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com",
+      "connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.cloudinary.com https://res.cloudinary.com https://storage.googleapis.com https://cdn.jsdelivr.net https://*.posthog.com https://*.ingest.sentry.io https://nominatim.openstreetmap.org https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+      "frame-ancestors 'self' https://*.e2b.app",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+
     const commonSecurityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-      { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self)" },
+      {
+        key: "Permissions-Policy",
+        value: "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), magnetometer=()",
+      },
+      { key: "Content-Security-Policy", value: csp },
+      { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+      { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
     ];
 
     return [

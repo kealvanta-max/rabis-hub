@@ -116,7 +116,7 @@ Open `http://localhost:3000`.
 | `npm run typecheck` | TypeScript, no emit |
 | `npm test` | Unit tests (Vitest) |
 | `npm run admin:setup` | Grant the `admin` custom claim (needs `FIREBASE_SERVICE_ACCOUNT_KEY`) |
-| `npm run env:check` | Validate the service-account JSON in `.env.local` |
+| `npm run env:check` | Verify every env var is present and correctly shaped (names only, never values) |
 
 ---
 
