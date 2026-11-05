@@ -95,3 +95,16 @@ stop them).
 Costs to run: **$0 today** at up to roughly 100–200 active members. See
 `docs/PRODUCTION_READINESS.md` for the exact free-tier limits and what the first
 few dollars will buy.
+
+---
+
+## After pasting keys (do this once, takes 2 minutes)
+
+```bash
+npm run env:check          # names + shapes, never values
+```
+
+Then open `https://rabis-hub.vercel.app/api/health` — every integration must read
+`configured: true`. If one still lists `missing`, that is precisely where the
+value did not land. Full table of every variable and where to get it:
+**`docs/INTEGRATIONS.md`**.

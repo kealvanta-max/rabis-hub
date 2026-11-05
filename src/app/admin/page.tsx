@@ -51,7 +51,13 @@ export default function AdminPage() {
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
-  const [health, setHealth] = useState<{ cloudinaryConfigured: boolean; emailProvider: string | null } | null>(null);
+  const [health, setHealth] = useState<{
+    cloudinaryConfigured: boolean;
+    emailProvider: string | null;
+    integrations?: { id: string; label: string; category: string; configured: boolean; missing: string[] }[];
+  } | null>(null);
+
+  const unconfigured = health?.integrations?.filter((i) => !i.configured) ?? [];
 
   const fetchData = useCallback(async () => {
     try {
@@ -295,7 +301,7 @@ export default function AdminPage() {
           </div>
 
           {/* System status */}
-          {(!isFirebaseConfigured || (health && (!health.cloudinaryConfigured || !health.emailProvider))) && (
+          {(!isFirebaseConfigured || unconfigured.length > 0) && (
             <div className="mb-8 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
               <div className="flex items-start gap-3">
                 <svg className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -306,13 +312,27 @@ export default function AdminPage() {
                   <p className="text-xs text-amber-200/70 mb-3">
                     Some integrations are missing, so parts of the site will not work for members.
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    <StatusPill ok={isFirebaseConfigured} label="Firebase" />
-                    <StatusPill ok={Boolean(health?.cloudinaryConfigured)} label="Cloudinary uploads" />
-                    <StatusPill ok={Boolean(health?.emailProvider)} label={`Email${health?.emailProvider ? ` (${health.emailProvider})` : ""}`} />
-                  </div>
-                  <p className="text-[11px] text-amber-200/60 mt-3">
-                    See <code>docs/FIREBASE_SETUP.md</code> for the full checklist.
+                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {!isFirebaseConfigured && (
+                      <li className="min-w-0">
+                        <StatusPill ok={false} label="Firebase" />
+                      </li>
+                    )}
+                    {unconfigured
+                      .filter((i) => i.id !== "firebase")
+                      .map((integration) => (
+                        <li key={integration.id} className="flex min-w-0 items-start gap-2">
+                          <StatusPill ok={false} label={integration.label} />
+                          <span className="min-w-0 truncate text-[11px] text-amber-200/50">
+                            {integration.missing.join(", ")}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                  <p className="mt-3 text-[11px] text-amber-200/60">
+                    Values go in Vercel → Settings → Environment Variables, then run
+                    <code className="mx-1 text-amber-100">npm run env:check</code>
+                    locally. Full table: <code className="text-amber-100">docs/INTEGRATIONS.md</code>.
                   </p>
                 </div>
               </div>

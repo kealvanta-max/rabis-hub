@@ -1,6 +1,28 @@
-# Clerk — decision and migration plan
+# Clerk — decision, bridge, and migration plan
 
-## Decision: **not now.** Firebase Auth stays for this release.
+## Decision: **bridged, not cut over.** Firebase Auth stays the live provider today.
+
+Phase 1 of the plan below is **already implemented and tested** — the server
+half of the bridge exists in this repo, inert until three variables are set:
+
+* `src/lib/clerk-jwt.ts` — verifies Clerk session tokens (RS256) against the
+  published JWKS with `node:crypto`. No SDK, no dependency, and it refuses
+  `HS256` (algorithm-confusion), wrong issuers, unknown key ids, expired tokens
+  and any signature made with a key Clerk does not publish. 12 tests, real
+  RSA keypairs, no network.
+* `src/app/api/auth/clerk-exchange/route.ts` — `POST` a Clerk session token,
+  receive a Firebase custom token for `uid = clerk_<clerk_user_id>`. Returns
+  **501** until `CLERK_JWT_ISSUER_DOMAIN`, `CLERK_SECRET_KEY` and
+  `FIREBASE_SERVICE_ACCOUNT_KEY` all exist, so shipping this changed nothing for
+  a single member.
+* `src/lib/firebase-admin.ts` — lazy Admin init that accepts the service-account
+  JSON raw **or** base64 (dashboards mangle newlines).
+
+What is *not* done, deliberately: the client still signs in with Firebase Auth.
+Cutting the UI over is Phase 2, and doing it in the same push as the security
+release would put an untestable change on the login path — the one path that has
+already broken once, for a far simpler reason.
+
 
 You asked for Clerk twice, so this file records exactly why it is deferred, what
 it would cost, and the precise plan for the day it becomes the right call. This is
@@ -34,15 +56,28 @@ Firebase in a way that makes a later move painful.
 
 ### The migration, if you decide to do it anyway
 
-**Phase 1 — parallel identity (1–2 days)**
-1. Create the Clerk application; add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and
-   `CLERK_SECRET_KEY` to Vercel.
-2. Add `POST /api/auth/firebase-token`: verify the Clerk session, mint a Firebase
-   custom token with `uid = clerk_user_id`, and store the service account in
+**Phase 1 — parallel identity — SERVER DONE ✅**
+
+1. Create the Clerk application. In Vercel add
+   `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`,
+   `CLERK_JWT_ISSUER_DOMAIN` (e.g. `https://rabis-hub.clerk.accounts.dev`) and
    `FIREBASE_SERVICE_ACCOUNT_KEY`.
-3. Client: after Clerk sign-in, exchange for a Firebase token and call
-   `signInWithCustomToken`. **Nothing else changes** — every `useAuth()` consumer
-   keeps working because the Firebase `uid` is unchanged in shape.
+2. The route exists: `POST /api/auth/clerk-exchange` (see above).
+3. Client, once you have confirmed the exchange works in a preview deploy:
+
+```ts
+// after Clerk sign-in succeeds
+const clerkToken = await getToken();               // Clerk session JWT
+const res = await fetch("/api/auth/clerk-exchange", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${clerkToken}` },
+});
+const { token } = await res.json();                // Firebase custom token
+await signInWithCustomToken(auth, token);          // every useAuth() consumer unchanged
+```
+
+   **Nothing else changes** — Firestore rules still see `request.auth.uid`,
+   which is exactly the point of the bridge.
 
 **Phase 2 — swap the UI (half a day)**
 4. Replace `/auth` with Clerk's `<SignIn/>`/`<SignUp/>` components, keeping the
@@ -60,6 +95,16 @@ switch the `/auth` page back — the data model never changed.
 
 ### What is already in place for that day
 
+* **The whole server side of the bridge, with tests.**
 * Every component reads identity through `useAuth()` — one file to change.
 * Firestore rules only care about `request.auth.uid` and the `admin` claim.
-* `.env.example` already reserves the Clerk variables.
+* `.env.example` reserves the Clerk variables and `docs/INTEGRATIONS.md` lists
+  exactly where each one comes from.
+
+### The honest cost of flipping it
+
+Phase 2 (Clerk's `<SignIn/>` UI replacing `/auth`) is half a day **with real
+keys and a preview deploy to test against** — not something to bundle into a
+ship-day commit. Until then the bridge sits there costing nothing:
+`/api/health` reports Clerk as unconfigured, and the app behaves exactly as it
+did before this file was written.
