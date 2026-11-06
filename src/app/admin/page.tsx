@@ -63,6 +63,15 @@ export default function AdminPage() {
   const [verificationSent, setVerificationSent] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
+  const [checkingStorage, setCheckingStorage] = useState(false);
+  const [storageCheck, setStorageCheck] = useState<{
+    ok: boolean;
+    message: string;
+    stage?: string;
+    httpStatus?: number;
+    cloudinaryMessage?: string;
+    config?: Record<string, unknown>;
+  } | null>(null);
   const [health, setHealth] = useState<{
     cloudinaryConfigured: boolean;
     emailProvider: string | null;
@@ -244,6 +253,36 @@ export default function AdminPage() {
     }
   };
 
+  /**
+   * Uploads one tiny test image through the same route members use and prints
+   * Cloudinary's own verdict. Rabi runs this from her phone instead of relaying
+   * "upload failed" to someone who cannot see her dashboard.
+   */
+  const runStorageCheck = async () => {
+    setCheckingStorage(true);
+    setStorageCheck(null);
+    try {
+      const token = user ? await user.getIdToken() : null;
+      const response = await fetch("/api/upload/diagnose", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      const data = await response.json().catch(() => ({}));
+      setStorageCheck({
+        ok: Boolean(data.ok),
+        message: data.message || "No answer from the server.",
+        stage: data.stage,
+        httpStatus: data.httpStatus,
+        cloudinaryMessage: data.cloudinaryMessage,
+        config: data.config,
+      });
+    } catch {
+      setStorageCheck({ ok: false, message: "The check itself failed. Try again in a moment." });
+    } finally {
+      setCheckingStorage(false);
+    }
+  };
+
   const saveWaLinks = async () => {
     try {
       await setDoc(doc(db, "settings", "waLinks"), waLinks);
@@ -406,6 +445,54 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+
+          {/*
+            * Photo storage self-test. Collapsed by default so it never competes
+            * with the work, one tap when photos will not upload.
+            */}
+          <details className="glass glass-sheen mb-6 rounded-2xl border border-white/10 px-4 py-3">
+            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">
+              Photo storage check
+            </summary>
+            <div className="mt-3 space-y-3">
+              <p className="max-w-prose text-sm leading-relaxed text-gray-300">
+                Sends one tiny test image to Cloudinary the same way a member&apos;s Ghana Card is sent,
+                then reports exactly what came back.
+              </p>
+              <Button onClick={runStorageCheck} loading={checkingStorage} disabled={checkingStorage} size="sm">
+                Run the check
+              </Button>
+
+              {storageCheck && (
+                <div
+                  className={`rounded-xl p-3 text-xs leading-relaxed ring-1 ring-inset ${
+                    storageCheck.ok
+                      ? "bg-emerald-500/[0.08] text-emerald-200 ring-emerald-500/25"
+                      : "bg-red-500/[0.08] text-red-200 ring-red-500/25"
+                  }`}
+                >
+                  <p className="font-semibold">{storageCheck.ok ? "Storage is working" : "Storage is failing"}</p>
+                  <p className="mt-1 break-words">{storageCheck.message}</p>
+                  {typeof storageCheck.cloudinaryMessage === "string" && (
+                    <p className="mt-1 break-words text-[11px] opacity-80">
+                      Cloudinary said: {storageCheck.cloudinaryMessage}
+                    </p>
+                  )}
+                  {storageCheck.config && (
+                    <p className="mt-1 break-all text-[11px] opacity-70">
+                      cloud name {String(storageCheck.config.cloudName || "empty")}, key{" "}
+                      {String(storageCheck.config.hasApiKey ? `present (${storageCheck.config.apiKeyLength} chars)` : "missing")},
+                      secret{" "}
+                      {String(storageCheck.config.hasApiSecret ? `present (${storageCheck.config.apiSecretLength} chars)` : "missing")}
+                    </p>
+                  )}
+                  {typeof storageCheck.httpStatus === "number" && (
+                    <p className="mt-1 text-[11px] opacity-70">HTTP {storageCheck.httpStatus}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </details>
 
           {/* Header — sans display face on purpose: this is an operations screen,
               not a marketing page, so the serif voice stays on the public site. */}

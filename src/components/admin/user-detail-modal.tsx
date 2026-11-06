@@ -277,6 +277,17 @@ export default function UserDetailModal({
           )}
         </div>
 
+        {/* Documents promised on WhatsApp — the one case where an empty frame is expected */}
+        {user.documentsDeferred && (
+          <div className="rounded-2xl bg-amber-500/[0.07] p-4 ring-1 ring-inset ring-amber-500/25">
+            <p className="text-sm font-semibold text-amber-200">Documents promised on WhatsApp</p>
+            <p className="mt-1 text-xs leading-relaxed text-gray-400">
+              Storage refused this member&apos;s upload, so they agreed to send the Ghana Card and selfie to you
+              directly. Ask for them before you approve, then record the payment as usual.
+            </p>
+          </div>
+        )}
+
         {/* Verification context */}
         {user.ghanaCardOcrResult && (
           <div

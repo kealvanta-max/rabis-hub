@@ -29,6 +29,8 @@ interface ImageUploadProps {
   declaredCardNumber?: string;
   hint?: string;
   onVerdict?: (verdict: DocVerdict | null, fingerprint?: string | null) => void;
+  /** Told why an upload failed, so the signup flow can offer a way forward. */
+  onFailure?: (message: string) => void;
 }
 
 const modeCopy: Record<VerifyMode, string> = {
@@ -64,6 +66,7 @@ export default function ImageUpload({
   declaredCardNumber = "",
   hint,
   onVerdict,
+  onFailure,
 }: ImageUploadProps) {
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState<string>("");
@@ -198,11 +201,12 @@ export default function ImageUpload({
       console.error("Upload failed:", uploadError);
       // Show what actually went wrong. A generic "check your connection" hides
       // key mismatches, size limits and rate limits, which are the real causes.
-      setError(
+      const reason =
         uploadError instanceof Error && uploadError.message
           ? uploadError.message
-          : "Upload failed. Check your connection and try again."
-      );
+          : "Upload failed. Check your connection and try again.";
+      setError(reason);
+      onFailure?.(reason);
     } finally {
       setBusy(false);
       setStage("");
