@@ -441,6 +441,18 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
                 label="Tap the glass to start your face check"
               />
             </ErrorBoundary>
+            {/*
+              The pretty panel is a lazy chunk. Until it arrives, or if it never
+              does, this line is the way in: it starts the camera directly and
+              does not depend on three.js at all.
+            */}
+            <button
+              type="button"
+              onClick={start}
+              className="rounded-full px-3 py-1 text-[11px] font-semibold text-emerald-300 underline underline-offset-4 active:text-emerald-200"
+            >
+              Camera not opening? Tap here to start
+            </button>
             <p className="max-w-[240px] text-[10px] leading-relaxed text-gray-500">
               Smile + blink · about 5 seconds · nothing is posted publicly
             </p>

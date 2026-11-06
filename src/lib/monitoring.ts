@@ -1,5 +1,7 @@
 "use client";
 
+import { recoverFromStaleBuild } from "@/lib/chunk-recovery";
+
 /**
  * Lightweight error reporting.
  *
@@ -52,11 +54,20 @@ export function captureException(error: unknown, context: Record<string, unknown
 export function installGlobalErrorHandlers() {
   if (typeof window === "undefined") return () => {};
 
-  const onError = (event: ErrorEvent) =>
+  /*
+   * A chunk that 404s after a redeploy rejects outside React: `window.onerror` for
+   * a script tag, `unhandledrejection` for a dynamic import. Neither reaches an
+   * error boundary, so both are handled here first, before reporting.
+   */
+  const onError = (event: ErrorEvent) => {
+    if (recoverFromStaleBuild(event.error ?? event.message)) return;
     captureException(event.error ?? event.message, { source: "window.onerror" });
+  };
 
-  const onRejection = (event: PromiseRejectionEvent) =>
+  const onRejection = (event: PromiseRejectionEvent) => {
+    if (recoverFromStaleBuild(event.reason)) return;
     captureException(event.reason, { source: "unhandledrejection" });
+  };
 
   window.addEventListener("error", onError);
   window.addEventListener("unhandledrejection", onRejection);

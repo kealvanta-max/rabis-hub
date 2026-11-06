@@ -63,11 +63,22 @@ function encode(
   return new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
 }
 
-export async function shrinkImage(file: File, maxSide = 1600): Promise<File> {
+export interface ShrinkOptions {
+  /** Longest side in pixels. 1600 keeps a Ghana Card readable. */
+  maxSide?: number;
+  /** JPEG quality, 0 to 1. */
+  quality?: number;
+  /** Re-encode even a small file. Used when a first upload already failed. */
+  force?: boolean;
+}
+
+export async function shrinkImage(file: File, options: ShrinkOptions = {}): Promise<File> {
+  const { maxSide = 1600, quality = 0.82, force = false } = options;
+
   if (typeof document === "undefined") return file;
   if (!file.type.startsWith("image/")) return file;
   if (file.type === "image/heic" || file.type === "image/heif") return file;
-  if (file.size <= SKIP_UNDER_BYTES) return file;
+  if (!force && file.size <= SKIP_UNDER_BYTES) return file;
 
   const source = await loadBitmap(file);
   if (!source) return file;
@@ -81,11 +92,14 @@ export async function shrinkImage(file: File, maxSide = 1600): Promise<File> {
   const height = Math.max(1, Math.round(naturalHeight * scale));
 
   try {
-    let blob = await encode(source, width, height, 0.82);
+    let blob = await encode(source, width, height, quality);
     if (blob && blob.size > TARGET_BYTES) {
-      blob = (await encode(source, width, height, 0.62)) ?? blob;
+      blob = (await encode(source, width, height, Math.max(0.45, quality - 0.2))) ?? blob;
     }
-    if (!blob || blob.size >= file.size) return file;
+    // A forced re-encode exists to make the file smaller, so never hand back a
+    // bigger one just because it failed that test.
+    if (!blob) return file;
+    if (!force && blob.size >= file.size) return file;
 
     const name = file.name.replace(/\.[^.]+$/, "") || "photo";
     return new File([blob], `${name}.jpg`, { type: "image/jpeg", lastModified: Date.now() });

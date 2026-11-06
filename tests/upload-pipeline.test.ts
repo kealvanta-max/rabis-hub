@@ -95,9 +95,17 @@ describe("the browser tells the limiter who it is", () => {
     expect(device).toContain("randomUUID");
   });
 
-  it("retries once when the connection drops, never after a rejection", () => {
-    expect(client).toContain("setTimeout(resolve, 800)");
-    expect(client.match(/await send\(\)/g)?.length).toBe(2);
+  it("retries a dropped connection with a smaller file, never a rejection", () => {
+    expect(client).toContain("ATTEMPTS");
+    expect(client).toMatch(/maxSide: 1024/);
+    expect(client).toContain("isPermanent");
+    expect(client).toContain('code === "cloudinary-rejected"');
+  });
+
+  it("fetches no extra chunk to find the signed-in member", () => {
+    // A stale deploy used to 404 this dynamic import and lose the upload.
+    expect(client).not.toContain('import("firebase/auth")');
+    expect(client).toContain('from "@/lib/firebase"');
   });
 });
 
