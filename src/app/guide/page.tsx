@@ -35,8 +35,8 @@ export default function GuidePage() {
     {
       id: "track-payments",
       icon: "📊",
-      title: "How to Track Your Payments",
-      content: "Go to Dashboard > My Payments. You will see your active Susu round. When you make a payment via MoMo to the listed number, click 'I Have Paid' and enter your MoMo reference. The admin will confirm your payment."
+      title: "How to Track Your Savings",
+      content: "You pay Rabi directly by Mobile Money, exactly as the plan says, and she records what arrived. Open your Hub to see the total saved, the number of payments, your last contribution and how close you are to the payout. Any amount you believe is missing, mention it in your WhatsApp group the same day."
     },
     {
       id: "status",
