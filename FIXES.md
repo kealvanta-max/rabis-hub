@@ -1,5 +1,39 @@
 # Beta fix pass — what was broken and what changed
 
+## 🔑 One Firebase account, no Clerk, owner access restored
+
+Branch: `arena/664f57db-rabis-hub`.
+
+### Clerk is gone, not disabled
+The optional Clerk bridge needed an API key nobody has, so it was dead weight that
+still showed up in the health check and in the docs. Removed completely:
+`src/lib/clerk-jwt.ts`, the `/api/auth/clerk-exchange` route, its test file, the
+migration doc, the `clerk` integration row, and the three `CLERK_*` variables.
+Firebase Auth was, and still is, the only provider. 13 tests went with it because
+they tested a feature that no longer exists.
+
+### Everything moved back to the account that works
+The old Firebase project (`rabi-hub`) carries the live users, so the whole app
+was repointed at it: web config in `.env.local` and in Vercel, plus the service
+account for that project. The abandoned test project is no longer referenced
+anywhere.
+
+### Owner powers without needing a terminal
+`npm run admin:setup` now takes the service account as **raw JSON or base64**,
+because pasting a 2,500 character single line into a Vercel textarea mangles it.
+Base64 survives the trip. And the Firestore rules grant admin to a verified email
+on the owner list, so Rabi keeps her panel even on a day when the claim has not
+been applied yet.
+
+### The canonical URL pointed at a dead copy
+`rabis-hub.vercel.app` is an older deployment of this same app, sitting in a
+different Vercel account that is not connected to this repository. Every
+canonical tag, sitemap entry and `og:url` pointed there, so search engines were
+being told the current site was somebody else's stale build. Canonicals now point
+at `rabis-saving-hub.vercel.app`, the host that actually redeploys from `main`.
+
+**Gates:** `tsc` ✅ · lint ✅ · **158 tests** ✅ · build ✅
+
 Branch: `arena/5151289b-rabis-hub` · builds clean (`npm run lint`, `npx tsc --noEmit`, `npm run build` all pass).
 
 ---
@@ -339,7 +373,10 @@ The email and upload routes now return **401 without a token** (verified with cu
 
 ---
 
-## 📱 Custom plans, WhatsApp links, savings tracking, Advance Susu (handover patch)
+## 📱 Custom plans, WhatsApp links, savings tracking (handover patch)
+
+> **Superseded:** the Advance Susu section below describes a feature that was later removed on purpose.
+> Members ask Rabi directly on WhatsApp; the software only records money she has already received.
 
 ### The custom-plan WhatsApp bug — three separate breaks
 1. The plan form had **no link field at all** (`AddCustomPlan` collected five fields, none of them a URL).

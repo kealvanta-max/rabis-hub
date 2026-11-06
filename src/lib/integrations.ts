@@ -64,17 +64,8 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     category: "auth",
     required: ["FIREBASE_SERVICE_ACCOUNT_KEY"],
     impact:
-      "`npm run admin:setup` cannot grant admin claims, and the Clerk bridge cannot mint Firebase tokens.",
+      "`npm run admin:setup` cannot grant the admin claim, so owner powers fall back to the verified email check.",
     source: "Firebase console → Project settings → Service accounts → Generate new private key",
-  },
-  {
-    id: "clerk",
-    label: "Clerk (alternative auth provider)",
-    category: "auth",
-    required: ["NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "CLERK_SECRET_KEY", "CLERK_JWT_ISSUER_DOMAIN"],
-    impact:
-      "Nothing, Firebase Auth is the live provider. Clerk only activates when all three are set AND FIREBASE_SERVICE_ACCOUNT_KEY exists.",
-    source: "Clerk dashboard → API keys + JWT templates (see docs/CLERK_MIGRATION.md)",
   },
   {
     id: "cloudinary",

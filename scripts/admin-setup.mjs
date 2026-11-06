@@ -8,7 +8,20 @@ dotenv.config({ path: '.env.local' });
 const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
 if (!rawKey) throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is missing from .env.local');
 
-const serviceAccount = JSON.parse(rawKey);
+// Accept the raw JSON or a base64 copy of it. Dashboards mangle newlines, so the
+// base64 form is the one that survives a copy-paste into an env var.
+function parseServiceAccount(raw) {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('{')) return JSON.parse(trimmed);
+  try {
+    return JSON.parse(Buffer.from(trimmed, 'base64').toString('utf8'));
+  } catch {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY is neither JSON nor base64 JSON');
+  }
+}
+
+const serviceAccount = parseServiceAccount(rawKey);
+console.log(`Using service account for project "${serviceAccount.project_id}" (${serviceAccount.client_email})`);
 
 // Ensure newlines are correct in private_key
 if (serviceAccount.private_key) {

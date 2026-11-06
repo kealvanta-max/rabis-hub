@@ -3,7 +3,7 @@
 Last verified: 5 November 2026. Run `npm run env:check` after pasting anything;
 open `/api/health` on the deployed site to confirm the *running* build sees it.
 
-**Nothing here is optional for a real launch except Clerk.** The app is written so
+**Nothing here is optional for a real launch.** The app is written so
 that a missing optional key degrades one feature instead of breaking the site —
 but "degrades gracefully" is not "works", so paste them all.
 
@@ -19,11 +19,10 @@ but "degrades gracefully" is not "works", so paste them all.
 | 4 | **Upstash Redis** (rate limits) | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | console.upstash.com → database → REST API | 10k commands/day | Limits fall back to per-lambda memory (leaky) |
 | 5 | **PostHog** (analytics) | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` | posthog.com → Project settings | 1M events/mo | Rabi cannot see what members do |
 | 6 | **Sentry** (errors) | `SENTRY_DSN` | sentry.io → Project → Client Keys | 5k errors/mo | Errors die in the Vercel log |
-| 7 | **Clerk** (auth, optional) | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`, `CLERK_JWT_ISSUER_DOMAIN` | clerk.com → API keys, JWT templates | 10k MAU | Nothing — Firebase Auth is the live provider |
-| 8 | **Google Search Console** | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | search.google.com → URL prefix → HTML tag | free | Site unverified, indexing unmeasurable |
+| 7 | **Google Search Console** | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | search.google.com → URL prefix → HTML tag | free | Site unverified, indexing unmeasurable |
 
 Plus `FIREBASE_SERVICE_ACCOUNT_KEY` (console → Service accounts → *Generate new
-private key*): required for `npm run admin:setup` and for the Clerk bridge. It is
+private key*): required for `npm run admin:setup`. It is
 the one genuinely dangerous value in this file — server/CLI only, never a
 `NEXT_PUBLIC_` variable, never in a screenshot.
 
@@ -67,7 +66,7 @@ the one genuinely dangerous value in this file — server/CLI only, never a
   the Resend key must be able to send from it, or Gmail will bin the mail.
 * **Commas, not spaces,** in `ADMIN_EMAILS`.
 * **The service-account JSON** must be one line in a dashboard. If a textarea
-  mangles it, base64-encode the file and paste that — `firebase-admin.ts` accepts
-  both.
+  mangles it, base64-encode the file and paste that: `npm run admin:setup` accepts
+  both raw JSON and base64.
 * **Rotating a key** = paste the new one, redeploy, then revoke the old one in the
   provider console. Never the other way round.

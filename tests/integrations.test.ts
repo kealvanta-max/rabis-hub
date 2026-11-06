@@ -74,17 +74,6 @@ describe("integrations registry", () => {
     expect(payload).not.toContain(secret);
   });
 
-  it("keeps Clerk inert without the service account", () => {
-    const clerkOnly = {
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_abc",
-      CLERK_SECRET_KEY: "sk_test_abc",
-      CLERK_JWT_ISSUER_DOMAIN: "https://rabis.clerk.accounts.dev",
-    };
-    const status = integrationStatus(clerkOnly);
-    expect(status.find((s) => s.id === "clerk")?.configured).toBe(true);
-    // Its impact text must say clearly that nothing changes until admin is set.
-    expect(status.find((s) => s.id === "clerk")?.impact).toMatch(/Firebase Auth is the live provider/);
-  });
 
   it("critical gaps only ever name firebase or cloudinary", () => {
     const gaps = criticalGaps({});
