@@ -165,6 +165,18 @@ out and back in for the claim to be picked up.
 `NEXT_PUBLIC_ADMIN_EMAIL` also acts as a fallback so the owner can reach the panel
 even before claims are applied.
 
+**There are two separate doors, and they fail differently.** The panel's own gate
+reads `NEXT_PUBLIC_ADMIN_EMAIL` in the browser, so it opens without any server
+work. Firestore is the strict one: `firestore.rules` accepts an owner address only
+when Firebase reports that address as verified, otherwise only the `admin` claim
+counts. A brand new owner account is unverified, because signup never sends the
+confirmation mail, so the panel would open and then every read would be refused.
+
+Fix it from a phone, no terminal needed: open `/admin`, tap **Send verification
+email**, open the link, sign out and back in. The banner disappears once Firebase
+reports the address as verified. The claim route above is the fallback for an
+owner address whose mailbox is out of reach.
+
 ---
 
 ## 5. Cloudinary (KYC uploads)
