@@ -73,8 +73,8 @@ the intended path, and the rejection email says so in as many words.
 3. The `Firestore rules` workflow now deploys `firestore.rules` on every push to
    `main` that touches it. You can also run it by hand from the Actions tab.
 
-Without the secret the workflow does not fail, it posts a warning. That warning
-means the rules were **not** deployed.
+Without the secret the workflow **fails on purpose**, with a message saying the
+rules were not deployed. A green run means the rules really were published.
 
 ### Option B: from a laptop
 

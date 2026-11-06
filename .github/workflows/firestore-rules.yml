@@ -1,8 +1,11 @@
 name: Firestore rules
 
-# Rules only protect the database once somebody deploys them. This workflow makes
-# that automatic, and makes it obvious when it is not happening: with no token
-# configured it announces the gap instead of failing a build.
+# Rules only protect the database once somebody deploys them, and a green tick
+# that deployed nothing is worse than a red one. If this workflow cannot publish
+# firestore.rules it fails, on purpose, and says exactly what to do.
+#
+# This is separate from the app pipeline on purpose: a missing deploy token must
+# never block an application build from shipping.
 
 on:
   push:
@@ -28,14 +31,19 @@ jobs:
         with:
           node-version: '20.x'
 
-      - name: Report the missing secret instead of failing silently
+      - name: Refuse to report success when nothing was deployed
         if: ${{ env.FIREBASE_TOKEN == '' }}
         run: |
-          echo "::warning::FIREBASE_TOKEN is not set, so firestore.rules was NOT deployed."
-          echo "Generate a token with: npx firebase-tools login:ci"
-          echo "Add it as the FIREBASE_TOKEN repository secret, then re-run this workflow."
-          echo "Or deploy once from a laptop: npm run rules:deploy"
-          echo "Either way, confirm the result at /api/security/rules-probe as the owner."
+          echo "::error::firestore.rules was NOT deployed: the FIREBASE_TOKEN secret is missing."
+          echo "Until it exists, the live database keeps whatever rules it had before."
+          echo ""
+          echo "Fix it in one of two ways:"
+          echo "  1. On a laptop, from the repository root: npm run rules:deploy"
+          echo "  2. Generate a CI token with: npx --yes firebase-tools@13 login:ci"
+          echo "     Add it as the repository secret FIREBASE_TOKEN, then re-run this job."
+          echo ""
+          echo "Then confirm the result as the owner at /api/security/rules-probe."
+          exit 1
 
       - name: Deploy firestore.rules
         if: ${{ env.FIREBASE_TOKEN != '' }}
