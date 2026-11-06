@@ -25,6 +25,13 @@ Base64 survives the trip. And the Firestore rules grant admin to a verified emai
 on the owner list, so Rabi keeps her panel even on a day when the claim has not
 been applied yet.
 
+### Owner access from a phone, in one tap
+The panel's gate reads an environment variable, but Firestore is stricter: an
+owner address only counts while Firebase reports it as verified, and signup never
+sent the confirmation mail. That is a silent lockout, panel opens, every read
+refused. `/admin` now shows a banner with **Send verification email** when the
+signed-in owner is unverified, and `docs/FIREBASE_SETUP.md` spells out both doors.
+
 ### The canonical URL pointed at a dead copy
 `rabis-hub.vercel.app` is an older deployment of this same app, sitting in a
 different Vercel account that is not connected to this repository. Every

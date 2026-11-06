@@ -7,6 +7,7 @@ import { useAuth } from "@/context/auth-context";
 import { SkeletonPage } from "@/components/ui/skeleton";
 import { collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc, addDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { sendEmailVerification } from "firebase/auth";
 import { useToastContext } from "@/components/layout/toast-provider";
 import Navigation from "@/components/layout/navigation";
 import Badge from "@/components/ui/badge";
@@ -58,6 +59,8 @@ export default function AdminPage() {
     "insights" | "users" | "map" | "testimonials" | "whatsapp" | "announcements" | "plans"
   >("insights");
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null);
+  const [sendingVerification, setSendingVerification] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [health, setHealth] = useState<{
@@ -296,6 +299,25 @@ export default function AdminPage() {
     rejected: users.filter((u) => u.status === "rejected").length,
   };
 
+  /**
+   * The security rules only trust an owner address once Firebase has confirmed
+   * that the address is real, so the panel works from a phone even on the day the
+   * custom claim has not been applied yet. This is the one-tap way to get there.
+   */
+  const handleSendVerification = async () => {
+    if (!user) return;
+    setSendingVerification(true);
+    try {
+      await sendEmailVerification(user);
+      setVerificationSent(true);
+      addToast(`Verification link sent to ${user.email ?? "your address"}.`, "success");
+    } catch {
+      addToast("Could not send that email yet. Try again in a minute.", "error");
+    } finally {
+      setSendingVerification(false);
+    }
+  };
+
   if (authLoading || loading) {
     return <SkeletonPage cards={4} />;
   }
@@ -321,6 +343,38 @@ export default function AdminPage() {
       <Navigation />
       <main className="min-h-screen px-4 pb-28 pt-24 md:pb-16">
         <div className="mx-auto max-w-6xl">
+          {user && !user.emailVerified && (
+            <div className="glass glass-sheen relative mb-6 overflow-hidden rounded-2xl border-amber-300/20 p-4 sm:p-5">
+              <span
+                aria-hidden="true"
+                className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-amber-300 via-amber-400/70 to-transparent"
+              />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300/80">
+                    One step left
+                  </p>
+                  <h4 className="mt-1 font-grotesk text-base leading-snug text-white">
+                    Confirm your email address
+                  </h4>
+                  <p className="mt-1.5 max-w-prose text-sm leading-relaxed text-gray-300">
+                    The security rules trust an owner address only after Firebase confirms it is real.
+                    Send yourself the link, open it, then sign out and back in.
+                    {verificationSent ? " Link sent, check your inbox and spam folder." : ""}
+                  </p>
+                </div>
+                <Button
+                  onClick={handleSendVerification}
+                  loading={sendingVerification}
+                  disabled={sendingVerification}
+                  className="w-full shrink-0 sm:w-auto"
+                >
+                  {verificationSent ? "Send again" : "Send verification email"}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Header — sans display face on purpose: this is an operations screen,
               not a marketing page, so the serif voice stays on the public site. */}
           <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
