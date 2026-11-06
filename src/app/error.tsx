@@ -42,6 +42,14 @@ export default function GlobalError({
           Back to home
         </Link>
       </div>
+      <a
+        href="https://wa.me/233504701032?text=Hello%20Rabi%2C%20the%20site%20showed%20me%20an%20error%20and%20I%20need%20help%20finishing%20my%20signup."
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-4 text-xs text-gray-400 underline-offset-4 hover:text-white hover:underline"
+      >
+        Signing up and stuck? Message Rabi on WhatsApp
+      </a>
     </main>
   );
 }

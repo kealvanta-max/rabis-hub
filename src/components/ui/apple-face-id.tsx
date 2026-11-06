@@ -1,11 +1,12 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Environment, MeshTransmissionMaterial } from "@react-three/drei";
+import { MeshTransmissionMaterial } from "@react-three/drei";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Mesh, Group } from "three";
 import * as THREE from "three";
+import ErrorBoundary from "@/components/ui/error-boundary";
 import { cn } from "@/lib/utils";
 
 export type FaceIdPhase = "idle" | "scanning" | "success";
@@ -163,6 +164,31 @@ function FaceGlyph() {
   );
 }
 
+/**
+ * The glass core without WebGL.
+ *
+ * Reached on three real paths: a phone with no WebGL2 (three dropped WebGL1), a
+ * browser refusing a new context because too many tabs already hold one, and a
+ * crash inside the Canvas. In every case the panel still looks like a panel and
+ * the tap still starts the camera.
+ */
+function StaticCore({ phase }: { phase: FaceIdPhase }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute inset-6 rounded-full blur-2xl"
+      style={{
+        background:
+          phase === "success"
+            ? "radial-gradient(circle, rgba(52,211,153,0.55), transparent 70%)"
+            : phase === "scanning"
+            ? "radial-gradient(circle, rgba(34,211,238,0.5), transparent 70%)"
+            : "radial-gradient(circle, rgba(16,185,129,0.32), transparent 70%)",
+      }}
+    />
+  );
+}
+
 /* --------------------------------------------------------------------------
    Component
    -------------------------------------------------------------------------- */
@@ -200,9 +226,14 @@ export default function AppleFaceID({
     let supported = false;
     try {
       const canvas = document.createElement("canvas");
-      supported = Boolean(
-        canvas.getContext("webgl2") || canvas.getContext("webgl")
-      );
+      /*
+       * WebGL2 only. three stopped shipping a WebGL1 renderer, so accepting a
+       * WebGL1-only phone here let the Canvas throw on mount, which unwound the
+       * whole signup form. The static core is the honest answer for those devices.
+       */
+      supported = Boolean(canvas.getContext("webgl2"));
+      canvas.width = 0;
+      canvas.height = 0;
     } catch {
       supported = false;
     }
@@ -240,35 +271,28 @@ export default function AppleFaceID({
         {/* 3D liquid glass core */}
         <div className="absolute inset-0">
           {mounted && !webglFailed ? (
-            <Canvas
-              dpr={[1, 2]}
-              camera={{ position: [0, 0, 3.4], fov: 42 }}
-              gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
-              onCreated={({ gl }) => {
-                gl.setClearColor(0x000000, 0);
-              }}
+            <ErrorBoundary
+              label="face-id-glass"
+              fallback={<StaticCore phase={phase} />}
             >
-              <ambientLight intensity={0.55} />
-              <directionalLight position={[3, 4, 5]} intensity={1.6} color="#d8fff2" />
-              <directionalLight position={[-4, -2, -3]} intensity={0.7} color="#22d3ee" />
-              <Suspense fallback={null}>
-                <Environment preset="city" resolution={128} />
-              </Suspense>
-              <GlassCore phase={phase} reduceMotion={Boolean(prefersReducedMotion)} />
-            </Canvas>
+              <Canvas
+                dpr={[1, 2]}
+                camera={{ position: [0, 0, 3.4], fov: 42 }}
+                gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+                onCreated={({ gl }) => {
+                  gl.setClearColor(0x000000, 0);
+                }}
+              >
+                <ambientLight intensity={0.55} />
+                <directionalLight position={[3, 4, 5]} intensity={1.6} color="#d8fff2" />
+                <directionalLight position={[-4, -2, -3]} intensity={0.7} color="#22d3ee" />
+                <pointLight position={[2, -3, 2]} intensity={12} color="#34d399" distance={9} />
+                <pointLight position={[-3, 2, -2]} intensity={8} color="#22d3ee" distance={9} />
+                <GlassCore phase={phase} reduceMotion={Boolean(prefersReducedMotion)} />
+              </Canvas>
+            </ErrorBoundary>
           ) : (
-            <div
-              aria-hidden="true"
-              className="absolute inset-6 rounded-full blur-2xl"
-              style={{
-                background:
-                  phase === "success"
-                    ? "radial-gradient(circle, rgba(52,211,153,0.55), transparent 70%)"
-                    : phase === "scanning"
-                    ? "radial-gradient(circle, rgba(34,211,238,0.5), transparent 70%)"
-                    : "radial-gradient(circle, rgba(16,185,129,0.32), transparent 70%)",
-              }}
-            />
+            <StaticCore phase={phase} />
           )}
         </div>
 

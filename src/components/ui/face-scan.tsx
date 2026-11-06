@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import type { FaceLandmarker } from "@mediapipe/tasks-vision";
 import {
   Camera,
@@ -13,8 +14,27 @@ import {
   Upload,
 } from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
-import AppleFaceID, { type FaceIdPhase } from "@/components/ui/apple-face-id";
+import ErrorBoundary from "@/components/ui/error-boundary";
 import { cn } from "@/lib/utils";
+
+/**
+ * The glass panel is decoration; the camera is the point.
+ *
+ * three.js, react-three-fiber and drei are about 600 KB together, and every byte
+ * was on the critical path of the step that opens the camera. If that chunk failed
+ * to download on a weak connection, React unwound to the app error page and the
+ * member lost her signup. It is now a separate, optional chunk with a plain
+ * fallback underneath, so the camera starts whether or not it ever arrives.
+ */
+const AppleFaceID = dynamic(() => import("@/components/ui/apple-face-id"), {
+  ssr: false,
+  loading: () => (
+    <div
+      aria-hidden="true"
+      className="h-[186px] w-[186px] rounded-3xl border border-white/10 bg-emerald-500/10 blur-[1px]"
+    />
+  ),
+});
 
 interface FaceScanProps {
   onComplete: (videoUrl: string) => void;
@@ -402,12 +422,25 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
             appearing while the page is still loading. */}
         {status === "intro" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center">
-            <AppleFaceID
-              phase="idle"
-              size={186}
-              onActivate={start}
-              label="Tap the glass to start your face check"
-            />
+            <ErrorBoundary
+              label="face-id-panel"
+              fallback={
+                <button
+                  type="button"
+                  onClick={start}
+                  className="glass-emerald rounded-3xl px-6 py-10 text-sm font-bold text-emerald-50"
+                >
+                  Tap to start your face check
+                </button>
+              }
+            >
+              <AppleFaceID
+                phase="idle"
+                size={186}
+                onActivate={start}
+                label="Tap the glass to start your face check"
+              />
+            </ErrorBoundary>
             <p className="max-w-[240px] text-[10px] leading-relaxed text-gray-500">
               Smile + blink · about 5 seconds · nothing is posted publicly
             </p>
@@ -470,7 +503,12 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
 
         {status === "done" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-emerald-950/60">
-            <AppleFaceID phase="success" size={168} label="Liveness verified" />
+            <ErrorBoundary
+              label="face-id-success"
+              fallback={<Check className="h-14 w-14 text-emerald-300" />}
+            >
+              <AppleFaceID phase="success" size={168} label="Liveness verified" />
+            </ErrorBoundary>
           </div>
         )}
 
