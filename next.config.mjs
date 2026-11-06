@@ -58,16 +58,20 @@ const nextConfig = {
      */
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://*.posthog.com",
-      "worker-src 'self' blob:",
-      "child-src 'self' blob:",
+      // `cdn.jsdelivr.net` is the fallback home of the on-device KYC runtimes. The
+      // primary copy is same-origin under /kyc (see scripts/vendor-kyc-assets.mjs),
+      // but a phone whose browser refused that copy must still be able to read a
+      // card, and blocking the fallback turned KYC off for the whole country.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://*.posthog.com",
+      "worker-src 'self' blob: https://cdn.jsdelivr.net",
+      "child-src 'self' blob: https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://res.cloudinary.com https://lh3.googleusercontent.com https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
       "font-src 'self' data:",
       "media-src 'self' blob: https://res.cloudinary.com",
       // Google sign-in popups and the Firebase auth handler frame.
       "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com",
-      "connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.cloudinary.com https://res.cloudinary.com https://storage.googleapis.com https://cdn.jsdelivr.net https://*.posthog.com https://*.ingest.sentry.io https://nominatim.openstreetmap.org https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+      "connect-src 'self' https://tessdata.projectnaptha.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.cloudinary.com https://res.cloudinary.com https://storage.googleapis.com https://cdn.jsdelivr.net https://*.posthog.com https://*.ingest.sentry.io https://nominatim.openstreetmap.org https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
       "frame-ancestors 'self' https://*.e2b.app",
       "base-uri 'self'",
       "form-action 'self'",

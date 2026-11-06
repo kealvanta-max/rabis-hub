@@ -8,7 +8,19 @@ export interface FaceDetectionResult extends FaceCheck {
   skipped?: boolean;
 }
 
-const WASM_URL = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm";
+/**
+ * Where the MediaPipe runtime comes from.
+ *
+ * `/kyc/mediapipe` is copied out of the installed package by
+ * `scripts/vendor-kyc-assets.mjs`, so the runtime version always matches the
+ * JavaScript API and both come from our own domain. It used to be a hard-coded
+ * `cdn.jsdelivr.net/...@0.10.12` link while the API was 0.10.35, and our
+ * Content-Security-Policy blocked that origin anyway, which is why the face check
+ * silently never ran and a photo of a dog reached a human admin.
+ */
+const LOCAL_WASM = "/kyc/mediapipe";
+const CDN_WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
+
 const MODEL_URL =
   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
@@ -18,19 +30,61 @@ const MIN_HUMAN_LANDMARKS = 468;
 let landmarkerPromise: Promise<FaceLandmarker> | null = null;
 let landmarkerInstance: FaceLandmarker | null = null;
 
+export interface LandmarkerOptions {
+  runningMode: "IMAGE" | "VIDEO";
+  numFaces: number;
+  blendshapes?: boolean;
+}
+
+/**
+ * Build a landmarker, trying the local runtime first and the CDN second, GPU
+ * first and CPU second. Any one of the four can be the one that works on a given
+ * phone, and a member should not lose her signup to the wrong guess.
+ */
+export async function createFaceLandmarker({
+  runningMode,
+  numFaces,
+  blendshapes = true,
+}: LandmarkerOptions): Promise<FaceLandmarker> {
+  const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
+
+  const attempts: { wasm: string; delegate: "GPU" | "CPU"; label: string }[] = [
+    { wasm: LOCAL_WASM, delegate: "GPU", label: "local/GPU" },
+    { wasm: LOCAL_WASM, delegate: "CPU", label: "local/CPU" },
+    { wasm: CDN_WASM, delegate: "GPU", label: "cdn/GPU" },
+    { wasm: CDN_WASM, delegate: "CPU", label: "cdn/CPU" },
+  ];
+
+  let lastError: unknown = null;
+
+  for (const attempt of attempts) {
+    try {
+      const fileset = await FilesetResolver.forVisionTasks(attempt.wasm);
+      return await FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: MODEL_URL, delegate: attempt.delegate },
+        runningMode,
+        numFaces,
+        outputFaceBlendshapes: blendshapes,
+        minFaceDetectionConfidence: 0.6,
+        minFacePresenceConfidence: 0.6,
+      });
+    } catch (error) {
+      lastError = error;
+      console.warn(`Face landmarker unavailable (${attempt.label}):`, (error as Error)?.message ?? error);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Face model could not start");
+}
+
 async function getLandmarker(): Promise<FaceLandmarker> {
   if (landmarkerInstance) return landmarkerInstance;
   if (!landmarkerPromise) {
     landmarkerPromise = (async () => {
-      const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-      const fileset = await FilesetResolver.forVisionTasks(WASM_URL);
-      const landmarker = await FaceLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
+      const landmarker = await createFaceLandmarker({
         runningMode: "IMAGE",
         numFaces: 3,
-        outputFaceBlendshapes: true,
-        minFaceDetectionConfidence: 0.6,
-        minFacePresenceConfidence: 0.6,
+        blendshapes: true,
       });
       landmarkerInstance = landmarker;
       return landmarker;

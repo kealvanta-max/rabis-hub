@@ -143,3 +143,12 @@ describe("production can be asked which build it is", () => {
     expect(health).toContain("build:");
   });
 });
+
+describe("vendor assets fail soft", () => {
+  const script = read("scripts/vendor-kyc-assets.mjs");
+
+  it("never fails an install when a package is missing", () => {
+    expect(script).toContain("catch");
+    expect(script).toContain("missing");
+  });
+});

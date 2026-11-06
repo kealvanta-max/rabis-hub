@@ -13,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { createFaceLandmarker } from "@/lib/face-detection";
 import FaceIdTile from "@/components/ui/face-id-tile";
 import { cn } from "@/lib/utils";
 
@@ -259,27 +260,15 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
 
     // Liveness model (optional) -------------------------------------------------
     try {
-      const { FaceLandmarker: Landmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
-      const fileset = await withTimeout(
-        FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm"),
-        15000,
-        "Face model download"
-      );
-
-      const create = (delegate: "GPU" | "CPU") =>
-        Landmarker.createFromOptions(fileset, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-            delegate,
-          },
-          outputFaceBlendshapes: true,
-          runningMode: "VIDEO",
-          numFaces: 1,
-        });
-
-      const landmarker = await withTimeout(create("GPU"), 20000, "Face model").catch(() =>
-        withTimeout(create("CPU"), 25000, "Face model")
+      /*
+       * The runtime is served from our own domain (see scripts/vendor-kyc-assets.mjs)
+       * with the CDN and CPU as fallbacks, so the same version and the same CSP
+       * rules apply here as in the document checks.
+       */
+      const landmarker = await withTimeout(
+        createFaceLandmarker({ runningMode: "VIDEO", numFaces: 1, blendshapes: true }),
+        40000,
+        "Face model"
       );
 
       landmarkerRef.current = landmarker;
