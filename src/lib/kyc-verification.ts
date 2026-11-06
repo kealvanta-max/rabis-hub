@@ -260,7 +260,7 @@ export function evaluateSelfie(check: FaceCheck, skipped = false): DocVerdict {
       status: "rejected",
       confidence: 0,
       message:
-        "No face found in that photo. Take a clear selfie in good light, looking straight at the camera.",
+        "No human face was found in that photo. Your passport photo must be a real person, only you, facing the camera. Photos of animals, objects or screens are rejected.",
       reasons: ["no-face"],
     };
   }

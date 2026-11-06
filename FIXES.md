@@ -1,5 +1,51 @@
 # Beta fix pass — what was broken and what changed
 
+## 🐕 Why a photo of a dog passed as "review"
+
+The owner uploaded a dog as his selfie and the app answered "automatic face check
+is unavailable, an admin will review". It should have refused on the spot. Two
+faults, both ours, and neither had anything to do with his phone.
+
+**1. Our own Content-Security-Policy blocked the models.** The card reader and the
+face check download their runtimes at the moment a photo is picked, from
+`cdn.jsdelivr.net` and `tessdata.projectnaptha.com`. Neither origin was allowed by
+the CSP we ship, so both loads were refused on every device in production. That is
+why every card said "we could not read the card automatically on this connection"
+and why the face model never ran to notice the dog.
+
+**2. The face runtime was the wrong version.** The link was pinned to
+`@mediapipe/tasks-vision@0.10.12/wasm` while the installed JavaScript API is
+**0.10.35**. Even with the CSP opened, a wasm/API skew like that is a crash, not a
+warning.
+
+Both are fixed by owning the files instead of borrowing them:
+
+- `scripts/vendor-kyc-assets.mjs` copies the MediaPipe runtime (SIMD and non-SIMD),
+  the Tesseract worker, the LSTM engine and a 2.9 MB English model into
+  `public/kyc` on install and before every build, straight out of the installed
+  packages. Same version by construction, same origin, no third party, and the
+  files are generated so they never bloat the repository.
+- `src/lib/face-detection.ts` and the liveness step now share one loader that tries
+  local/GPU, local/CPU, CDN/GPU, CDN/CPU, in that order. Any of the four may be the
+  one a given phone accepts.
+- `src/lib/ghana-card-ocr.ts` creates one worker from local files, reuses it for the
+  front, the back and any retry, and falls back to the CDN only if the local copy
+  fails. A read that takes longer than 45 seconds is abandoned so the member is
+  never stuck watching a spinner.
+- The CSP now allows the two fallback origins, because a blocked fallback is the
+  same as no fallback.
+- A rejected selfie now says what actually happened: "No human face was found in
+  that photo. Your passport photo must be a real person, only you, facing the
+  camera. Photos of animals, objects or screens are rejected."
+
+The rules were already strict and unit tested. `evaluateSelfie` refuses a photo
+with no human face, refuses two faces, refuses a face too small in the frame, and
+only escalates when the detector itself could not run. What was missing was a
+detector that could load at all.
+
+**Gates:** `tsc` ✅ · lint ✅ · **205 tests** ✅ · build ✅ (37.1 MB of runtimes
+copied and served from our own domain)
+
 ## 🚧 The upload wall was mine, and it was three times too small
 
 The owner's screenshots showed a full stop on step two *and* step three, with one

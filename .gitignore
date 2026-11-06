@@ -39,3 +39,6 @@ tsconfig.tsbuildinfo
 
 # Lighthouse / QA artifacts
 lighthouse-report.json
+
+# Generated KYC runtimes (npm run prebuild copies them here)
+/public/kyc
