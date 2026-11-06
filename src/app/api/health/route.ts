@@ -26,6 +26,13 @@ export async function GET() {
       firebaseConfigured: integrations.find((i) => i.id === "firebase")?.configured ?? false,
       cloudinaryConfigured: integrations.find((i) => i.id === "cloudinary")?.configured ?? false,
       emailProvider,
+      /*
+       * Which mode the mailer is in. "log" is the deliberate pre-domain state:
+       * the notify routes run, the message is printed to the server console and
+       * the member record says "logged". Flipping MAIL_MODE=live is the only
+       * change needed once the sending domain is verified.
+       */
+      mailMode: (process.env.MAIL_MODE || "").toLowerCase() === "live" ? "live" : "log",
       appUrl: process.env.NEXT_PUBLIC_APP_URL || null,
       integrations: integrations.map(({ id, label, category, configured, missing }) => ({
         id,

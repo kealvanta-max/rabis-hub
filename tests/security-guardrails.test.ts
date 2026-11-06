@@ -32,7 +32,7 @@ describe("email relay", () => {
 
   it("enforces the recipient policy", () => {
     const route = read("src/app/api/email/route.ts");
-    expect(route).toContain("canSendTo(actor, to, ownerEmails())");
+    expect(route).toContain("canSendTo(actor, to)");
     expect(route).toContain('{ status: 403 }');
   });
 
@@ -43,9 +43,23 @@ describe("email relay", () => {
   });
 
   it("sends the bearer token from the client", () => {
-    const client = read("src/lib/notifications.ts");
+    const client = read("src/lib/notify-client.ts");
     expect(client).toContain("getIdToken()");
     expect(client).toContain("Authorization: `Bearer ${token}`");
+  });
+
+  it("keeps one send path, and it logs instead of sending until the domain exists", () => {
+    // Two independent provider ladders is how the old relay and the old
+    // browser templates drifted apart. Everything now goes through sendMail.
+    const mailer = read("src/lib/mailer.ts");
+    expect(mailer).toContain("MAIL_MODE");
+    expect(mailer).toContain("LOG MODE, NOT SENT");
+    expect(read("src/app/api/email/route.ts")).toContain("sendMail(");
+  });
+
+  it("no longer builds member email in the browser", () => {
+    // The templates that fired from an admin tab and swallowed every error.
+    expect(() => read("src/lib/notifications.ts")).toThrow();
   });
 });
 

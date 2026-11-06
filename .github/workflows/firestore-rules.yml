@@ -1,0 +1,42 @@
+name: Firestore rules
+
+# Rules only protect the database once somebody deploys them. This workflow makes
+# that automatic, and makes it obvious when it is not happening: with no token
+# configured it announces the gap instead of failing a build.
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "firestore.rules"
+      - "firebase.json"
+      - ".github/workflows/firestore-rules.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Report the missing secret instead of failing silently
+        if: ${{ env.FIREBASE_TOKEN == '' }}
+        run: |
+          echo "::warning::FIREBASE_TOKEN is not set, so firestore.rules was NOT deployed."
+          echo "Generate a token with: npx firebase-tools login:ci"
+          echo "Add it as the FIREBASE_TOKEN repository secret, then re-run this workflow."
+          echo "Or deploy once from a laptop: npm run rules:deploy"
+          echo "Either way, confirm the result at /api/security/rules-probe as the owner."
+
+      - name: Deploy firestore.rules
+        if: ${{ env.FIREBASE_TOKEN != '' }}
+        run: npx --yes firebase-tools@13 deploy --only firestore:rules --project rabi-hub --token "$FIREBASE_TOKEN" --non-interactive

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Search } from "lucide-react";
+import { BellRing, Plus, Search, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { SkeletonPage } from "@/components/ui/skeleton";
@@ -19,7 +19,11 @@ import { getPlanLabel, planLabels } from "@/lib/plans-data";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import type { UserDoc, TestimonialDoc } from "@/lib/types";
-import { notifyUserApproval, notifyUserRejection, notifyAdminNewRegistration } from "@/lib/notifications";
+import {
+  describeOutcome,
+  requestDecisionEmail,
+  requestNewMemberAlert,
+} from "@/lib/notify-client";
 import dynamic from "next/dynamic";
 import InsightsPanel from "@/components/admin/insights";
 import AdminTabs, { type AdminTab } from "@/components/admin/admin-tabs";
@@ -63,6 +67,7 @@ export default function AdminPage() {
   const [verificationSent, setVerificationSent] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
+  const [alertingPending, setAlertingPending] = useState(false);
   const [checkingStorage, setCheckingStorage] = useState(false);
   const [storageCheck, setStorageCheck] = useState<{
     ok: boolean;
@@ -209,18 +214,117 @@ export default function AdminPage() {
         )
       );
       addToast(`User ${status}`, "success");
-
-      // Send email notification
-      if (u) {
-        if (status === "approved") {
-          notifyUserApproval(u.email, u.name, getPlanLabel(u.plan, customPlans)).catch(console.error);
-        } else if (status === "rejected") {
-          notifyUserRejection(u.email, u.name, reason || "").catch(console.error);
-        }
-      }
     } catch {
       addToast("Failed to update user status", "error");
+      return;
     }
+
+    // Nothing to email when the application is only being reopened.
+    if (status === "pending") return;
+
+    /*
+     * The email is sent by the server now, not by this tab.
+     *
+     * The server reads the member from Firestore, so the address and name in the
+     * message cannot be spoofed by the browser, and it writes the outcome back
+     * onto the record: sent, logged or failed. The status change above is
+     * already saved, so a mail failure can never roll an approval back.
+     */
+    const outcome = await requestDecisionEmail(userId, status, reason);
+    addToast(
+      describeOutcome(outcome, status === "approved" ? "approval email" : "rejection email"),
+      outcome.ok ? "info" : "error"
+    );
+
+    if (outcome.emailStatus) {
+      setUsers((prev) =>
+        prev.map((entry) =>
+          entry.id === userId
+            ? {
+                ...entry,
+                decisionEmailAt: new Date(),
+                decisionEmailFor: status,
+                decisionEmailStatus: outcome.emailStatus,
+                decisionEmailProvider: outcome.provider ?? "",
+              }
+            : entry
+        )
+      );
+    }
+  };
+
+  /**
+   * Picks up signup alerts that were never delivered.
+   *
+   * The alert fires as the new member lands on their dashboard, and a closed tab
+   * used to lose it for good. Any pending member without an alert marker is
+   * re-announced here, and the server stamps the record so a second tap is a
+   * no-op rather than a duplicate email.
+   */
+  /** Sends the decision email again, bypassing the "already sent" guard. */
+  const sendDecisionAgain = async (member: UserItem) => {
+    if (member.status === "pending") {
+      addToast("Approve or reject the application first.", "info");
+      return;
+    }
+
+    const decision = member.status;
+    const outcome = await requestDecisionEmail(member.id, decision, undefined, true);
+    addToast(describeOutcome(outcome, "email"), outcome.ok ? "info" : "error");
+
+    if (outcome.emailStatus) {
+      setUsers((prev) =>
+        prev.map((entry) =>
+          entry.id === member.id
+            ? {
+                ...entry,
+                decisionEmailAt: new Date(),
+                decisionEmailFor: decision,
+                decisionEmailStatus: outcome.emailStatus,
+                decisionEmailProvider: outcome.provider ?? "",
+              }
+            : entry
+        )
+      );
+    }
+  };
+
+  const resendMissedAlerts = async () => {
+    const missing = users.filter((member) => member.status === "pending" && !member.adminAlertAt);
+
+    if (missing.length === 0) {
+      addToast("Every pending application has already been announced.", "info");
+      return;
+    }
+
+    setAlertingPending(true);
+    let announced = 0;
+    let failed = 0;
+
+    for (const member of missing) {
+      const outcome = await requestNewMemberAlert(member.id);
+      if (outcome.ok) announced += 1;
+      else failed += 1;
+    }
+
+    setAlertingPending(false);
+
+    if (announced > 0) {
+      setUsers((prev) =>
+        prev.map((entry) =>
+          missing.some((member) => member.id === entry.id) && announced > 0
+            ? { ...entry, adminAlertAt: new Date() }
+            : entry
+        )
+      );
+    }
+
+    addToast(
+      failed > 0
+        ? `${announced} announcement${announced === 1 ? "" : "s"} staged, ${failed} failed.`
+        : `${announced} announcement${announced === 1 ? "" : "s"} staged.`,
+      failed > 0 ? "error" : "success"
+    );
   };
 
   /**
@@ -373,6 +477,18 @@ export default function AdminPage() {
     approved: users.filter((u) => u.status === "approved").length,
     rejected: users.filter((u) => u.status === "rejected").length,
   };
+
+  const pendingMembers = users.filter((u) => u.status === "pending");
+  const pendingSummary = (() => {
+    if (pendingMembers.length === 0) return "";
+    const names = pendingMembers
+      .slice(0, 3)
+      .map((member) => member.name?.trim().split(/\s+/)[0] || "A new member");
+    const rest = pendingMembers.length - names.length;
+    const list =
+      names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+    return rest > 0 ? `${list}, plus ${rest} more waiting.` : `${list} waiting.`;
+  })();
 
   /**
    * The security rules only trust an owner address once Firebase has confirmed
@@ -548,6 +664,53 @@ export default function AdminPage() {
             <StatCard label="Approved" value={stats.approved} color="text-emerald-300" />
             <StatCard label="Rejected" value={stats.rejected} color="text-red-300" />
           </div>
+
+          {/*
+            The pending queue, deliberately the loudest thing on the page.
+            Signup alerts are only written to the server log until the sending
+            domain is verified, so this list is the guarantee that a new member
+            cannot sit unseen. It is also the recovery path for an alert that was
+            lost when a member closed the tab before the request landed.
+          */}
+          {stats.pending > 0 && (
+            <section
+              aria-label="Pending applications"
+              className="mb-6 rounded-2xl border border-amber-400/40 bg-amber-400/[0.08] p-5"
+            >
+              <div className="flex items-start gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400/15 text-amber-300">
+                  <UserPlus className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-grotesk text-base font-semibold text-amber-100">
+                    {stats.pending} {stats.pending === 1 ? "application needs" : "applications need"} review
+                  </h2>
+                  <p className="mt-1 text-sm text-amber-100/70">{pendingSummary}</p>
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <ActionButton
+                      variant="primary"
+                      size="md"
+                      onClick={() => {
+                        setActiveTab("users");
+                        setFilter("pending");
+                      }}
+                    >
+                      Review pending
+                    </ActionButton>
+                    <ActionButton
+                      variant="neutral"
+                      size="md"
+                      loading={alertingPending}
+                      onClick={() => void resendMissedAlerts()}
+                      icon={<BellRing className="h-4 w-4" aria-hidden="true" />}
+                    >
+                      Announce missed alerts
+                    </ActionButton>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* System status */}
           {(!isFirebaseConfigured || unconfigured.length > 0) && (
@@ -889,6 +1052,9 @@ export default function AdminPage() {
           setSelectedUser(null);
         }}
         onDownload={() => selectedUser && downloadSingleUserJSON(selectedUser)}
+        onResendEmail={() => {
+          if (selectedUser) void sendDecisionAgain(selectedUser);
+        }}
         onCopyGps={(value) => {
           navigator.clipboard
             ?.writeText(value)

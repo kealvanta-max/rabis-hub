@@ -19,43 +19,52 @@ const admin: EmailActor = {
 
 describe("email recipient policy", () => {
   it("refuses anonymous callers entirely", () => {
-    expect(canSendTo(null, "someone@example.com", [owner])).toEqual({
+    expect(canSendTo(null, "someone@example.com")).toEqual({
       allowed: false,
       reason: "not-signed-in",
     });
   });
 
   it("refuses malformed addresses", () => {
-    expect(canSendTo(member, "not-an-email", [owner]).allowed).toBe(false);
-    expect(canSendTo(member, "a@b", [owner]).allowed).toBe(false);
-    expect(canSendTo(member, "x@y.com<script>", [owner]).allowed).toBe(false);
+    expect(canSendTo(member, "not-an-email").allowed).toBe(false);
+    expect(canSendTo(member, "a@b").allowed).toBe(false);
+    expect(canSendTo(member, "x@y.com<script>").allowed).toBe(false);
   });
 
   it("lets a member mail themselves", () => {
-    expect(canSendTo(member, "esmeralda@example.com", [owner]).allowed).toBe(true);
-    expect(canSendTo(member, "Esmeralda@Example.com", [owner]).allowed).toBe(true);
+    expect(canSendTo(member, "esmeralda@example.com").allowed).toBe(true);
+    expect(canSendTo(member, "Esmeralda@Example.com").allowed).toBe(true);
   });
 
-  it("lets a member notify the owner inbox", () => {
-    expect(canSendTo(member, owner, [owner]).allowed).toBe(true);
-    expect(canSendTo(member, "RABISAVINGHUB@gmail.com", [owner]).allowed).toBe(true);
+  it("refuses to let a member address the owner inbox through the relay", () => {
+    // The allowance was removed with the notify routes: new-signup alerts now
+    // take their recipient from server config, so a member has no reason to
+    // reach this relay for anything but their own address.
+    expect(canSendTo(member, owner)).toEqual({ allowed: false, reason: "recipient-not-allowed" });
+    expect(canSendTo(member, "RABISAVINGHUB@gmail.com").allowed).toBe(false);
   });
 
   it("blocks a member from mailing a third party (the old open relay)", () => {
-    expect(canSendTo(member, "victim@bank.com", [owner])).toEqual({
+    expect(canSendTo(member, "victim@bank.com")).toEqual({
       allowed: false,
       reason: "recipient-not-allowed",
     });
   });
 
+  it("does not let a member become a sender of record", () => {
+    // Even a lookalike address that quotes the member's own address is refused.
+    expect(canSendTo(member, "esmeralda@example.com.evil.test").allowed).toBe(false);
+    expect(canSendTo(member, "esmeralda+alias@example.com").allowed).toBe(false);
+  });
+
   it("lets an admin mail anyone", () => {
-    expect(canSendTo(admin, "anyone@example.com", [owner]).allowed).toBe(true);
+    expect(canSendTo(admin, "anyone@example.com").allowed).toBe(true);
   });
 
   it("does not treat an admin with no email claim as able to mail", () => {
     const brokenAdmin: EmailActor = { ...admin, email: null };
-    // Still allowed — the custom claim is the authority, not the address.
-    expect(canSendTo(brokenAdmin, "anyone@example.com", [owner]).allowed).toBe(true);
+    // Still allowed: the custom claim is the authority, not the address.
+    expect(canSendTo(brokenAdmin, "anyone@example.com").allowed).toBe(true);
   });
 
   it("validates addresses conservatively", () => {

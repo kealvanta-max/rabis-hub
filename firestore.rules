@@ -27,6 +27,8 @@ service cloud.firestore {
     // Members
     // ---------------------------------------------------------------
     match /users/{uid} {
+      // A member sees exactly one record: their own. Nobody can enumerate or
+      // read another person's card number, address, GPS pin or documents.
       allow read: if isSelf(uid) || isAdmin();
 
       // A member may create exactly one profile, for their own address, always
@@ -49,8 +51,27 @@ service cloud.firestore {
         && (!('ghanaCardNumber' in request.resource.data) || (
              request.resource.data.ghanaCardNumber is string
              && request.resource.data.ghanaCardNumber.size() <= 24
-           ));
+           ))
+        // Bookkeeping that only Rabi or the server may produce must never
+        // arrive pre-filled. A forged `contributions` list would make a brand
+        // new account look paid up, and a pre-set `adminAlertAt` would hide the
+        // signup from her alert queue, so both are refused outright.
+        && (!('contributions' in request.resource.data)
+            || request.resource.data.contributions.size() == 0)
+        && (!('whatsappLink' in request.resource.data)
+            || request.resource.data.whatsappLink == '')
+        && !('adminAlertAt' in request.resource.data)
+        && !('decisionEmailAt' in request.resource.data);
 
+      // A member may edit their own contact details, and may upload identity
+      // documents ONLY while the application is still pending.
+      //
+      // This closes the identity swap: previously an approved member could
+      // replace the Ghana Card photos, the selfie and the card number after
+      // approval, so the evidence behind an approval was whatever the account
+      // said it was today. Once a decision is recorded, the identity fields are
+      // frozen. A rejected member who wants to resubmit contacts Rabi on
+      // WhatsApp, she resets the account to pending, and the upload opens again.
       allow update: if isAdmin() || (
         isSelf(uid)
         && request.resource.data.status == resource.data.status
@@ -61,6 +82,15 @@ service cloud.firestore {
           'gpsLat', 'gpsLng', 'gpsAddress',
           'termsAccepted', 'termsAcceptedAt'
         ])
+        && (
+          resource.data.status == 'pending'
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'ghanaCardNumber', 'ghanaCardValid',
+            'ghanaCardFront', 'ghanaCardBack',
+            'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
+            'gpsLat', 'gpsLng', 'gpsAddress'
+          ])
+        )
       );
 
       allow delete: if isAdmin();
