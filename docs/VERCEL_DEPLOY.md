@@ -18,6 +18,18 @@ If the live `rabissavinghub.com` deployment lives in a different account, log in
 *that* one instead — import the repository there and paste the `.env.local` values
 (the table below is the same for both).
 
+### The URL that is actually current
+
+Share **`https://rabis-saving-hub.vercel.app`**. That is this project, on this
+account, deploying `main` automatically and holding the environment variables
+above.
+
+`https://rabis-hub.vercel.app` is a **different, older copy** of the app living in
+another Vercel account. It still runs a build from before the Search Console fix
+and it is not connected to this repository's deploys, so anything shipped here
+never reaches it. Do not point members at it, do not put it in canonicals, and
+delete it if you can still sign in to that account.
+
 ## Environment variables already configured
 
 | Key | Value |
@@ -32,8 +44,8 @@ If the live `rabissavinghub.com` deployment lives in a different account, log in
 | `RESEND_API_KEY` | set (sensitive) |
 | `EMAIL_FROM` | `Rabi's Saving Hub <noreply@rabissavinghub.com>` |
 | `NEXT_PUBLIC_ADMIN_EMAIL` | set |
-| `NEXT_PUBLIC_APP_URL` | `https://rabis-hub.vercel.app` |
-| `NEXT_PUBLIC_SITE_URL` | `https://rabis-hub.vercel.app` (SEO canonicals) |
+| `NEXT_PUBLIC_APP_URL` | `https://rabis-saving-hub.vercel.app` |
+| `NEXT_PUBLIC_SITE_URL` | `https://rabis-saving-hub.vercel.app` (SEO canonicals) |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Search Console HTML tag value (optional) |
 | `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project key (optional — analytics) |
 | `SENTRY_DSN` | Sentry DSN (optional — error tracking) |
