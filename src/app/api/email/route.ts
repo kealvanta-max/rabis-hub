@@ -1,28 +1,17 @@
 import { NextResponse } from "next/server";
-import nodemailer from "nodemailer";
-import { rateLimit, clientKey } from "@/lib/rate-limit";
+
+import { rateLimit } from "@/lib/rate-limit";
 import { authenticateRequest } from "@/lib/server-auth";
-import { canSendTo, ownerEmails } from "@/lib/email-policy";
+import { canSendTo, isValidEmail } from "@/lib/email-policy";
+import { sendMail } from "@/lib/mailer";
 
 export const runtime = "nodejs";
-
-const FROM_GMAIL = process.env.EMAIL_USER || "rabisavinghub@gmail.com";
-const FROM_RESEND = process.env.EMAIL_FROM || "Rabi's Saving Hub <onboarding@resend.dev>";
 
 /**
  * Browser-origin check. Kept as a cheap first filter only: an `Origin` header is
  * trivially omitted by non-browser clients, so authorisation is enforced by the
  * ID-token check below, never by this.
  */
-/** Defence in depth for member-initiated mail (self-service notifications). */
-function stripActiveContent(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/javascript:/gi, "");
-}
-
 function isAllowedOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
@@ -38,68 +27,34 @@ function isAllowedOrigin(request: Request) {
   return allowed.includes(origin.replace(/\/$/, ""));
 }
 
-async function sendWithResend(to: string, subject: string, html: string) {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from: FROM_RESEND, to: [to], subject, html }),
-  });
-
-  if (!response.ok) {
-    const details = await response.text().catch(() => "");
-    throw new Error(`Resend failed (${response.status}): ${details.slice(0, 200)}`);
-  }
-
-  return response.json();
+/** Defence in depth for member-authored mail (self-service notifications). */
+function stripActiveContent(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+    .replace(/javascript:/gi, "");
 }
 
-async function sendWithGmail(to: string, subject: string, html: string) {
-  const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-    auth: {
-      user: FROM_GMAIL,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  });
-  return transporter.sendMail({ from: `Rabi's Saving Hub <${FROM_GMAIL}>`, to, subject, html });
-}
-
-async function sendWithBrevo(to: string, subject: string, html: string) {
-  const transporter = nodemailer.createTransport({
-    host: "smtp-relay.brevo.com",
-    port: 587,
-    secure: false,
-    auth: {
-      user: process.env.BACKUP_EMAIL_USER,
-      pass: process.env.BACKUP_EMAIL_PASSWORD,
-    },
-  });
-  return transporter.sendMail({
-    from: `Rabi's Saving Hub <${process.env.BACKUP_EMAIL_USER || "noreply@rabis-hub.com"}>`,
-    to,
-    subject,
-    html,
-  });
-}
-
+/**
+ * Self-service email.
+ *
+ * History: this route began as an open relay with no authentication at all, then
+ * gained a token check and an allowance for members to mail the owner inbox.
+ * The owner allowance is now gone as well, so a member can only reach their own
+ * address. Approval, rejection and new-signup alerts moved to `/api/notify/*`,
+ * where the recipient and the content are built on the server and the outcome is
+ * recorded, instead of being assembled by whichever browser was open.
+ *
+ * Sending itself is delegated to `sendMail`, which runs in log mode until the
+ * sending domain is verified. That keeps one provider ladder in the codebase.
+ */
 export async function POST(request: Request) {
   try {
     if (!isAllowedOrigin(request)) {
       return NextResponse.json({ error: "Forbidden origin" }, { status: 403 });
     }
 
-    /*
-     * SECURITY: this route used to be an open relay — no auth, and an absent
-     * Origin header was treated as trusted, so `curl` could send any HTML to any
-     * address from Rabi's verified domain (perfect phishing). Every request now
-     * needs a valid Firebase ID token, and a non-admin may only mail themselves
-     * or the owner inbox.
-     */
     const actor = await authenticateRequest(request);
     if (!actor) {
       return NextResponse.json({ error: "Sign in required" }, { status: 401 });
@@ -109,7 +64,12 @@ export async function POST(request: Request) {
     if (!limits.success) {
       return NextResponse.json(
         { error: "Too many requests. Please try again shortly." },
-        { status: 429, headers: { "Retry-After": String(Math.max(1, Math.ceil((limits.resetAt - Date.now()) / 1000))) } }
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.max(1, Math.ceil((limits.resetAt - Date.now()) / 1000))),
+          },
+        }
       );
     }
 
@@ -127,60 +87,43 @@ export async function POST(request: Request) {
     // CR/LF before it can become a new SMTP header (nodemailer CVE class).
     const safeSubject = subject.replace(/[\r\n]+/g, " ").trim().slice(0, 200);
 
-    if (!safeSubject || html.length > 50_000) {
+    if (!safeSubject || html.length > 50_000 || !isValidEmail(to)) {
       return NextResponse.json({ error: "Invalid email payload" }, { status: 400 });
     }
 
-    const policy = canSendTo(actor, to, ownerEmails());
+    const policy = canSendTo(actor, to);
     if (!policy.allowed) {
-      console.warn("[email] blocked recipient", { uid: actor.uid, to, reason: policy.reason });
-      return NextResponse.json({ error: "You cannot send mail to that address" }, { status: 403 });
+      console.warn("[email] blocked recipient", { uid: actor.uid, reason: policy.reason });
+      return NextResponse.json(
+        { error: "You can only send mail to your own address" },
+        { status: 403 }
+      );
     }
 
     // Members may only send mail they could not weaponise: strip scripts,
     // iframes and inline handlers from anything that is not from an admin.
     const safeHtml = actor.admin ? html : stripActiveContent(html);
 
-    let lastError: unknown = null;
+    const result = await sendMail({
+      to: to.trim(),
+      subject: safeSubject,
+      html: safeHtml,
+      tag: "self-service",
+    });
 
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const result = await sendWithResend(to, safeSubject, safeHtml);
-        return NextResponse.json({ success: true, provider: "resend", messageId: result?.id });
-      } catch (error) {
-        lastError = error;
-        console.warn("Resend failed, trying Gmail SMTP:", error);
-      }
-    }
-
-    if (process.env.EMAIL_PASSWORD) {
-      try {
-        const result = await sendWithGmail(to, safeSubject, safeHtml);
-        return NextResponse.json({ success: true, provider: "gmail", messageId: result.messageId });
-      } catch (error) {
-        lastError = error;
-        console.warn("Gmail SMTP failed, trying Brevo backup:", error);
-      }
-    }
-
-    if (process.env.BACKUP_EMAIL_PASSWORD && process.env.BACKUP_EMAIL_USER) {
-      try {
-        const result = await sendWithBrevo(to, safeSubject, safeHtml);
-        return NextResponse.json({ success: true, provider: "brevo", messageId: result.messageId });
-      } catch (error) {
-        lastError = error;
-        console.error("Brevo SMTP also failed:", error);
-      }
-    }
-
-    if (lastError) {
+    if (!result.ok) {
       return NextResponse.json(
-        { error: "All email providers failed", details: (lastError as Error).message },
-        { status: 500 }
+        { error: "Email could not be sent", details: result.error },
+        { status: 502 }
       );
     }
 
-    return NextResponse.json({ error: "Email providers not configured" }, { status: 503 });
+    return NextResponse.json({
+      success: true,
+      provider: result.provider,
+      mode: result.mode,
+      messageId: result.id,
+    });
   } catch (error) {
     console.error("Email route error:", error);
     return NextResponse.json({ error: "Failed to process email request" }, { status: 500 });

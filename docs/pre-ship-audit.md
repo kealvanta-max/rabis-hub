@@ -20,6 +20,27 @@ the admin alert may be arriving only by luck.
 
 ---
 
+## Status update, 6 November 2026
+
+The domain is being bought later this week, so the email findings are staged
+rather than closed. Everything that does not depend on the domain is fixed in
+code and ready to deploy.
+
+| # | Finding | Status |
+| --- | --- | --- |
+| 1 | No verified sending domain | **Open, waiting on the purchase.** `MAIL_MODE=log` is now the default, so nothing pretends to send. Flipping the variable to `live` is the only change needed once DNS is verified. |
+| 2 | Member mail fired from the browser, failures swallowed | **Fixed.** `src/lib/notifications.ts` is deleted. `POST /api/notify/decision` is admin-gated, reads the member from Firestore, sends through `src/lib/mailer.ts` and records `decisionEmailStatus` on the record. The admin sheet shows that state and can resend. |
+| 3 | Signup alert depended on the member's tab | **Fixed, with a second line of defence.** `POST /api/notify/new-member` takes the recipient from server config, re-reads the application, and stamps `adminAlertAt`. The admin dashboard now leads with a pending queue and a sweep that re-announces anything without a stamp. |
+| 4 | Rules deployment unverified | **Code fixed, deploy is one command.** `.firebaserc`, `npm run rules:deploy`, a `Firestore rules` workflow and an owner-only `/api/security/rules-probe` that asks the live database as a stranger. See `docs/FIRESTORE_RULES_DEPLOY.md`. |
+| 6 | KYC documents could be swapped after approval | **Fixed in the rules.** Identity fields may only be written while `status == 'pending'`; create-time forgery of payments, the group link and the delivery markers is refused too. Resubmission after a rejection goes through Rabi resetting the account, and the rejection email says so. |
+| 7 | The mail route was a general-purpose relay | **Fixed.** A member may only mail their own address. The owner-inbox allowance was removed, because alerts now come from the server. |
+
+Still open from earlier rounds and unrelated to email: purge the five test
+members, rotate the secrets that were pasted in chat, confirm the rules deploy
+with the probe, and do one real-phone production signup.
+
+---
+
 ## Findings
 
 ### P0: blockers

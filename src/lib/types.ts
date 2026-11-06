@@ -24,6 +24,18 @@ export interface UserDoc {
   documentsDeferred?: boolean;
   /** Money Rabi has actually received, recorded by her in the admin panel. */
   contributions?: { date: string; amount: number; note?: string }[];
+  /*
+   * Delivery bookkeeping, written only by the server. `adminAlertAt` marks a
+   * signup Rabi has been told about, so the sweep does not announce it twice.
+   * The decision fields record whether the member was actually emailed and by
+   * which provider, which the browser can no longer fake.
+   */
+  adminAlertAt?: Timestamp | Date | null;
+  adminAlertProvider?: string | null;
+  decisionEmailAt?: Timestamp | Date | null;
+  decisionEmailFor?: "approved" | "rejected" | null;
+  decisionEmailStatus?: "sent" | "logged" | "failed" | null;
+  decisionEmailProvider?: string | null;
 }
 
 export interface TestimonialDoc {

@@ -92,7 +92,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     // Fallback chain mirrors the route: Resend → Gmail SMTP → Brevo SMTP.
     anyOf: [["RESEND_API_KEY", "EMAIL_FROM"], ["EMAIL_PASSWORD"], ["BACKUP_EMAIL_PASSWORD"]],
     impact:
-      "No welcome, approval or rejection email. Outbound mail still works if Gmail/Brevo SMTP is configured instead.",
+      "No approval or rejection email reaches a member. MAIL_MODE=log prints mail to the server console instead of sending, so the routes stay exercised until the sending domain is verified. Gmail or Brevo SMTP can send if Resend is unset.",
     source: "resend.com → API Keys",
   },
   {

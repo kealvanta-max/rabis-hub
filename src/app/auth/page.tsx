@@ -35,7 +35,7 @@ import FaceScan from "@/components/ui/face-scan";
 import Navigation from "@/components/layout/navigation";
 import { formatGhanaCardInput, validateGhanaCardFormat } from "@/lib/ghana-card";
 import { isValidGhanaPhone, normalizeGhanaPhone } from "@/lib/phone";
-import { notifyAdminNewRegistration } from "@/lib/notifications";
+import { requestNewMemberAlert } from "@/lib/notify-client";
 import type { RegistrationData } from "@/lib/types";
 
 export default function AuthPage() {
@@ -317,13 +317,16 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         createdAt: Timestamp.now(),
       });
 
-      // Notify Admin (non-blocking – never fails a signup)
-      notifyAdminNewRegistration({
-        name: `${form.firstName} ${form.lastName}`,
-        email: form.email,
-        phone: normalizeGhanaPhone(form.phone),
-        plan: getPlanLabel(form.plan, customPlans),
-      }).catch(console.error);
+      /*
+       * Tell Rabi somebody applied.
+       *
+       * The request carries the new member's ID token and nothing else: the
+       * server reads name, phone and plan from the record it just created, so an
+       * alert cannot describe an application that does not exist. `keepalive`
+       * keeps it alive across the redirect to the dashboard, and if it is lost
+       * anyway the pending queue in /admin still shows this application.
+       */
+      void requestNewMemberAlert(undefined, { keepalive: true });
 
       addToast("Account created! Your application is under review.", "success");
       router.push("/dashboard");

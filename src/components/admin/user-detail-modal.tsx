@@ -10,6 +10,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  Mail,
   MapPin,
   ShieldCheck,
   Video,
@@ -32,11 +33,24 @@ interface UserDetailModalProps {
   onReset: () => void;
   onDownload: () => void;
   onCopyGps: (value: string) => void;
+  /** Sends the decision email again from the server. */
+  onResendEmail: () => void;
   /** Rabi records money she has actually received — no gateway involved. */
   onRecordContribution: (amount: number) => Promise<void> | void;
   onRemoveContribution: (index: number) => Promise<void> | void;
   /** Clears a test row, or a person who asked to be forgotten. Asks first. */
   onDelete: () => void;
+}
+
+
+/** One sentence describing whether the member was actually told. */
+function decisionEmailState(user: UserItem): string {
+  const status = (user as UserItem & { decisionEmailStatus?: string }).decisionEmailStatus;
+
+  if (status === "sent") return "Delivered to the member.";
+  if (status === "logged") return "Written to the server log. Sending starts once the domain is verified.";
+  if (status === "failed") return "The last attempt failed. Send it again, or check the server log.";
+  return "Not sent yet.";
 }
 
 function DataRow({
@@ -86,6 +100,7 @@ export default function UserDetailModal({
   onReset,
   onDownload,
   onCopyGps,
+  onResendEmail,
   onRecordContribution,
   onRemoveContribution,
   onDelete,
@@ -157,6 +172,40 @@ export default function UserDetailModal({
           <DataRow label="Plan">{planLabel}</DataRow>
           <DataRow label="Location">{user.gpsAddress || user.location || "Not shared"}</DataRow>
         </dl>
+
+        {/*
+          Delivery state for the decision email.
+          "Approved" on screen used to mean nothing: the browser fired the mail
+          and swallowed the result. Now the record says whether the member was
+          actually told, and this is where Rabi sees it.
+        */}
+        {user.status !== "pending" && (
+          <section
+            aria-label="Decision email"
+            className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
+                  Decision email
+                </p>
+                <p className="mt-1 text-sm text-gray-200">{decisionEmailState(user)}</p>
+                <p className="mt-0.5 text-[11px] text-gray-500">
+                  Sent by the server, so it does not depend on this tab staying open.
+                </p>
+              </div>
+              <ActionButton
+                variant="neutral"
+                size="md"
+                onClick={onResendEmail}
+                className="sm:w-auto"
+                icon={<Mail className="h-4 w-4" aria-hidden="true" />}
+              >
+                Send again
+              </ActionButton>
+            </div>
+          </section>
+        )}
 
         {/* Savings — what Rabi has actually received. One tap, no gateway. */}
         <section aria-label="Savings recorded" className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
