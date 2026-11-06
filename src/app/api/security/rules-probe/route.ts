@@ -6,7 +6,7 @@ import { firestoreProjectId } from "@/lib/server-firestore";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type CollectionVerdict = "denied" | "open" | "unknown";
+type CollectionVerdict = "denied" | "permitted" | "unknown";
 
 interface Probe {
   verdict: CollectionVerdict;
@@ -29,7 +29,15 @@ async function probeAnonymous(path: string): Promise<Probe> {
     const response = await fetch(url, { cache: "no-store" });
 
     if (response.status === 200) {
-      return { verdict: "open", status: 200 };
+      return { verdict: "permitted", status: 200 };
+    }
+
+    // 404 means the rules LET the request through and the document simply is
+    // not there. That distinction matters: the public plan list is legitimately
+    // absent until Rabi creates a custom plan, and reading it as "denied" would
+    // make a healthy project look broken.
+    if (response.status === 404) {
+      return { verdict: "permitted", status: 404 };
     }
 
     if (response.status === 401 || response.status === 403) {
@@ -74,12 +82,18 @@ export async function GET(request: Request) {
     probeAnonymous("/settings/customPlans"),
   ]);
 
+  // Anything except a flat denial means a stranger reached the member list,
+  // whether the collection answered with data or with an empty 404.
   const verdict =
-    users.verdict === "open" ? "exposed" : users.verdict === "denied" ? "locked" : "unknown";
+    users.verdict === "denied"
+      ? "locked"
+      : users.verdict === "unknown"
+      ? "unknown"
+      : "exposed";
 
   const summary =
     verdict === "exposed"
-      ? "CRITICAL: anonymous callers can list members. Deploy firestore.rules now."
+      ? "CRITICAL: anonymous callers can reach the users collection. Deploy firestore.rules now."
       : verdict === "locked"
       ? publicPlans.verdict === "denied"
         ? "Members are protected, but the public plan list is also denied. Check the settings rules."

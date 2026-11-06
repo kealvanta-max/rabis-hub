@@ -95,8 +95,14 @@ describe("rules probe", () => {
     expect(probe).toContain('probeAnonymous("/users?pageSize=1")');
   });
 
-  it("treats an anonymous listing of members as critical", () => {
+  it("treats an anonymous reach into the member list as critical", () => {
     expect(probe).toContain('"exposed"');
     expect(probe).toContain("409");
+  });
+
+  it("does not mistake a permitted but empty document for a failure", () => {
+    // settings/customPlans legitimately does not exist until Rabi adds one.
+    expect(probe).toContain("response.status === 404");
+    expect(probe).toContain('verdict: "permitted", status: 404');
   });
 });
