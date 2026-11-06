@@ -60,17 +60,21 @@ describe("document uploads", () => {
   it("signs the upload server-side with the API secret", () => {
     const route = read("src/app/api/upload/route.ts");
     expect(route).toContain("CLOUDINARY_API_SECRET");
-    expect(route).toContain("createHmac".replace("createHmac", "createHash"));
+    expect(route).toContain("createHash");
     expect(route).toContain("signature");
+    // Identity is still checked when a token is present, but signup uploads
+    // happen before the account exists, so it cannot be a hard requirement.
     expect(route).toContain("authenticateRequest(request)");
+    expect(route).toContain("upload:ip:");
   });
 
-  it("caps size and file type", () => {
+  it("caps size and decides the file type from its bytes", () => {
     const route = read("src/app/api/upload/route.ts");
-    expect(route).toContain("MAX_BYTES");
-    expect(route).toContain("ALLOWED_TYPES");
+    expect(route).toContain("MAX_UPLOAD_BYTES");
+    expect(route).toContain("sniffFileKind");
     expect(route).toContain("413");
     expect(route).toContain("415");
+    expect(route).not.toContain("upload_preset =");
   });
 });
 

@@ -1,39 +1,67 @@
 /**
- * Signed document uploads.
+ * Document and clip uploads.
  *
- * Previously the browser posted straight to Cloudinary with an *unsigned* preset,
- * which means the preset name in this bundle was a public write key: anyone could
- * push files (or worse) into Rabi's Cloudinary account. Uploads now go through
- * `/api/upload`, which verifies the member's Firebase ID token and signs the
- * request with the API secret that never leaves the server.
+ * The browser never talks to Cloudinary. It posts to `/api/upload`, which checks
+ * what the bytes actually are, enforces the size cap, rate limits the caller and
+ * signs the request with the API secret that stays on the server.
+ *
+ * Two things are deliberate here:
+ *
+ * 1. Images are shrunk before they leave the phone. Signup runs on mobile data
+ *    and Vercel refuses bodies over 4.5 MB, so a 6 MB camera still used to fail
+ *    with a message about the connection, which was never the problem.
+ * 2. The real reason for a failure is surfaced. "Check your connection" is
+ *    useless advice when the truth is a Cloudinary key that belongs to another
+ *    cloud name.
  */
+
+import { shrinkImage } from "@/lib/image-compress";
 
 export interface UploadResult {
   secure_url: string;
 }
 
+function messageForStatus(status: number, serverMessage?: string): string {
+  if (serverMessage) return serverMessage;
+
+  if (status === 401) return "Please sign in again before uploading your documents.";
+  if (status === 413) return "That file is too big to upload. Pick a smaller photo.";
+  if (status === 415) return "That file is not a photo. Pick a JPG, PNG or HEIC image.";
+  if (status === 429) return "Too many uploads in a row. Wait a minute and try again.";
+  if (status === 503) return "Uploads are not switched on for this site yet. Tell Rabi.";
+  return "The upload failed on the server. Try again, and tell Rabi if it keeps happening.";
+}
+
 export async function uploadToCloudinary(file: File): Promise<string> {
+  const payload = file.type.startsWith("image/") ? await shrinkImage(file) : file;
+
   const { getAuth } = await import("firebase/auth");
   const user = getAuth().currentUser;
 
-  if (!user) {
-    throw new Error("Please sign in again before uploading your documents.");
+  // Signup uploads before the account exists, so a token is a bonus, not a
+  // requirement. The route applies a much stricter rate limit without one.
+  let token: string | null = null;
+  if (user) {
+    try {
+      token = await user.getIdToken();
+    } catch {
+      token = null;
+    }
   }
 
-  const token = await user.getIdToken();
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", payload);
 
   const response = await fetch("/api/upload", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
   });
 
   const data = (await response.json().catch(() => ({}))) as Partial<UploadResult> & { error?: string };
 
   if (!response.ok || !data.secure_url) {
-    throw new Error(data.error || "Image upload failed. Check your connection and try again.");
+    throw new Error(messageForStatus(response.status, data.error));
   }
 
   return data.secure_url;

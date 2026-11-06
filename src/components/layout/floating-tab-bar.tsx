@@ -25,14 +25,23 @@ export default function FloatingTabBar() {
 
   if (ROUTES_WITHOUT_DOCK.some((route) => pathname?.startsWith(route))) return null;
 
+  /*
+   * The owner has no member record, so the Hub tab is a dead end for her: it
+   * either bounces to /admin or shows an empty shell. Admins get Admin in its
+   * place instead, which is the only screen they came for.
+   */
   const items = [
     { href: "/", label: "Home", icon: Home, match: (p: string) => p === "/" },
-    {
-      href: user ? "/dashboard" : "/auth?mode=signin",
-      label: "Hub",
-      icon: LayoutDashboard,
-      match: (p: string) => p.startsWith("/dashboard"),
-    },
+    ...(isAdmin
+      ? []
+      : [
+          {
+            href: user ? "/dashboard" : "/auth?mode=signin",
+            label: "Hub",
+            icon: LayoutDashboard,
+            match: (p: string) => p.startsWith("/dashboard"),
+          },
+        ]),
     {
       href: `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hello Rabi! I need help with my savings.")}`,
       label: "Chat",

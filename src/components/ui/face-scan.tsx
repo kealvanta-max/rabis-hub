@@ -134,8 +134,11 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
       } catch (error) {
         console.error("Liveness upload failed:", error);
         setStatus("error");
+        const reason = error instanceof Error && error.message ? error.message : "";
         setMessage(
-          "Your clip was recorded but could not be uploaded. Check your connection and try again, or continue with manual review."
+          reason
+            ? `Your clip was recorded but could not be uploaded. ${reason} You can still continue with manual review.`
+            : "Your clip was recorded but could not be uploaded. Check your connection and try again, or continue with manual review."
         );
       }
     },
