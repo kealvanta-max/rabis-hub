@@ -18,17 +18,27 @@ describe("upload route", () => {
   it("never demands a token, because signup uploads precede the account", () => {
     expect(route).toContain("authenticateRequest(request)");
     expect(route).not.toMatch(/if \(!actor\)\s*\{?\s*return NextResponse\.json\(\{ error: "Sign in required" \}/);
-    expect(route).toContain("upload:ip:");
+    expect(route).toContain("upload:v2:ip:");
   });
 
   it("budgets enough attempts that retrying a broken key cannot lock a member out", () => {
-    const anon = route.match(/upload:ip:\$\{clientIp\(request\)\}`,\s*(\d+)/);
+    const anon = route.match(/upload:v2:ip:\$\{clientIp\(request\)\}`,\s*(\d+)/);
     expect(anon).not.toBeNull();
-    expect(Number(anon?.[1])).toBeGreaterThanOrEqual(1000);
+    expect(Number(anon?.[1])).toBeGreaterThanOrEqual(100);
+  });
+
+  it("clears the wall in seconds, not in an hour", () => {
+    // Every window is a minute. An hourly quota is what locked the owner out for
+    // the rest of the evening while she was testing her own signup.
+    const windows = route.match(/rateLimit\(`upload:v2:[^`]+`,\s*\d+,\s*(\d+)\)/g) ?? [];
+    expect(windows.length).toBe(3);
+    for (const call of windows) {
+      expect(call).toMatch(/,\s*60\)$/);
+    }
   });
 
   it("counts the phone, not only the carrier NAT address it shares", () => {
-    const device = route.match(/upload:dev:\$\{device\}`,\s*(\d+),\s*(\d+)/);
+    const device = route.match(/upload:v2:dev:\$\{device\}`,\s*(\d+),\s*(\d+)/);
     expect(device).not.toBeNull();
     // A whole signup is four uploads, so sixty an hour is retries and nothing else.
     expect(Number(device?.[1])).toBeGreaterThanOrEqual(40);

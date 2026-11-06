@@ -45,28 +45,36 @@ export async function POST(request: Request) {
   const actor = await authenticateRequest(request);
 
   /*
-   * The budget follows the caller, not the carrier.
+   * The budget is a burst guard, not a daily allowance.
    *
-   * Counting the IP address alone was wrong for this country. Mobile networks in
-   * Ghana put hundreds of members behind one carrier-grade NAT address, so a
-   * single person retrying a failing upload spent a shared allowance and then
-   * every stranger on that tower was told she had uploaded too much. An honest
-   * member kept meeting a wall she had not built.
+   * Three wrong answers in a row cost the owner two evenings:
    *
-   * The allowance now belongs to the phone (`x-rabis-device`, a random id the
-   * browser keeps in localStorage), which no other member can touch. The address
-   * is still counted, but only as a circuit breaker against a script that mints
-   * fresh device ids: 2,500 an hour is roughly 600 signups from one tower, far
-   * beyond anything a tower produces, and far below what a botnet costs us.
+   * 1. Counted the IP address, so one tower's strangers shared a bucket.
+   * 2. Counted the device over an hour, so a member testing her own signup a
+   *    dozen times was locked out for the rest of the hour with the true error
+   *    hidden behind a rate limit message.
+   * 3. The client now retries a dropped upload up to three times, and every one
+   *    of those attempts spent a slot. Fifteen taps became forty-five uploads.
+   *
+   * A minute-long window fixes all three. A person cannot tap through forty
+   * uploads in a minute, retries drain in seconds instead of an hour, and the
+   * counters start empty because the keys are new.
+   *
+   * The limits only ever exist to stop a script from spending the Cloudinary
+   * quota. They are set far above anything a human can reach.
    */
   const device = (request.headers.get("x-rabis-device") || "").trim().slice(0, 64);
 
   const budgets: RateLimitResult[] = [];
   if (actor) {
-    budgets.push(await rateLimit(`upload:uid:${actor.uid}`, 90, 300));
+    // A member in the dashboard: same person, same short window.
+    budgets.push(await rateLimit(`upload:v2:uid:${actor.uid}`, 60, 60));
   } else {
-    if (device) budgets.push(await rateLimit(`upload:dev:${device}`, 60, 3600));
-    budgets.push(await rateLimit(`upload:ip:${clientIp(request)}`, 2500, 3600));
+    // 60 a minute on the phone. A whole signup is four; every rescued upload is
+    // three. Nobody taps twenty times in a minute on purpose.
+    if (device) budgets.push(await rateLimit(`upload:v2:dev:${device}`, 60, 60));
+    // Backstop for a script minting fresh device ids from one tower.
+    budgets.push(await rateLimit(`upload:v2:ip:${clientIp(request)}`, 600, 60));
   }
 
   const exhausted = budgets.find((entry) => !entry.success);
@@ -76,9 +84,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        error: actor
-          ? `That is a lot of uploads at once. Try again in ${retryAfter} seconds.`
-          : "That is more uploads than usual from this phone. Send your documents to Rabi on WhatsApp and she will collect them.",
+        message:
+          "That was a lot of tries at once. Wait a few seconds and tap again.",
+        error:
+          "That was a lot of tries at once. Wait a few seconds and tap again, or send your documents to Rabi on WhatsApp.",
         code: "rate-limited",
         retryAfter,
       },

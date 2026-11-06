@@ -49,35 +49,31 @@ describe("a stale page repairs itself", () => {
   });
 });
 
-describe("the glass panel can never block the camera", () => {
+describe("the face panel has no renderer left to fail", () => {
   const scan = read("src/components/ui/face-scan.tsx");
-  const panel = read("src/components/ui/apple-face-id.tsx");
+  const tile = read("src/components/ui/face-id-tile.tsx");
+  const pkg = read("package.json");
 
-  it("loads three.js off the critical path", () => {
-    expect(scan).toContain('dynamic(() => import("@/components/ui/apple-face-id")');
-    expect(scan).toContain("ssr: false");
-    expect(scan).not.toMatch(/^import AppleFaceID from/m);
+  it("draws the panel with CSS and SVG only", () => {
+    expect(tile).not.toMatch(/from "three"/);
+    expect(tile).not.toContain("getContext(");
+    expect(tile).not.toContain("useFrame");
+    expect(tile).toContain("<svg");
+    expect(tile).toContain("Face ID panel, without a renderer");
   });
 
-  it("keeps a direct way into the camera that needs no 3D at all", () => {
+  it("ships no 3D engine at all", () => {
+    expect(pkg).not.toContain("@react-three/fiber");
+    expect(pkg).not.toContain("@react-three/drei");
+    expect(pkg).not.toContain('"three"');
+    expect(scan).not.toContain("next/dynamic");
+    expect(scan).not.toContain("AppleFaceID");
+  });
+
+  it("keeps a direct way into the camera that needs no panel at all", () => {
     expect(scan).toContain("Camera not opening? Tap here to start");
     expect(scan).toContain("onClick={start}");
-  });
-
-  it("keeps a plain tap target if the panel fails", () => {
-    expect(scan).toContain('label="face-id-panel"');
-    expect(scan).toContain("Tap to start your face check");
-    expect(scan).toContain('label="face-id-success"');
-  });
-
-  it("assumes nothing about the GPU, and never reaches the network for lighting", () => {
-    // three dropped the WebGL1 renderer, so probing WebGL1 let the Canvas throw.
-    expect(panel).toContain('getContext("webgl2")');
-    expect(panel).not.toMatch(/getContext\("webgl"\)/);
-    // drei's Environment preset downloads an HDR at runtime; a failed fetch threw.
-    expect(panel).not.toContain("Environment");
-    expect(panel).toContain("StaticCore");
-    expect(panel).toContain('label="face-id-glass"');
+    expect(tile).toContain("onActivate");
   });
 });
 
