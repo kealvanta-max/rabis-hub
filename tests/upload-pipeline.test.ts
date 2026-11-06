@@ -24,7 +24,29 @@ describe("upload route", () => {
   it("budgets enough attempts that retrying a broken key cannot lock a member out", () => {
     const anon = route.match(/upload:ip:\$\{clientIp\(request\)\}`,\s*(\d+)/);
     expect(anon).not.toBeNull();
-    expect(Number(anon?.[1])).toBeGreaterThanOrEqual(100);
+    expect(Number(anon?.[1])).toBeGreaterThanOrEqual(1000);
+  });
+
+  it("counts the phone, not only the carrier NAT address it shares", () => {
+    const device = route.match(/upload:dev:\$\{device\}`,\s*(\d+),\s*(\d+)/);
+    expect(device).not.toBeNull();
+    // A whole signup is four uploads, so sixty an hour is retries and nothing else.
+    expect(Number(device?.[1])).toBeGreaterThanOrEqual(40);
+    expect(route).toContain("x-rabis-device");
+  });
+
+  it("never blocks the first upload of a member on a shared address", () => {
+    // No hard wall may exist below a full signup plus retries.
+    const pattern = /rateLimit\(`upload:[^`]+`,\s*(\d+)/g;
+    const numbers: number[] = [];
+    let found = pattern.exec(route);
+    while (found) {
+      numbers.push(Number(found[1]));
+      found = pattern.exec(route);
+    }
+    expect(numbers.length).toBeGreaterThan(0);
+    expect(Math.min(...numbers)).toBeGreaterThanOrEqual(40);
+    expect(route).toContain("Retry-After");
   });
 
   it("signs only the parameters it sends, and sends no upload transformation", () => {
@@ -55,6 +77,27 @@ describe("storage self-test", () => {
     expect(route).toContain('probe("video"');
     expect(route).toContain("/${endpoint}/upload");
     expect(route).toContain("AUTH_FAILURE");
+  });
+});
+
+describe("the browser tells the limiter who it is", () => {
+  const client = read("src/lib/cloudinary.ts");
+  const device = read("src/lib/device-id.ts");
+
+  it("sends a device id with every upload", () => {
+    expect(client).toContain("getDeviceId()");
+    expect(client).toContain("x-rabis-device");
+  });
+
+  it("keeps the id stable and survives blocked storage", () => {
+    expect(device).toContain("localStorage");
+    expect(device).toContain("catch");
+    expect(device).toContain("randomUUID");
+  });
+
+  it("retries once when the connection drops, never after a rejection", () => {
+    expect(client).toContain("setTimeout(resolve, 800)");
+    expect(client.match(/await send\(\)/g)?.length).toBe(2);
   });
 });
 
