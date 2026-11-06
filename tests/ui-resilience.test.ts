@@ -26,6 +26,29 @@ describe("error boundaries exist and report", () => {
   });
 });
 
+describe("a stale page repairs itself", () => {
+  const recovery = read("src/lib/chunk-recovery.ts");
+  const monitoring = read("src/lib/monitoring.ts");
+  const boundary = read("src/components/ui/error-boundary.tsx");
+
+  it("recognises the shapes a missing chunk arrives in", () => {
+    expect(recovery).toContain("ChunkLoadError");
+    expect(recovery).toContain("Failed to fetch dynamically imported module");
+    expect(recovery).toContain("sessionStorage");
+  });
+
+  it("reloads once and never loops", () => {
+    expect(recovery).toContain("RELOAD_COOLDOWN_MS");
+    expect(recovery).toContain("location.replace");
+  });
+
+  it("listens outside React, where chunk errors actually land", () => {
+    expect(monitoring).toContain("recoverFromStaleBuild");
+    expect(monitoring).toContain("unhandledrejection");
+    expect(boundary).toContain("recoverFromStaleBuild");
+  });
+});
+
 describe("the glass panel can never block the camera", () => {
   const scan = read("src/components/ui/face-scan.tsx");
   const panel = read("src/components/ui/apple-face-id.tsx");
@@ -34,6 +57,11 @@ describe("the glass panel can never block the camera", () => {
     expect(scan).toContain('dynamic(() => import("@/components/ui/apple-face-id")');
     expect(scan).toContain("ssr: false");
     expect(scan).not.toMatch(/^import AppleFaceID from/m);
+  });
+
+  it("keeps a direct way into the camera that needs no 3D at all", () => {
+    expect(scan).toContain("Camera not opening? Tap here to start");
+    expect(scan).toContain("onClick={start}");
   });
 
   it("keeps a plain tap target if the panel fails", () => {
@@ -56,10 +84,17 @@ describe("the glass panel can never block the camera", () => {
 describe("a failed face step degrades to manual review", () => {
   const page = read("src/app/auth/page.tsx");
 
+  it("ships the scan with the page, so there is no chunk to 404", () => {
+    expect(page).toContain('import FaceScan from "@/components/ui/face-scan"');
+    expect(page).not.toContain('dynamic(() => import("@/components/ui/face-scan")');
+  });
+
   it("wraps the scan so the signup survives its failure", () => {
     expect(page).toContain('label="face-scan"');
     expect(page).toContain("The camera check could not open on this phone");
     expect(page).toContain("Continue with manual review");
+    expect(page).toContain("Try the camera again");
+    expect(page).toContain("Reason:");
   });
 
   it("still records the manual review decision", () => {

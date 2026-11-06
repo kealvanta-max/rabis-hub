@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
-import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   createUserWithEmailAndPassword,
@@ -25,14 +24,14 @@ import ErrorBoundary from "@/components/ui/error-boundary";
 import ImageUpload from "@/components/ui/image-upload";
 import PlanPicker from "@/components/ui/plan-picker";
 import { isDuplicateImage, type DocVerdict } from "@/lib/kyc-verification";
-
-// MediaPipe + camera code is only downloaded when step 3 is reached.
-const FaceScan = dynamic(() => import("@/components/ui/face-scan"), {
-  ssr: false,
-  loading: () => (
-    <div className="glass-soft mx-auto aspect-[4/5] w-full max-w-md animate-pulse rounded-3xl sm:aspect-video" />
-  ),
-});
+/*
+ * FaceScan used to be a separate lazy chunk. On a phone that is holding a cached
+ * page from a previous deploy, that chunk name no longer exists, the import
+ * rejects, and step three dies before the member can tap. The component itself is
+ * small; its heavy parts (three.js and MediaPipe) load lazily from inside it. So it
+ * ships with the page and there is no second chance to 404.
+ */
+import FaceScan from "@/components/ui/face-scan";
 import Navigation from "@/components/layout/navigation";
 import { formatGhanaCardInput, validateGhanaCardFormat } from "@/lib/ghana-card";
 import { isValidGhanaPhone, normalizeGhanaPhone } from "@/lib/phone";
@@ -573,25 +572,33 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           */}
           <ErrorBoundary
             label="face-scan"
-            fallback={
+            fallback={(error, reset) => (
               <div className="glass-soft space-y-3 rounded-2xl p-5 text-center">
                 <p className="text-sm font-semibold text-white">The camera check could not open on this phone</p>
                 <p className="text-[11px] leading-relaxed text-gray-400">
-                  Your documents are safe and nothing is lost. Rabi will verify you manually on WhatsApp, and you
-                  can finish the rest of the signup right now.
+                  Your documents are safe and nothing is lost. Try again, or let Rabi verify you manually on
+                  WhatsApp and finish the rest of the signup right now.
                 </p>
-                <Button
-                  onClick={() => {
-                    setLivenessMode("manual_review");
-                    update("faceScanVideo", "");
-                    addToast("No problem, Rabi will verify you manually.", "info");
-                  }}
-                  className="w-full"
-                >
-                  Continue with manual review
-                </Button>
+                <div className="space-y-2">
+                  <Button onClick={reset} variant="secondary" className="w-full">
+                    Try the camera again
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setLivenessMode("manual_review");
+                      update("faceScanVideo", "");
+                      addToast("No problem, Rabi will verify you manually.", "info");
+                    }}
+                    className="w-full"
+                  >
+                    Continue with manual review
+                  </Button>
+                </div>
+                <p className="break-words text-[10px] leading-relaxed text-gray-500">
+                  Reason: {error?.message || error?.name || "unknown"}. Send this line to Rabi if it keeps happening.
+                </p>
               </div>
-            }
+            )}
           >
             <FaceScan
               onComplete={handleFaceScanComplete}

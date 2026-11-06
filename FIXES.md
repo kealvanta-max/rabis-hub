@@ -1,5 +1,42 @@
 # Beta fix pass — what was broken and what changed
 
+## 🧷 A stale page, not a broken step
+
+Two screenshots, both from the same phone, both after a deploy.
+
+Step three showed "the camera check could not open". Step two showed "Upload
+failed. Check your connection" with no reason attached. Neither was the member's
+connection and neither was storage: the phone was holding a page from an earlier
+deploy. Next.js names its JavaScript chunks after a content hash, so after a
+redeploy the chunk names in a cached page no longer exist. Every lazy import in
+that page 404s from then on.
+
+- **The page repairs itself.** `src/lib/chunk-recovery.ts` recognises the shapes a
+  missing chunk arrives in, reloads once, and refuses to reload again inside a
+  minute so a genuinely broken build cannot become a refresh loop. It runs from
+  both `window.onerror` / `unhandledrejection` and from the error boundary.
+- **The face step has no chunk to 404.** `FaceScan` ships with the auth page now
+  (4 kB, and the page is 293 kB either way). Its heavy parts, three.js and
+  MediaPipe, still load lazily, and each already has a fallback underneath.
+- **The camera has a door that needs no 3D at all.** Under the glass panel there is
+  now a plain "Camera not opening? Tap here to start" line that calls the camera
+  directly.
+- **Uploads no longer fetch a chunk to find the member.** `uploadToCloudinary` used
+  to `await import("firebase/auth")` on every upload. On a stale page that rejects
+  with an error carrying no message at all, which is exactly the useless "Check your
+  connection" the owner saw. The auth instance is imported directly, so there is
+  nothing left to fail there.
+- **Three attempts, each smaller.** The first at 1600 px and quality 0.82, the
+  second at 1280 and 0.72, the third at 1024 and 0.6. A dropped request, a 408, a
+  504 or a rate limit is retried with a smaller body; a real rejection from
+  Cloudinary is never retried. Every network failure is reported to Sentry with the
+  attempt number and the byte size.
+- **Failures now name their cause.** If the browser hands back an error with no
+  message, the error's name goes into the sentence the member sees and into the
+  report, and the face step prints its reason in small text under the fallback.
+
+**Gates:** `tsc` ✅ · lint ✅ · **196 tests** ✅ · build ✅
+
 ## 🧯 The face step took the whole signup down with it
 
 Step three showed "Something went wrong" before the member could even tap, and the

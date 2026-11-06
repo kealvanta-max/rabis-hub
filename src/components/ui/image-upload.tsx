@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { Camera, Check, Loader2, ShieldAlert, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { captureException } from "@/lib/monitoring";
 import { recognizeDocument } from "@/lib/ghana-card-ocr";
 import { detectHumanFace, fingerprintImage } from "@/lib/face-detection";
 import {
@@ -199,12 +200,21 @@ export default function ImageUpload({
       onVerdict?.(nextVerdict, fingerprint.hash);
     } catch (uploadError) {
       console.error("Upload failed:", uploadError);
-      // Show what actually went wrong. A generic "check your connection" hides
-      // key mismatches, size limits and rate limits, which are the real causes.
+      /*
+       * Show what actually went wrong. A generic "check your connection" hides key
+       * mismatches, size limits and rate limits, which are the real causes. When
+       * the browser hands us an error with no message at all, the error's name is
+       * the only clue there is, so it goes into the sentence and into the report
+       * instead of being thrown away.
+       */
+      const name =
+        uploadError instanceof Error && uploadError.name ? uploadError.name : typeof uploadError;
+      captureException(uploadError, { scope: "kyc-upload", mode: verify, name });
+
       const reason =
         uploadError instanceof Error && uploadError.message
           ? uploadError.message
-          : "Upload failed. Check your connection and try again.";
+          : `Upload failed on this phone. Tell Rabi this code: ${name}.`;
       setError(reason);
       onFailure?.(reason);
     } finally {
