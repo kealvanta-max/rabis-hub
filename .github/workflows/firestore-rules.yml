@@ -4,8 +4,12 @@ name: Firestore rules
 # that deployed nothing is worse than a red one. If this workflow cannot publish
 # firestore.rules it fails, on purpose, and says exactly what to do.
 #
-# This is separate from the app pipeline on purpose: a missing deploy token must
-# never block an application build from shipping.
+# Two ways to authenticate, in order of preference:
+#   FIREBASE_TOKEN                  a CI token from `firebase login:ci`
+#   FIREBASE_SERVICE_ACCOUNT_KEY    the service account JSON, or base64 of it
+#
+# Separate from the app pipeline on purpose: a missing credential must never
+# block an application build from shipping.
 
 on:
   push:
@@ -13,6 +17,7 @@ on:
     paths:
       - "firestore.rules"
       - "firebase.json"
+      - "scripts/verify-rules.mjs"
       - ".github/workflows/firestore-rules.yml"
   workflow_dispatch:
 
@@ -22,6 +27,7 @@ jobs:
 
     env:
       FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+      SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
 
     steps:
       - uses: actions/checkout@v4
@@ -32,19 +38,39 @@ jobs:
           node-version: '20.x'
 
       - name: Refuse to report success when nothing was deployed
-        if: ${{ env.FIREBASE_TOKEN == '' }}
+        if: ${{ env.FIREBASE_TOKEN == '' && env.SA_KEY == '' }}
         run: |
-          echo "::error::firestore.rules was NOT deployed: the FIREBASE_TOKEN secret is missing."
-          echo "Until it exists, the live database keeps whatever rules it had before."
+          echo "::error::firestore.rules was NOT deployed: neither FIREBASE_TOKEN nor FIREBASE_SERVICE_ACCOUNT_KEY is set."
+          echo "Until one exists, the live database keeps whatever rules it had before."
           echo ""
           echo "Fix it in one of two ways:"
           echo "  1. On a laptop, from the repository root: npm run rules:deploy"
           echo "  2. Generate a CI token with: npx --yes firebase-tools@13 login:ci"
           echo "     Add it as the repository secret FIREBASE_TOKEN, then re-run this job."
           echo ""
-          echo "Then confirm the result as the owner at /api/security/rules-probe."
+          echo "Then confirm the result at /api/security/rules-probe as the owner."
           exit 1
 
-      - name: Deploy firestore.rules
+      - name: Prepare the service account
+        if: ${{ env.FIREBASE_TOKEN == '' && env.SA_KEY != '' }}
+        run: |
+          if printf '%s' "$SA_KEY" | head -c 1 | grep -q '{'; then
+            printf '%s' "$SA_KEY" > "$RUNNER_TEMP/sa.json"
+          else
+            printf '%s' "$SA_KEY" | base64 -d > "$RUNNER_TEMP/sa.json"
+          fi
+          chmod 600 "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          node -e 'const s=require(process.env.RUNNER_TEMP+"/sa.json"); console.log("service account:", s.client_email, "project:", s.project_id)'
+
+      - name: Deploy firestore.rules (CI token)
         if: ${{ env.FIREBASE_TOKEN != '' }}
         run: npx --yes firebase-tools@13 deploy --only firestore:rules --project rabi-hub --token "$FIREBASE_TOKEN" --non-interactive
+
+      - name: Deploy firestore.rules (service account)
+        if: ${{ env.FIREBASE_TOKEN == '' && env.SA_KEY != '' }}
+        run: npx --yes firebase-tools@13 deploy --only firestore:rules --project rabi-hub --non-interactive
+
+      - name: Read back the live ruleset
+        if: ${{ env.SA_KEY != '' }}
+        run: node scripts/verify-rules.mjs
