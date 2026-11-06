@@ -153,6 +153,16 @@ export async function uploadToCloudinary(file: File): Promise<string> {
 
     if (isPermanent(response.status, data.code)) throw lastError;
 
+    /*
+     * A burst limit clears in seconds now, so waiting it out is kinder than
+     * telling the member to come back later. Capped at 20s so a hopeless request
+     * fails while she is still looking at her phone instead of after a minute.
+     */
+    if (response.status === 429) {
+      const seconds = Math.min(Math.max(data.retryAfter ?? 5, 1), 20);
+      if (attempt < ATTEMPTS.length - 1) await wait(seconds * 1000);
+    }
+
     captureException(new Error(`upload ${response.status} ${data.code ?? ""}`.trim()), {
       scope: "upload-response",
       attempt: attempt + 1,

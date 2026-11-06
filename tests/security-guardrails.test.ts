@@ -65,7 +65,7 @@ describe("document uploads", () => {
     // Identity is still checked when a token is present, but signup uploads
     // happen before the account exists, so it cannot be a hard requirement.
     expect(route).toContain("authenticateRequest(request)");
-    expect(route).toContain("upload:ip:");
+    expect(route).toContain("upload:v2:ip:");
   });
 
   it("caps size and decides the file type from its bytes", () => {

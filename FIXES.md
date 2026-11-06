@@ -1,5 +1,41 @@
 # Beta fix pass — what was broken and what changed
 
+## 🚧 The upload wall was mine, and it was three times too small
+
+The owner's screenshots showed a full stop on step two *and* step three, with one
+sentence: "that is more uploads than usual from this phone". Storage was working.
+The limiter was not.
+
+The budget was 60 uploads an hour per phone, and the client had just learned to
+retry a dropped upload up to three times. Fifteen taps burned forty-five slots, and
+then the same wall blocked the liveness clip, which is why the *video* looked
+broken too. Every retry was punished for an hour.
+
+- **The wall is a burst now, not a quota.** Sixty uploads per **minute** per phone,
+  six hundred per minute per address, sixty per minute for a signed-in member. A
+  person cannot tap through that; a script still can't run away with the Cloudinary
+  quota; and anything that does trip it clears in seconds. The keys are namespaced
+  `upload:v2:*`, so no counter from today can block anyone tomorrow.
+- **The client waits rather than scolds.** A 429 carrying `retryAfter` is waited
+  out automatically, capped at 20 seconds, and the attempt is retried. The member
+  sees nothing unless it genuinely keeps failing.
+- **The wording stops sounding like an accusation.** "That was a lot of tries at
+  once. Wait a few seconds and tap again, or send your documents to Rabi on
+  WhatsApp."
+
+## 🪟 The face panel has no renderer left to fail
+
+Three attempts at making a 3D glass panel safe on a phone was three too many. It is
+now CSS, SVG and a tap target: same shape, same glass, same motion, no WebGL, no
+shader, no HDR download, no 600 kB chunk. `three`, `@react-three/fiber` and
+`@react-three/drei` are gone from the project entirely.
+
+That removes, in one change, every way step three has failed so far: a GPU without
+WebGL2, too many tabs holding a context, a lighting file that will not download, a
+chunk that 404s after a redeploy, and a shader that throws on an Adreno driver.
+
+**Gates:** `tsc` ✅ · lint ✅ · **197 tests** ✅ · build ✅
+
 ## 🧷 A stale page, not a broken step
 
 Two screenshots, both from the same phone, both after a deploy.
