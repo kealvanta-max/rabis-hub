@@ -290,7 +290,12 @@ export async function pendingMembersWithoutAlert(limit = 25): Promise<MemberReco
       .limit(Math.min(Math.max(limit, 1), 100))
       .get();
 
-    return snapshot.docs
+    // Spelled out rather than inferred: the admin SDK's query snapshot types
+    // resolve differently depending on how the package is installed, and an
+    // implicit any here fails the CI type check while passing locally.
+    const docs = snapshot.docs as Array<{ id: string; data: () => Record<string, unknown> }>;
+
+    return docs
       .map((doc) => toMember(doc.id, doc.data()))
       .filter((member) => !member.adminAlertAt);
   } catch (error) {
