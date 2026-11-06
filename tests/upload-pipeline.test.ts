@@ -124,3 +124,12 @@ describe("signup cannot be blocked by storage", () => {
     expect(modal).toContain("Documents promised on WhatsApp");
   });
 });
+
+describe("production can be asked which build it is", () => {
+  const health = read("src/app/api/health/route.ts");
+
+  it("reports the commit Vercel deployed", () => {
+    expect(health).toContain("VERCEL_GIT_COMMIT_SHA");
+    expect(health).toContain("build:");
+  });
+});

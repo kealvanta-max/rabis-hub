@@ -31,6 +31,9 @@ that page 404s from then on.
   504 or a rate limit is retried with a smaller body; a real rejection from
   Cloudinary is never retried. Every network failure is reported to Sentry with the
   attempt number and the byte size.
+- **You can ask production which build it is running.** \`/api/health\` now reports
+  \`build\`, the short commit Vercel deployed. "Is the fix actually live?" is one
+  request instead of a screenshot and an argument.
 - **Failures now name their cause.** If the browser hands back an error with no
   message, the error's name goes into the sentence the member sees and into the
   report, and the face step prints its reason in small text under the fallback.
