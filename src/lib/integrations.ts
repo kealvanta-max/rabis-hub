@@ -10,6 +10,8 @@
  * Used by `/api/health`, `npm run check:env` and the docs.
  */
 
+import { GOOGLE_SITE_VERIFICATION } from "@/lib/site";
+
 export type IntegrationCategory =
   | "auth"
   | "media"
@@ -29,6 +31,12 @@ export interface IntegrationSpec {
   anyOf?: string[][];
   /** Exposed to the browser by design — never a secret. */
   publicKeys?: string[];
+  /**
+   * Values committed in the source tree. A variable listed here counts as
+   * configured even when the deployment's environment holds nothing, because the
+   * value ships with the build. Never put a secret here.
+   */
+  defaults?: Record<string, string>;
   /** What actually breaks for a member when this is missing. */
   impact: string;
   /** Where a human gets the value. */
@@ -60,7 +68,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
   },
   {
     id: "firebase-admin",
-    label: "Firebase Admin (token minting, admin setup)",
+    label: "Firebase Admin SDK (owner claim setup)",
     category: "auth",
     required: ["FIREBASE_SERVICE_ACCOUNT_KEY"],
     impact:
@@ -120,6 +128,11 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     category: "seo",
     required: ["NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION"],
     publicKeys: ["NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION"],
+    // The token is committed in `src/lib/site.ts` on purpose, so every
+    // deployment of this repo carries it. Reporting it "missing" just because a
+    // dashboard field is empty would send Rabi chasing a problem she does not
+    // have.
+    defaults: { NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: GOOGLE_SITE_VERIFICATION },
     impact: "The site is not verified with Google, so indexing cannot be requested or monitored.",
     source: "search.google.com/search-console → URL prefix → HTML tag",
   },
@@ -146,16 +159,18 @@ export function evaluate(
   env: Record<string, string | undefined> = process.env
 ): IntegrationStatus {
   const missing: string[] = [];
+  const defaults = spec.defaults ?? {};
+  const available = (name: string): boolean => present(env, name) || present(defaults, name);
 
   for (const name of spec.required ?? []) {
-    if (!present(env, name)) missing.push(name);
+    if (!available(name)) missing.push(name);
   }
 
   // `anyOf` groups model provider fallbacks: the integration still works if one
   // whole group is satisfied (e.g. Resend OR Gmail OR Brevo).
   let anyGroupSatisfied = !spec.anyOf || spec.anyOf.length === 0;
   if (spec.anyOf && spec.anyOf.length > 0) {
-    anyGroupSatisfied = spec.anyOf.some((group) => group.every((name) => present(env, name)));
+    anyGroupSatisfied = spec.anyOf.some((group) => group.every((name) => available(name)));
   }
 
   return {

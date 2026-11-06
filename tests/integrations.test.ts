@@ -29,12 +29,21 @@ describe("integrations registry", () => {
     }
   });
 
-  it("is unconfigured on an empty environment", () => {
+  it("is unconfigured on an empty environment, apart from committed tokens", () => {
     const status = integrationStatus({});
-    expect(status.every((s) => !s.configured)).toBe(true);
+    const envDriven = status.filter((s) => s.id !== "search-console");
+    expect(envDriven.every((s) => !s.configured)).toBe(true);
     expect(status.find((s) => s.id === "firebase")?.missing).toContain(
       "NEXT_PUBLIC_FIREBASE_API_KEY"
     );
+  });
+
+  it("counts a value committed in the source as configured", () => {
+    const spec = INTEGRATIONS.find((i) => i.id === "search-console")!;
+    const status = evaluate(spec, {});
+    expect(status.configured).toBe(true);
+    expect(status.missing).toEqual([]);
+    expect(spec.defaults?.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION).toBeTruthy();
   });
 
   it("reports firebase as configured when the four public values exist", () => {
