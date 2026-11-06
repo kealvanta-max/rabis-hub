@@ -68,17 +68,6 @@ export default function AdminPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [alertingPending, setAlertingPending] = useState(false);
-  const [checkingStorage, setCheckingStorage] = useState(false);
-  const [storageCheck, setStorageCheck] = useState<{
-    ok: boolean;
-    message: string;
-    stage?: string;
-    httpStatus?: number;
-    cloudinaryMessage?: string;
-    config?: Record<string, unknown>;
-    image?: { authAccepted: boolean; httpStatus: number | null; message: string };
-    video?: { authAccepted: boolean; httpStatus: number | null; message: string };
-  } | null>(null);
   const [health, setHealth] = useState<{
     cloudinaryConfigured: boolean;
     emailProvider: string | null;
@@ -141,46 +130,6 @@ export default function AdminPage() {
       .then((data) => data && setHealth(data))
       .catch(() => setHealth(null));
   }, [isAdmin]);
-
-  /** Record money Rabi has received. Members can read it; only admins write it. */
-  const recordContribution = async (userId: string, amount: number) => {
-    const member = users.find((entry) => entry.id === userId);
-    if (!member) return;
-    const today = new Date().toISOString().slice(0, 10);
-    const contributions = [
-      ...(Array.isArray(member.contributions) ? member.contributions : []),
-      { date: today, amount },
-    ];
-    setUsers((previous) =>
-      previous.map((entry) => (entry.id === userId ? { ...entry, contributions } : entry))
-    );
-    try {
-      await updateDoc(doc(db, "users", userId), { contributions });
-      addToast(`GH₵${amount} recorded for ${member.name?.split(" ")[0] || "member"}.`, "success");
-    } catch {
-      addToast("Could not save that payment.", "error");
-      setUsers((previous) =>
-        previous.map((entry) =>
-          entry.id === userId ? { ...entry, contributions: member.contributions } : entry
-        )
-      );
-    }
-  };
-
-  const removeContribution = async (userId: string, index: number) => {
-    const member = users.find((entry) => entry.id === userId);
-    if (!member) return;
-    const contributions = (member.contributions ?? []).filter((_, position) => position !== index);
-    try {
-      await updateDoc(doc(db, "users", userId), { contributions });
-      setUsers((previous) =>
-        previous.map((entry) => (entry.id === userId ? { ...entry, contributions } : entry))
-      );
-      addToast("Payment removed.", "success");
-    } catch {
-      addToast("Could not remove that payment.", "error");
-    }
-  };
 
   const setStatus = async (userId: string, status: "approved" | "rejected" | "pending", reason?: string) => {
     track(status === "approved" ? "admin_approved" : status === "rejected" ? "admin_rejected" : "admin_reset", {
@@ -359,38 +308,6 @@ export default function AdminPage() {
     }
   };
 
-  /**
-   * Uploads one tiny test image through the same route members use and prints
-   * Cloudinary's own verdict. Rabi runs this from her phone instead of relaying
-   * "upload failed" to someone who cannot see her dashboard.
-   */
-  const runStorageCheck = async () => {
-    setCheckingStorage(true);
-    setStorageCheck(null);
-    try {
-      const token = user ? await user.getIdToken() : null;
-      const response = await fetch("/api/upload/diagnose", {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      const data = await response.json().catch(() => ({}));
-      setStorageCheck({
-        ok: Boolean(data.ok),
-        message: data.message || "No answer from the server.",
-        stage: data.stage,
-        httpStatus: data.httpStatus,
-        cloudinaryMessage: data.cloudinaryMessage,
-        config: data.config,
-        image: data.image,
-        video: data.video,
-      });
-    } catch {
-      setStorageCheck({ ok: false, message: "The check itself failed. Try again in a moment." });
-    } finally {
-      setCheckingStorage(false);
-    }
-  };
-
   const saveWaLinks = async () => {
     try {
       await setDoc(doc(db, "settings", "waLinks"), waLinks);
@@ -566,72 +483,6 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/*
-            * Photo storage self-test. Collapsed by default so it never competes
-            * with the work, one tap when photos will not upload.
-            */}
-          <details className="glass glass-sheen mb-6 rounded-2xl border border-white/10 px-4 py-3">
-            <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.14em] text-gray-400">
-              Photo storage check
-            </summary>
-            <div className="mt-3 space-y-3">
-              <p className="max-w-prose text-sm leading-relaxed text-gray-300">
-                Sends one tiny test image to Cloudinary the same way a member&apos;s Ghana Card is sent,
-                then reports exactly what came back.
-              </p>
-              <Button onClick={runStorageCheck} loading={checkingStorage} disabled={checkingStorage} size="sm">
-                Run the check
-              </Button>
-
-              {storageCheck && (
-                <div
-                  className={`rounded-xl p-3 text-xs leading-relaxed ring-1 ring-inset ${
-                    storageCheck.ok
-                      ? "bg-emerald-500/[0.08] text-emerald-200 ring-emerald-500/25"
-                      : "bg-red-500/[0.08] text-red-200 ring-red-500/25"
-                  }`}
-                >
-                  <p className="font-semibold">{storageCheck.ok ? "Storage is working" : "Storage is failing"}</p>
-                  <p className="mt-1 break-words">{storageCheck.message}</p>
-                  {typeof storageCheck.cloudinaryMessage === "string" && (
-                    <p className="mt-1 break-words text-[11px] opacity-80">
-                      Cloudinary said: {storageCheck.cloudinaryMessage}
-                    </p>
-                  )}
-                  {storageCheck.config && (
-                    <p className="mt-1 break-all text-[11px] opacity-70">
-                      cloud name {String(storageCheck.config.cloudName || "empty")}, key{" "}
-                      {String(storageCheck.config.hasApiKey ? `present (${storageCheck.config.apiKeyLength} chars)` : "missing")},
-                      secret{" "}
-                      {String(storageCheck.config.hasApiSecret ? `present (${storageCheck.config.apiSecretLength} chars)` : "missing")}
-                    </p>
-                  )}
-                  {storageCheck.image && (
-                    <p className="mt-1 text-[11px] opacity-80">
-                      Photos: {storageCheck.image.authAccepted ? "key accepted" : "key refused"}
-                      {storageCheck.image.httpStatus ? ` (HTTP ${storageCheck.image.httpStatus})` : ""}
-                    </p>
-                  )}
-                  {storageCheck.video && (
-                    <p className="mt-0.5 text-[11px] opacity-80">
-                      Face clips: {storageCheck.video.authAccepted ? "key accepted" : "key refused"}
-                      {storageCheck.video.httpStatus ? ` (HTTP ${storageCheck.video.httpStatus})` : ""}
-                    </p>
-                  )}
-                  {!storageCheck.ok && storageCheck.image?.message && (
-                    <p className="mt-1 break-words text-[11px] opacity-80">
-                      Photo endpoint said: {storageCheck.image.message}
-                    </p>
-                  )}
-                  {!storageCheck.ok && storageCheck.video?.message && (
-                    <p className="mt-0.5 break-words text-[11px] opacity-80">
-                      Video endpoint said: {storageCheck.video.message}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </details>
 
           {/* Header — sans display face on purpose: this is an operations screen,
               not a marketing page, so the serif voice stays on the public site. */}
@@ -691,11 +542,40 @@ export default function AdminPage() {
                       variant="primary"
                       size="md"
                       onClick={() => {
+                        /*
+                         * This used to switch the tab and set a filter, which on a
+                         * phone looked like nothing happened: the list changes
+                         * further down the page, out of sight. It opens the review
+                         * sheet for the next application now, which is what the
+                         * button promised.
+                         */
+                        const next = pendingMembers[0];
+                        if (next) {
+                          setSelectedUser(next);
+                          return;
+                        }
                         setActiveTab("users");
                         setFilter("pending");
                       }}
                     >
-                      Review pending
+                      {pendingMembers.length === 1
+                        ? `Review ${pendingMembers[0]?.name?.trim().split(/\s+/)[0] || "application"}`
+                        : `Review next (${stats.pending})`}
+                    </ActionButton>
+                    <ActionButton
+                      variant="neutral"
+                      size="md"
+                      onClick={() => {
+                        setActiveTab("users");
+                        setFilter("pending");
+                        requestAnimationFrame(() => {
+                          document
+                            .getElementById("admin-panel-users")
+                            ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                        });
+                      }}
+                    >
+                      See all pending
                     </ActionButton>
                     <ActionButton
                       variant="neutral"
@@ -1061,12 +941,6 @@ export default function AdminPage() {
             .then(() => addToast("GPS copied", "success"))
             .catch(() => addToast("Could not copy GPS", "error"));
         }}
-        onRecordContribution={(amount) =>
-          selectedUser ? recordContribution(selectedUser.id, amount) : Promise.resolve()
-        }
-        onRemoveContribution={(index) =>
-          selectedUser ? removeContribution(selectedUser.id, index) : Promise.resolve()
-        }
         onDelete={() => {
           if (selectedUser) void deleteMember(selectedUser);
         }}

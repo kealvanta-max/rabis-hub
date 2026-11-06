@@ -54,7 +54,9 @@ export default function ActionButton({
       disabled={disabled || loading}
       className={cn(
         "inline-flex items-center justify-center whitespace-nowrap font-semibold",
-        "transition-colors duration-150 outline-none",
+        // Press feedback is what makes a button feel physical on a phone.
+        "transition-[background-color,transform,box-shadow,opacity] duration-150 outline-none",
+        "active:scale-[0.97]",
         "focus-visible:ring-2 focus-visible:ring-emerald-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#04150c]",
         "disabled:cursor-not-allowed disabled:opacity-50",
         variants[variant],

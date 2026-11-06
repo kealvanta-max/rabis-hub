@@ -126,8 +126,13 @@ describe("selfie", () => {
     expect(evaluateSelfie({ faceCount: 1, areaRatio: 0.01, confidence: 0.8 }).status).toBe("rejected");
   });
 
-  it("falls back to manual review when the detector is unavailable", () => {
-    expect(evaluateSelfie({ faceCount: 0, areaRatio: 0, confidence: 0 }, true).status).toBe("review");
+  it("refuses a photo the detector could not check, instead of passing it on", () => {
+    // Fail closed. An unrun check used to hand the photo to a human, which is
+    // how a photo of a dog reached the review queue.
+    const verdict = evaluateSelfie({ faceCount: 0, areaRatio: 0, confidence: 0 }, true);
+    expect(verdict.status).toBe("rejected");
+    expect(verdict.reasons).toContain("detector-unavailable");
+    expect(verdict.message.toLowerCase()).toContain("again");
   });
 });
 
