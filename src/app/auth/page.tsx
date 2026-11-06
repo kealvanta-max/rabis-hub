@@ -21,6 +21,7 @@ import { useCustomPlans } from "@/hooks/use-custom-plans";
 import { track } from "@/lib/analytics";
 import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
+import ErrorBoundary from "@/components/ui/error-boundary";
 import ImageUpload from "@/components/ui/image-upload";
 import PlanPicker from "@/components/ui/plan-picker";
 import { isDuplicateImage, type DocVerdict } from "@/lib/kyc-verification";
@@ -562,14 +563,45 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             </p>
           </div>
 
-          <FaceScan
-            onComplete={handleFaceScanComplete}
-            onManualReview={() => {
-              setLivenessMode("manual_review");
-              update("faceScanVideo", "");
-              addToast("No problem, Rabi will verify you manually.", "info");
-            }}
-          />
+          {/*
+            The camera, the WebGL panel and the face model all live inside this
+            step, and any of them can fail on a real phone: no camera permission,
+            no WebGL2, too many tabs holding a GPU context, a chunk that will not
+            download on 3G. Letting that unwind to the app error page threw away a
+            form the member had already filled in, so the step degrades to manual
+            review instead and the signup keeps moving.
+          */}
+          <ErrorBoundary
+            label="face-scan"
+            fallback={
+              <div className="glass-soft space-y-3 rounded-2xl p-5 text-center">
+                <p className="text-sm font-semibold text-white">The camera check could not open on this phone</p>
+                <p className="text-[11px] leading-relaxed text-gray-400">
+                  Your documents are safe and nothing is lost. Rabi will verify you manually on WhatsApp, and you
+                  can finish the rest of the signup right now.
+                </p>
+                <Button
+                  onClick={() => {
+                    setLivenessMode("manual_review");
+                    update("faceScanVideo", "");
+                    addToast("No problem, Rabi will verify you manually.", "info");
+                  }}
+                  className="w-full"
+                >
+                  Continue with manual review
+                </Button>
+              </div>
+            }
+          >
+            <FaceScan
+              onComplete={handleFaceScanComplete}
+              onManualReview={() => {
+                setLivenessMode("manual_review");
+                update("faceScanVideo", "");
+                addToast("No problem, Rabi will verify you manually.", "info");
+              }}
+            />
+          </ErrorBoundary>
 
           {livenessMode === "manual_review" && (
             <p className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-200">

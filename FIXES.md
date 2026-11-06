@@ -1,5 +1,40 @@
 # Beta fix pass — what was broken and what changed
 
+## 🧯 The face step took the whole signup down with it
+
+Step three showed "Something went wrong" before the member could even tap, and the
+app error page had no idea what she had already typed into step one and two.
+
+The step mounts three things we do not own: a WebGL scene, a glasses shader and a
+face model. Three separate ways for them to fail on a phone, and every one of them
+unwound React to the root boundary.
+
+- **A fetched light rig is gone.** drei's `Environment preset="city"` downloads an
+  HDR file from a CDN at runtime. On mobile data that fetch fails, the Suspense
+  inside the Canvas rejects, and the rejection reaches the app boundary. The scene
+  is now lit by plain directional and point lights, so nothing at render time
+  touches the network.
+- **WebGL2 or nothing.** three no longer ships a WebGL1 renderer, but the guard
+  accepted `webgl`. A phone with only WebGL1 therefore got a Canvas that threw on
+  mount. The guard now asks for WebGL2 and falls back to a static glow.
+- **The decoration is optional.** three, fiber and drei are roughly 600 KB and were
+  on the critical path of the step that opens the camera. They are now a separate
+  lazy chunk with a plain tap target underneath, so the camera opens whether the
+  chunk arrives or not.
+- **Nothing can reach the root boundary from this step.** `src/components/ui/error-boundary.tsx`
+  catches render failures, logs them, reports them to Sentry, and renders the
+  fallback in place. The face step falls back to **Continue with manual review**,
+  which keeps the filled form and moves the member forward.
+- **A blocked-storage browser no longer blanks the site.** The root layout read
+  `localStorage` for the language preference with no guard. Chrome with site data
+  blocked, and Safari in private mode, throw a SecurityError on the property
+  itself, so every route died. The read is guarded and a dictionary chunk that
+  fails to download now leaves English on screen instead of an error page.
+- **Stuck members get a human.** The app error page now offers a WhatsApp link
+  straight to Rabi.
+
+**Gates:** `tsc` ✅ · lint ✅ · **188 tests** ✅ · build ✅
+
 ## 🚦 The upload limit belonged to the tower, not the member
 
 Storage works. What the owner then met was our own counter: "too many attempts

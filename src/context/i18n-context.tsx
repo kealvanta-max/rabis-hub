@@ -32,12 +32,29 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [dict, setDict] = useState<Dict>(en);
 
   useEffect(() => {
-    const saved = (typeof window !== "undefined" && localStorage.getItem("rabi-lang")) as Locale | null;
-    if (saved && dictionaries[saved]) {
-      setLocaleState(saved);
-      document.documentElement.lang = saved;
-      dictionaries[saved]().then(setDict);
+    /*
+     * Reading localStorage can throw outright, not just return null: Chrome with
+     * site data blocked and Safari in private mode both raise a SecurityError on
+     * the property itself. This effect sits in the root layout, so an unguarded
+     * read took down every page in the app with "Something went wrong" and no clue
+     * why. A language preference is not worth a blank screen.
+     */
+    let saved: Locale | null = null;
+    try {
+      saved = (window.localStorage.getItem("rabi-lang") as Locale | null) ?? null;
+    } catch {
+      saved = null;
     }
+
+    if (!saved || !dictionaries[saved]) return;
+
+    setLocaleState(saved);
+    document.documentElement.lang = saved;
+    dictionaries[saved]()
+      .then(setDict)
+      .catch(() => {
+        /* the dictionary chunk failed to load: English stays on screen */
+      });
   }, []);
 
   const setLocale = useCallback((newLocale: Locale) => {
@@ -50,7 +67,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     if (typeof document !== "undefined") {
       document.documentElement.lang = newLocale;
     }
-    dictionaries[newLocale]().then(setDict);
+    dictionaries[newLocale]()
+      .then(setDict)
+      .catch(() => {
+        /* keep the current dictionary rather than blanking the UI */
+      });
   }, []);
 
   return (
