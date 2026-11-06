@@ -15,6 +15,7 @@ import {
   type DocVerdict,
 } from "@/lib/kyc-verification";
 import { cn } from "@/lib/utils";
+import { sniffFileKind } from "@/lib/file-kind";
 import ImageCropper from "@/components/ui/image-cropper";
 
 export type VerifyMode = "id-front" | "id-back" | "selfie";
@@ -79,14 +80,23 @@ export default function ImageUpload({
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  /** Validates the pick, then hands it to the cropper. */
-  const handleFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
+  /**
+   * Validates the pick, then hands it to the cropper.
+   *
+   * The check reads the first bytes instead of trusting `file.type`: Android
+   * hands back an empty type for some gallery picks and labels HEIC files as
+   * JPEG, so the old string test refused real photos of real Ghana Cards.
+   */
+  const handleFile = async (file: File) => {
+    const head = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+    const looksLikeImage = sniffFileKind(head) === "image" || file.type.startsWith("image/");
+
+    if (!looksLikeImage) {
       setError("Please choose a photo (JPG, PNG or HEIC).");
       return;
     }
-    if (file.size > 12 * 1024 * 1024) {
-      setError("That photo is larger than 12 MB. Take a new one or compress it first.");
+    if (file.size > 30 * 1024 * 1024) {
+      setError("That photo is unusually large. Take a new one and try again.");
       return;
     }
     setError(null);
@@ -186,7 +196,13 @@ export default function ImageUpload({
       onVerdict?.(nextVerdict, fingerprint.hash);
     } catch (uploadError) {
       console.error("Upload failed:", uploadError);
-      setError("Upload failed. Check your connection and try again.");
+      // Show what actually went wrong. A generic "check your connection" hides
+      // key mismatches, size limits and rate limits, which are the real causes.
+      setError(
+        uploadError instanceof Error && uploadError.message
+          ? uploadError.message
+          : "Upload failed. Check your connection and try again."
+      );
     } finally {
       setBusy(false);
       setStage("");
@@ -298,7 +314,7 @@ export default function ImageUpload({
             disabled={busy}
             onChange={(event) => {
               const file = event.target.files?.[0];
-              if (file) handleFile(file);
+              if (file) void handleFile(file);
               event.currentTarget.value = "";
             }}
           />

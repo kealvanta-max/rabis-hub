@@ -212,6 +212,38 @@ export default function AdminPage() {
     }
   };
 
+  /**
+   * Permanently removes a member record.
+   *
+   * Test rows and "please forget me" requests both end here, so the confirmation
+   * spells out what survives (the Firebase Auth login) instead of pretending the
+   * whole account disappears.
+   */
+  const deleteMember = async (member: UserItem) => {
+    const label = member.name || member.email || "this member";
+    const confirmed = window.confirm(
+      `Delete ${label} permanently?\n\nThe application, documents and payment history are removed. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteDoc(doc(db, "users", member.id));
+      setUsers((prev) => prev.filter((entry) => entry.id !== member.id));
+      setSelectedUser(null);
+      addToast(`${label} deleted.`, "success");
+      track("admin_deleted_member", { userId: member.id });
+    } catch (error) {
+      console.error("Delete member failed:", error);
+      const code = (error as { code?: string }).code;
+      addToast(
+        code === "permission-denied"
+          ? "Firestore refused the delete. Confirm your owner email first, see the banner above."
+          : "Could not delete that member. Try again.",
+        "error"
+      );
+    }
+  };
+
   const saveWaLinks = async () => {
     try {
       await setDoc(doc(db, "settings", "waLinks"), waLinks);
@@ -759,6 +791,9 @@ export default function AdminPage() {
         onRemoveContribution={(index) =>
           selectedUser ? removeContribution(selectedUser.id, index) : Promise.resolve()
         }
+        onDelete={() => {
+          if (selectedUser) void deleteMember(selectedUser);
+        }}
       />
 
       {/* Rejection reason — the member receives this verbatim by email */}

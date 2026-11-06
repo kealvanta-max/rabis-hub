@@ -72,9 +72,6 @@ const RULES = {
   NEXT_PUBLIC_POSTHOG_KEY: { required: false, test: (v) => v.startsWith("phc_"), hint: "starts with phc_" },
   NEXT_PUBLIC_POSTHOG_HOST: { required: false, test: (v) => v.startsWith("https://") },
   SENTRY_DSN: { required: false, test: (v) => /^https:\/\/[0-9a-f]+@/.test(v), hint: "https://<key>@o0.ingest.sentry.io/1" },
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: { required: false, test: (v) => v.startsWith("pk_"), hint: "starts with pk_test_ or pk_live_" },
-  CLERK_SECRET_KEY: { required: false, test: (v) => v.startsWith("sk_"), hint: "starts with sk_test_ or sk_live_" },
-  CLERK_JWT_ISSUER_DOMAIN: { required: false, test: (v) => v.startsWith("https://"), hint: "https://your-app.clerk.accounts.dev" },
   NEXT_PUBLIC_SITE_URL: { required: false, test: (v) => v.startsWith("https://") },
   NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: { required: false, test: (v) => v.length > 10 },
 };

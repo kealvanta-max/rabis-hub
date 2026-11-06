@@ -1,5 +1,47 @@
 # Beta fix pass — what was broken and what changed
 
+## 📸 Signup uploads work again, and the owner gets a clean panel
+
+Branch: `arena/e15b02bc-rabis-hub`.
+
+### KYC photos failed on every real signup, and the message lied
+Uploads moved to a signed server route earlier, and that route required a
+Firebase ID token. Signup photographs the Ghana Card on step two, before the
+account is created, so there was no token and all three documents failed with
+"Upload failed. Check your connection and try again." The connection was never
+the problem.
+
+Now: the route accepts signup uploads with a tighter per-address budget (40 an
+hour, sized for carrier-grade NAT where many members share one address), the file
+type is decided from the bytes instead of the phone's label, and the real reason
+is shown on screen. A Cloudinary key that belongs to a different cloud name says
+so, in words, instead of blaming the network.
+
+### Photos are shrunk before they leave the phone
+A camera still can be 6 MB, and Vercel refuses request bodies over 4.5 MB before
+the route runs. Images are now re-encoded to 1600px JPEG on the device, with the
+original kept if anything goes wrong.
+
+### Liveness clips upload as video
+The face clip is WebM, but the route only accepted images, so the liveness step
+always fell back to manual review. Video now goes to Cloudinary's video endpoint.
+
+### The Hub tab is gone for the owner
+Rabi has no member record, so "Hub" only ever bounced her back to the panel. The
+dock hides it for admins; Admin takes its place.
+
+### Members can finally be deleted
+"Delete this member" sits at the bottom of the review sheet, away from the
+approve and reject buttons, behind a confirmation that says exactly what is
+removed. This is how the test rows go before handover.
+
+### The Cloudinary account from the working days is back
+`doxcv1qkm` with its own key and secret, in `.env.local` and in Vercel. Cloud
+name, key and secret must come from one account; mixing them is what produces
+"Invalid Signature" on every upload.
+
+**Gates:** `tsc` ✅ · lint ✅ · **168 tests** ✅ · build ✅
+
 ## 🔑 One Firebase account, no Clerk, owner access restored
 
 Branch: `arena/664f57db-rabis-hub`.

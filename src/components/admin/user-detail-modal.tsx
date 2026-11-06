@@ -35,6 +35,8 @@ interface UserDetailModalProps {
   /** Rabi records money she has actually received — no gateway involved. */
   onRecordContribution: (amount: number) => Promise<void> | void;
   onRemoveContribution: (index: number) => Promise<void> | void;
+  /** Clears a test row, or a person who asked to be forgotten. Asks first. */
+  onDelete: () => void;
 }
 
 function DataRow({
@@ -86,6 +88,7 @@ export default function UserDetailModal({
   onCopyGps,
   onRecordContribution,
   onRemoveContribution,
+  onDelete,
 }: UserDetailModalProps) {
   // Hooks first, unconditionally — the component returns early without a user.
   const [contribution, setContribution] = useState("");
@@ -402,6 +405,26 @@ export default function UserDetailModal({
             Reject…
           </ActionButton>
         )}
+      </div>
+
+      {/*
+       * Deletion lives apart from the decisions above, in its own bordered block,
+       * so a thumb reaching for "Reject" cannot land on it. This is the control
+       * Rabi uses to clear test rows before handing the panel over.
+       */}
+      <div className="mt-4 border-t border-white/[0.08] pt-4">
+        <button
+          type="button"
+          onClick={onDelete}
+          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-red-300/90 transition-colors hover:bg-red-500/10 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/60"
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+          Delete this member
+        </button>
+        <p className="mt-1.5 max-w-prose text-[11px] leading-relaxed text-gray-500">
+          Removes the application, the document links and the payment history for good. Their
+          login still exists in Firebase Auth, so delete it there too if this was a test account.
+        </p>
       </div>
     </Modal>
   );
