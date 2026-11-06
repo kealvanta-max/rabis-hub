@@ -45,17 +45,26 @@ export async function POST(request: Request) {
   const actor = await authenticateRequest(request);
 
   /*
-   * Ghanaian mobile networks sit behind carrier-grade NAT, so dozens of real
-   * members can share one address. The anonymous budget is therefore generous
-   * enough for ten signups (four artefacts each) per hour per address, not three.
+   * The budget has to survive a broken credential, not just abuse.
+   *
+   * A member retrying three documents while storage is misconfigured used to burn
+   * a 40-an-hour allowance in minutes and then get locked out by a message about
+   * "too many uploads", which is a second, unrelated wall in front of the real
+   * error. The ceiling is now high enough for a whole class of retries, while
+   * still stopping a script. Carrier-grade NAT means many real members share one
+   * address, so the anonymous number is deliberately not tight.
    */
   const limit = actor
-    ? await rateLimit(`upload:${actor.uid}`, 30, 300)
-    : await rateLimit(`upload:ip:${clientIp(request)}`, 40, 3600);
+    ? await rateLimit(`upload:${actor.uid}`, 90, 300)
+    : await rateLimit(`upload:ip:${clientIp(request)}`, 150, 3600);
 
   if (!limit.success) {
     return NextResponse.json(
-      { error: "Too many uploads from this connection. Please wait a moment and try again." },
+      {
+        error:
+          "Too many upload attempts from this connection in the last hour. Wait a few minutes, or send your documents to Rabi on WhatsApp.",
+        code: "rate-limited",
+      },
       { status: 429 }
     );
   }
@@ -67,7 +76,7 @@ export async function POST(request: Request) {
   if (!cloudName) {
     console.error("[upload] NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME is missing.");
     return NextResponse.json(
-      { error: "Uploads are not configured yet. Please contact support." },
+      { error: "Uploads are not configured yet. Please contact support.", code: "no-cloud-name" },
       { status: 503 }
     );
   }
@@ -83,7 +92,7 @@ export async function POST(request: Request) {
   if (!signed && !preset) {
     console.error("[upload] Cloudinary signing is not configured (API key/secret or preset missing).");
     return NextResponse.json(
-      { error: "Uploads are not configured yet. Please contact support." },
+      { error: "Uploads are not configured yet. Please contact support.", code: "no-credentials" },
       { status: 503 }
     );
   }
@@ -129,10 +138,14 @@ export async function POST(request: Request) {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const params: Record<string, string> = { folder: UPLOAD_FOLDER, timestamp };
 
-  // An incoming transformation hard-caps what can be stored: a 4000px original
-  // is re-encoded to a 1600px, quality-80 asset before Cloudinary keeps it.
-  // Video is left alone because audio must survive the face check.
-  if (kind === "image") params.transformation = "c_limit,w_1600,q_80";
+  /*
+   * No upload-time transformation on purpose.
+   *
+   * The device already re-encodes photos to 1600px JPEG before they are sent, so
+   * a transformation here bought nothing, and older Cloudinary accounts can
+   * reject it when strict transformations are switched on. Fewer signed
+   * parameters means fewer ways for a perfectly good credential to fail.
+   */
 
   const body = new FormData();
   body.append("file", file);
@@ -160,7 +173,10 @@ export async function POST(request: Request) {
     if (!response.ok || !data.secure_url) {
       const reason = data.error?.message;
       console.error(`[upload] Cloudinary rejected the ${kind} (${response.status}):`, reason);
-      return NextResponse.json({ error: explainCloudinaryError(reason) }, { status: 502 });
+      return NextResponse.json(
+        { error: explainCloudinaryError(reason), code: "cloudinary-rejected" },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({ secure_url: data.secure_url });

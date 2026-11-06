@@ -188,6 +188,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const { addToast } = useToastContext();
   const { status: gpsStatus, gpsData, error: gpsError, requestLocation } = useGeolocation();
   const [step, setStep] = useState(1);
+  /*
+   * Storage can fail for reasons that are nobody's fault on this phone: a
+   * misconfigured key, a Cloudinary account over quota, a blocked network. A
+   * member must never be trapped at step two because of it, so one failed upload
+   * unlocks a WhatsApp handover path that Rabi can finish herself.
+   */
+  const [uploadFailures, setUploadFailures] = useState(0);
+  const [sendDocsOnWhatsApp, setSendDocsOnWhatsApp] = useState(false);
 
   // Signup funnel — the admin Insights tab and PostHog both read this.
   useEffect(() => {
@@ -251,8 +259,13 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const backReady = Boolean(form.ghanaCardBack) && docVerdicts.back?.status !== "rejected";
   const selfieReady = Boolean(form.passportPhoto) && docVerdicts.selfie?.status !== "rejected";
 
+  const documentsReady = frontReady && backReady && selfieReady;
+  const documentsDeferred = uploadFailures > 0 && sendDocsOnWhatsApp;
   const canStep3 = Boolean(
-    form.ghanaCardNumber && form.ghanaCardValid && frontReady && backReady && selfieReady && !duplicateDocs
+    form.ghanaCardNumber &&
+      form.ghanaCardValid &&
+      !duplicateDocs &&
+      (documentsReady || documentsDeferred)
   );
   const canStep4 = Boolean(form.faceScanVideo) || livenessMode === "manual_review";
   const canStep5 = gpsStatus === "success";
@@ -296,6 +309,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         gpsLng: gpsData?.lng || 0,
         gpsAddress: gpsData?.address || "",
         ghanaCardOcrResult: form.ghanaCardOcrResult || "",
+        documentsDeferred: documentsDeferred,
         status: "pending",
         whatsappLink: "",
         termsAccepted: true,
@@ -432,6 +446,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             declaredCardNumber={form.ghanaCardNumber || ""}
             hint="Lay the card flat on a table, all four corners inside the frame, no glare."
             onUpload={(url) => update("ghanaCardFront", url)}
+            onFailure={() => setUploadFailures((count) => count + 1)}
             onVerdict={(verdict, hash) => {
               setDocVerdicts((prev) => ({ ...prev, front: verdict }));
               setDocHashes((prev) => ({ ...prev, front: hash ?? null }));
@@ -446,6 +461,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             declaredCardNumber={form.ghanaCardNumber || ""}
             hint="Flip the card over, the barcode side. Keep the whole card in frame."
             onUpload={(url) => update("ghanaCardBack", url)}
+            onFailure={() => setUploadFailures((count) => count + 1)}
             onVerdict={(verdict, hash) => {
               setDocVerdicts((prev) => ({ ...prev, back: verdict }));
               setDocHashes((prev) => ({ ...prev, back: hash ?? null }));
@@ -458,6 +474,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             verify="selfie"
             hint="Head and shoulders, good light, only you in the photo."
             onUpload={(url) => update("passportPhoto", url)}
+            onFailure={() => setUploadFailures((count) => count + 1)}
             onVerdict={(verdict, hash) => {
               setDocVerdicts((prev) => ({ ...prev, selfie: verdict }));
               setDocHashes((prev) => ({ ...prev, selfie: hash ?? null }));
@@ -468,6 +485,28 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <p className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
               The same photo was used for more than one document. Upload a separate photo for each.
             </p>
+          )}
+
+          {uploadFailures > 0 && !documentsReady && (
+            <div className="rounded-xl border border-amber-500/35 bg-amber-500/[0.08] p-4">
+              <p className="text-sm font-semibold text-amber-200">Photos could not be uploaded</p>
+              <p className="mt-1 text-xs leading-relaxed text-amber-100/80">
+                We tried {uploadFailures === 1 ? "once" : `${uploadFailures} times`} and storage refused the file.
+                Nothing is wrong with your phone. You can still finish now and send the same photos to Rabi on
+                WhatsApp, she will attach them to your application herself.
+              </p>
+              <label className="mt-3 flex items-start gap-2.5 text-xs text-amber-100">
+                <input
+                  type="checkbox"
+                  checked={sendDocsOnWhatsApp}
+                  onChange={(event) => setSendDocsOnWhatsApp(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-black/40 accent-amber-400"
+                />
+                <span className="min-w-0">
+                  I will send my Ghana Card and selfie to Rabi on WhatsApp so she can verify me.
+                </span>
+              </label>
+            </div>
           )}
 
           <div className="glass-soft rounded-2xl p-4">

@@ -1,5 +1,35 @@
 # Beta fix pass — what was broken and what changed
 
+## 🔧 Storage stops being a black box
+
+Branch: `arena/bbb8231d-rabis-hub`.
+
+### The rate limit punished the retry, not the abuse
+Forty uploads an hour per address sounds reasonable until storage is misconfigured:
+three documents, a handful of retries, then a "too many uploads" wall in front of
+the real error. The attempt budget is now 150 an hour, which still stops a script
+and no longer locks out a person having a bad afternoon on carrier-grade NAT.
+
+### One less way for a good key to fail
+The signed request carried an upload-time transformation. The phone already
+re-encodes every photo to 1600px JPEG before sending, so the parameter bought
+nothing and older Cloudinary accounts can refuse it. It is gone.
+
+### The panel can now tell you what Cloudinary said
+`/admin` has a collapsed **Photo storage check**. One tap uploads a 1x1 test image
+with the same signing code members use, then prints the verdict: cloud name, whether
+the key and secret are present and how long they are, the HTTP status, and
+Cloudinary's own sentence. No value is ever shown or logged.
+
+### Storage failure can no longer block a signup
+If an upload fails, step two says plainly that the phone is fine, and offers the
+route that already exists in this business: send the same photos to Rabi on
+WhatsApp. The member ticks one box, finishes registration, and the application is
+flagged **Documents promised on WhatsApp** so she knows to collect them before
+approving.
+
+**Gates:** `tsc` ✅ · lint ✅ · **175 tests** ✅ · build ✅
+
 ## 📸 Signup uploads work again, and the owner gets a clean panel
 
 Branch: `arena/e15b02bc-rabis-hub`.
