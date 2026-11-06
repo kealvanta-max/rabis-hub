@@ -35,6 +35,15 @@ export async function GET() {
         missing,
       })),
       criticalGaps: gaps,
+      /*
+       * Which build is answering.
+       *
+       * "Is production actually on the fix?" cost us a whole evening of guessing
+       * while the deploy was quietly behind. Vercel sets this on every deployment,
+       * so the answer is now one request away instead of a screenshot and an
+       * argument.
+       */
+      build: (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7) || "local",
       checkedAt: new Date().toISOString(),
     },
     { headers: { "Cache-Control": "no-store" } }
