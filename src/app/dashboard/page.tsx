@@ -13,13 +13,7 @@ import Badge from "@/components/ui/badge";
 import Card from "@/components/ui/card";
 import Button from "@/components/ui/button";
 import { getPlanLabel, planLabels } from "@/lib/plans-data";
-import { memberWhatsappLink, planReturnOf } from "@/lib/custom-plans";
-import {
-  contributionSummary,
-  humaniseLastContribution,
-  progressPercent,
-  remainingToTarget,
-} from "@/lib/savings";
+import { memberWhatsappLink } from "@/lib/custom-plans";
 import { useCustomPlans } from "@/hooks/use-custom-plans";
 import { track } from "@/lib/analytics";
 import { DashboardSkeleton } from "@/components/ui/skeleton";
@@ -34,7 +28,6 @@ import {
   Clock,
   RefreshCw,
   MessageCircle,
-  PiggyBank,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -61,11 +54,6 @@ function DashboardContent() {
     : userData?.plan
     ? [userData.plan]
     : [];
-  const savings = contributionSummary(userData?.contributions ?? []);
-  const primaryPlan = userPlans[0];
-  const planTarget = primaryPlan ? planReturnOf(primaryPlan, customPlans) : undefined;
-  const pct = progressPercent(savings.total, planTarget);
-  const remaining = remainingToTarget(savings.total, planTarget);
   const myGroupLink =
     userData?.whatsappLink || memberWhatsappLink(userPlans, customPlans, {});
 
@@ -159,7 +147,7 @@ function DashboardContent() {
             <p className="text-gray-400 text-sm">
               {isAdmin && !userData
                 ? "You are signed in as an operator account. Member tools live in the admin dashboard."
-                : "Manage your savings and track your progress."}
+                : "Manage your plans and your WhatsApp community."}
             </p>
           </div>
 
@@ -318,78 +306,11 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Savings tracking. Rabi records every payment she receives; the
-              member sees exactly what has landed and how far she has to go. */}
-          {userData && (
-            <div className="mb-10">
-              <section
-                aria-label="Savings progress"
-                className="glass rounded-2xl p-5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-300/80">
-                      Savings progress
-                    </p>
-                    <p className="mt-2 font-display text-3xl text-white">
-                      GH₵{savings.total.toLocaleString("en-GH")}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-400">
-                      {savings.count === 0
-                        ? "Rabi records each payment she receives"
-                        : `${savings.count} payment${savings.count === 1 ? "" : "s"} · ${humaniseLastContribution(savings.last)}`}
-                    </p>
-                  </div>
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-400/10 text-emerald-300">
-                    <PiggyBank className="h-5 w-5" aria-hidden="true" />
-                  </div>
-                </div>
-
-                {planTarget ? (
-                  <div className="mt-4">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-300 transition-all duration-500"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className="mt-2 flex items-baseline justify-between gap-2 text-[11px]">
-                      <span className="text-gray-400">{pct}% of GH₵{planTarget.toLocaleString("en-GH")}</span>
-                      <span className="text-emerald-300">
-                        {remaining === 0 ? "Target reached" : `GH₵${remaining?.toLocaleString("en-GH")} to go`}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-4 rounded-xl bg-white/[0.03] px-3 py-2 text-[11px] text-gray-400">
-                    Your plan has no fixed target, Rabi quotes your payout on WhatsApp.
-                  </p>
-                )}
-
-                <div className="mt-4 grid grid-cols-2 gap-3 text-[11px]">
-                  <div className="min-w-0 rounded-xl bg-black/25 px-3 py-2">
-                    <p className="text-gray-500">This month</p>
-                    <p className="mt-0.5 truncate text-sm font-semibold text-white">
-                      GH₵{savings.thisMonth.toLocaleString("en-GH")}
-                    </p>
-                  </div>
-                  <div className="min-w-0 rounded-xl bg-black/25 px-3 py-2">
-                    <p className="text-gray-500">Last 7 days</p>
-                    <p className="mt-0.5 truncate text-sm font-semibold text-white">
-                      GH₵{savings.lastWeek.toLocaleString("en-GH")}
-                    </p>
-                  </div>
-                </div>
-              </section>
-
-            </div>
-          )}
-
           {/* My Plans Section */}
           <div className="mb-12">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-                My Savings Hub
+                My Plans
                 <span className="text-xs bg-white/5 px-3 py-1 rounded-full text-gray-500 font-normal">{userPlans.length} Active</span>
               </h2>
               <Button variant="secondary" size="sm" onClick={() => router.push("/#plans")} className="gap-2">

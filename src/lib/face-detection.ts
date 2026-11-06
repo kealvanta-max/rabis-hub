@@ -135,33 +135,91 @@ function meshAreaRatio(landmarks: Landmark[]): number {
 }
 
 /**
+ * Longest edge handed to the face model.
+ *
+ * A modern phone photo is 4000 pixels wide. Decoding one of those and feeding it
+ * to the WebAssembly landmarker is what made the check fail on real handsets and
+ * then fall back to "an admin will review it", which is how a photo of a dog
+ * reached the review queue. The model only needs 1024 pixels to find a face, so
+ * the image is scaled down first. Smaller, faster, and it stops failing.
+ */
+const MAX_DETECT_EDGE = 1024;
+
+async function decodeForDetection(image: string | Blob): Promise<ImageBitmap> {
+  const source =
+    typeof image === "string"
+      ? await (async () => {
+          const response = await fetch(image, { mode: "cors" });
+          if (!response.ok) throw new Error(`Image fetch failed (${response.status})`);
+          return response.blob();
+        })()
+      : image;
+
+  const bitmap = await createImageBitmap(source);
+  const longestEdge = Math.max(bitmap.width, bitmap.height);
+
+  if (longestEdge <= MAX_DETECT_EDGE) return bitmap;
+
+  try {
+    const scale = MAX_DETECT_EDGE / longestEdge;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext("2d");
+    if (!context) return bitmap;
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    // Build the small copy BEFORE releasing the original. If this browser cannot
+    // turn a canvas into a bitmap, the full-size original is still usable, and
+    // returning a closed bitmap would throw for no reason.
+    const scaled = await createImageBitmap(canvas);
+    bitmap.close?.();
+    return scaled;
+  } catch {
+    // Downscaling is an optimisation, never a reason to fail the check.
+    return bitmap;
+  }
+}
+
+/**
  * Human-face gate for the KYC selfie.
  *
  * A plain face *detector* also fires on dogs, cats and mascots (a Labrador once
  * passed verification). The FaceLandmarker only produces a 468-point human mesh
- * for a real human face, so an animal now fails this check.
+ * for a real human face, so an animal fails the landmark test outright.
+ *
+ * Two rules make it hold up in the field:
+ *
+ * 1. the photo is downscaled before it reaches the model, so a big phone camera
+ *    cannot make the check run out of memory;
+ * 2. a failure is retried once with a freshly built landmarker, because the GPU
+ *    delegate sometimes refuses the first context on mid-range Android.
+ *
+ * If it still cannot run, the result is `isHuman: false`. The caller treats that
+ * as "not provable", which blocks the photo. It is never "probably fine".
  */
 export async function detectHumanFace(image: string | Blob): Promise<FaceDetectionResult> {
   let bitmap: ImageBitmap | null = null;
   try {
     const [landmarker, decoded] = await withTimeout(
-      Promise.all([
-        getLandmarker(),
-        (async () => {
-          if (typeof image === "string") {
-            const response = await fetch(image, { mode: "cors" });
-            if (!response.ok) throw new Error(`Image fetch failed (${response.status})`);
-            return createImageBitmap(await response.blob());
-          }
-          return createImageBitmap(image);
-        })(),
-      ]),
+      Promise.all([getLandmarker(), decodeForDetection(image)]),
       25000,
       "Face check"
     );
 
     bitmap = decoded;
-    const result = landmarker.detect(bitmap);
+    let result;
+    try {
+      result = landmarker.detect(bitmap);
+    } catch (firstError) {
+      // A dead GPU context throws once and works after a rebuild. Retry before
+      // giving up on the photo.
+      console.warn("Face check failed once, rebuilding the model:", (firstError as Error)?.message);
+      landmarkerInstance = null;
+      landmarkerPromise = null;
+      const retry = await withTimeout(getLandmarker(), 20000, "Face check retry");
+      result = retry.detect(bitmap);
+    }
     const meshes = (result.faceLandmarks ?? []).filter(
       (landmarks) => (landmarks?.length ?? 0) >= MIN_HUMAN_LANDMARKS
     );
@@ -182,17 +240,26 @@ export async function detectHumanFace(image: string | Blob): Promise<FaceDetecti
           : "Human face detected.",
     };
   } catch (error) {
-    console.error("Face check failed:", error);
-    // Technical failure (offline CDN, WebGL unavailable…). Don't block a real
-    // signup because of it — flag the photo for manual admin review instead.
+    // A phone that cannot run the model is a known condition, not a bug, and it
+    // must not look like an error in the console.
+    console.warn("Face check could not run:", (error as Error)?.message ?? error);
+    /*
+     * Fail CLOSED.
+     *
+     * This used to return isHuman: true with a note that an admin would review
+     * the photo, and that single line is how a dog reached the review queue: the
+     * check could not run, so the photo was accepted. An unprovable photo is not
+     * an acceptable photo. The member is asked to try again, and a real face
+     * passes on the second attempt now that the image is downscaled.
+     */
     return {
-      isHuman: true,
+      isHuman: false,
       faceCount: 0,
       areaRatio: 0,
       confidence: 0,
       skipped: true,
       message:
-        "The automatic face check could not run on this connection. Rabi will review your photo manually.",
+        "We could not confirm a face in that photo. Move somewhere brighter, check your connection and take the selfie again.",
     };
   } finally {
     bitmap?.close?.();

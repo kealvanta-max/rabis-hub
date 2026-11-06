@@ -415,10 +415,18 @@ select optgroup {
    SKELETON SHIMMER
    ========================================================================== */
 
+/*
+ * Loading placeholders.
+ *
+ * A soft base with a slow, wide highlight reads as "this is coming" rather than
+ * "this is broken". The sweep is deliberately slower than a spinner and eased,
+ * because a fast strobe feels like a fault light while a gentle one feels like
+ * progress, which is the whole point of a skeleton.
+ */
 .skeleton {
   position: relative;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.06);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.035));
   border-radius: 0.75rem;
 }
 
@@ -430,10 +438,11 @@ select optgroup {
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.09),
+    rgba(255, 255, 255, 0.10) 45%,
+    rgba(255, 255, 255, 0.05) 70%,
     transparent
   );
-  animation: skeleton-sweep 1.6s infinite;
+  animation: skeleton-sweep 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 @keyframes skeleton-sweep {
@@ -442,8 +451,28 @@ select optgroup {
   }
 }
 
+/* Content that replaces a skeleton eases in, so the swap is never a jolt. */
+@keyframes content-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.content-in {
+  animation: content-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after {
+    animation: none;
+  }
+
+  .content-in {
     animation: none;
   }
 }

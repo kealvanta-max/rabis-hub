@@ -25,10 +25,25 @@ describe("a photo of an animal is refused, not sent to a human", () => {
     expect(evaluateSelfie({ faceCount: 2, areaRatio: 0.2, confidence: 0.9 }).status).toBe("rejected");
   });
 
-  it("only escalates when the detector genuinely could not run", () => {
+  it("never sends an unverified photo to a human, even when the detector fails", () => {
     const verdict = evaluateSelfie({ faceCount: 0, areaRatio: 0, confidence: 0 }, true);
-    expect(verdict.status).toBe("review");
+    expect(verdict.status).toBe("rejected");
     expect(verdict.reasons).toContain("detector-unavailable");
+  });
+
+  it("downscales a phone photo before the face model sees it", () => {
+    // A 4000 pixel phone photo used to exhaust the model on mid-range Android,
+    // fail, and fall back to manual review. That fallback is gone, so the size
+    // limit is what keeps a real member from being blocked.
+    const face = read("src/lib/face-detection.ts");
+    expect(face).toContain("MAX_DETECT_EDGE");
+    expect(face).toContain("createImageBitmap(canvas)");
+  });
+
+  it("treats a detector failure as a rejection, never as isHuman", () => {
+    const face = read("src/lib/face-detection.ts");
+    expect(face).toContain("Fail CLOSED");
+    expect(face).not.toContain("Don't block a real\n    // signup");
   });
 });
 

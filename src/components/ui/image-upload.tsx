@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
 import { Camera, Check, Loader2, ShieldAlert, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import { captureException } from "@/lib/monitoring";
@@ -18,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { sniffFileKind } from "@/lib/file-kind";
 import ImageCropper from "@/components/ui/image-cropper";
+import BlurUpImage from "@/components/ui/blur-up-image";
 
 export type VerifyMode = "id-front" | "id-back" | "selfie";
 
@@ -262,11 +262,10 @@ export default function ImageUpload({
       {value ? (
         <div>
           <div className="group relative overflow-hidden rounded-2xl border border-white/10">
-            <Image
+            <BlurUpImage
               src={value}
               alt={label}
-              width={720}
-              height={440}
+              eager
               className="h-40 w-full object-cover"
             />
             <button
@@ -308,8 +307,14 @@ export default function ImageUpload({
         >
           {busy ? (
             <>
-              <Loader2 className="h-7 w-7 animate-spin text-primary" />
-              <span className="px-4 text-center text-xs text-gray-400">{stage || "Working…"}</span>
+              <span className="relative flex h-10 w-10 items-center justify-center">
+                <span className="absolute inset-0 animate-ping rounded-full bg-primary/15" aria-hidden="true" />
+                <Loader2 className="relative h-6 w-6 animate-spin text-primary" />
+              </span>
+              <span className="px-4 text-center text-xs text-gray-300 transition-opacity" aria-live="polite">
+                {stage || "Working…"}
+              </span>
+              <span className="text-[10px] text-gray-500">This takes a couple of seconds</span>
             </>
           ) : (
             <>
@@ -335,7 +340,15 @@ export default function ImageUpload({
         </label>
       )}
 
-      {error && <p className="mt-2 text-xs leading-relaxed text-red-400">{error}</p>}
+      {error && (
+        <div
+          role="alert"
+          className="mt-2 flex items-start gap-2 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-xs leading-relaxed text-red-300"
+        >
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0">{error}</span>
+        </div>
+      )}
 
       {pendingFile && (
         <ImageCropper

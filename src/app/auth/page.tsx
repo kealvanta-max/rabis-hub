@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   createUserWithEmailAndPassword,
@@ -15,7 +15,7 @@ import { useToastContext } from "@/components/layout/toast-provider";
 import { useAuth } from "@/context/auth-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
 import { getPlanLabel } from "@/lib/plans-data";
-import { Check, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Check, ShieldCheck, TriangleAlert, XCircle } from "lucide-react";
 import { useCustomPlans } from "@/hooks/use-custom-plans";
 import { track } from "@/lib/analytics";
 import Button from "@/components/ui/button";
@@ -214,11 +214,19 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   // Math Captcha State
   const [mathObj, setMathObj] = useState({ a: 0, b: 0 });
   const [mathAns, setMathAns] = useState("");
+  const [mathError, setMathError] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const mathInputRef = useRef<HTMLInputElement>(null);
+
+  /** Ask a fresh question. Called on mount and after every wrong answer. */
+  const newMathQuestion = useCallback(() => {
+    setMathObj({ a: Math.floor(Math.random() * 5) + 1, b: Math.floor(Math.random() * 5) + 1 });
+    setMathAns("");
+  }, []);
 
   useEffect(() => {
-    setMathObj({ a: Math.floor(Math.random() * 5) + 1, b: Math.floor(Math.random() * 5) + 1 });
-  }, []);
+    newMathQuestion();
+  }, [newMathQuestion]);
 
   // Handle planId from URL
   useEffect(() => {
@@ -257,7 +265,15 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
 
   const frontReady = Boolean(form.ghanaCardFront) && docVerdicts.front?.status !== "rejected";
   const backReady = Boolean(form.ghanaCardBack) && docVerdicts.back?.status !== "rejected";
-  const selfieReady = Boolean(form.passportPhoto) && docVerdicts.selfie?.status !== "rejected";
+  /*
+   * A selfie must be PROVEN, not merely "not rejected".
+   *
+   * The old test only refused a photo the detector had explicitly rejected, so a
+   * photo the detector could not run on counted as ready and went to Rabi as a
+   * "manual review". That is the door a dog walked through. Now the face check
+   * has to return a verified human face before this document counts at all.
+   */
+  const selfieReady = Boolean(form.passportPhoto) && docVerdicts.selfie?.status === "verified";
 
   const documentsReady = frontReady && backReady && selfieReady;
   const documentsDeferred = uploadFailures > 0 && sendDocsOnWhatsApp;
@@ -276,7 +292,27 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   }, []);
 
   const handleSubmit = async () => {
-    if (!mathPassed || !termsAccepted) return;
+    /*
+     * The button used to be disabled while the answer was wrong, so a wrong
+     * answer looked like a dead button: no message, no reset, nothing. Now the
+     * press always produces an answer, and a wrong one says so in red, clears
+     * the field and asks a new question.
+     */
+    if (!mathPassed) {
+      setMathError("Incorrect answer, please try again.");
+      newMathQuestion();
+      requestAnimationFrame(() => mathInputRef.current?.focus());
+      return;
+    }
+
+    if (!termsAccepted) {
+      setMathError(null);
+      addToast("Please tick the box to accept the Susu rules before continuing.", "error");
+      return;
+    }
+
+    setMathError(null);
+
     if (!isFirebaseConfigured) {
       addToast("Firebase isn't configured yet, so accounts cannot be created.", "error");
       return;
@@ -716,14 +752,30 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <p className="text-gray-400 text-sm mb-3">For security, please solve this quick math problem.</p>
             <div className="flex items-center gap-3">
               <span className="text-xl font-bold font-display text-primary">{mathObj.a} + {mathObj.b} = </span>
-              <input 
-                type="number" 
-                value={mathAns} 
-                onChange={(e) => setMathAns(e.target.value)} 
-                className="w-24 px-3 py-2 bg-[#020c06] border border-[#065F46] rounded-lg text-white font-bold focus:outline-none focus:border-primary" 
-                placeholder="?" 
+              <input
+                ref={mathInputRef}
+                type="number"
+                inputMode="numeric"
+                value={mathAns}
+                aria-label="Answer to the verification question"
+                aria-invalid={mathError ? true : undefined}
+                aria-describedby={mathError ? "math-error" : undefined}
+                onChange={(e) => {
+                  setMathAns(e.target.value);
+                  if (mathError) setMathError(null);
+                }}
+                className={`w-24 px-3 py-2 bg-[#020c06] border rounded-lg text-white font-bold focus:outline-none transition-colors ${
+                  mathError ? "border-red-500/70 focus:border-red-400" : "border-[#065F46] focus:border-primary"
+                }`}
+                placeholder="?"
               />
             </div>
+            {mathError && (
+              <p id="math-error" role="alert" className="mt-2 flex items-start gap-1.5 text-sm font-medium text-red-400">
+                <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                {mathError}
+              </p>
+            )}
           </div>
 
           <label className="flex items-start gap-4 cursor-pointer mt-4 bg-primary/5 p-4 rounded-xl border border-primary/20">
@@ -738,7 +790,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <Button
               onClick={handleSubmit}
               loading={loading}
-              disabled={!mathPassed || !termsAccepted || !isFirebaseConfigured}
+              disabled={!isFirebaseConfigured}
               className="flex-1"
             >
               Create Account

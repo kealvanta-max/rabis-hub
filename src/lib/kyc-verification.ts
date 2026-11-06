@@ -246,11 +246,21 @@ export interface FaceCheck {
  * for KYC. A card photo, a group selfie or a landscape shot all fail here.
  */
 export function evaluateSelfie(check: FaceCheck, skipped = false): DocVerdict {
+  /*
+   * A check that could not run is a REJECTION, not a "review".
+   *
+   * It used to pass the photo to manual review, which meant any non-human image
+   * only had to make the detector fail to get through. Ruthless is the correct
+   * setting for a passport photo: no proof of a face, no upload. The member is
+   * told to retake it, and the detector now downscales the image so retaking it
+   * usually just works.
+   */
   if (skipped) {
     return {
-      status: "review",
+      status: "rejected",
       confidence: 0,
-      message: "Automatic face check is unavailable right now, an admin will review your photo manually.",
+      message:
+        "We could not confirm a face in that photo. Move somewhere brighter, check your connection and take the selfie again.",
       reasons: ["detector-unavailable"],
     };
   }
