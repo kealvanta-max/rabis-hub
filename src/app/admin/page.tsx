@@ -71,6 +71,8 @@ export default function AdminPage() {
     httpStatus?: number;
     cloudinaryMessage?: string;
     config?: Record<string, unknown>;
+    image?: { authAccepted: boolean; httpStatus: number | null; message: string };
+    video?: { authAccepted: boolean; httpStatus: number | null; message: string };
   } | null>(null);
   const [health, setHealth] = useState<{
     cloudinaryConfigured: boolean;
@@ -275,6 +277,8 @@ export default function AdminPage() {
         httpStatus: data.httpStatus,
         cloudinaryMessage: data.cloudinaryMessage,
         config: data.config,
+        image: data.image,
+        video: data.video,
       });
     } catch {
       setStorageCheck({ ok: false, message: "The check itself failed. Try again in a moment." });
@@ -486,8 +490,27 @@ export default function AdminPage() {
                       {String(storageCheck.config.hasApiSecret ? `present (${storageCheck.config.apiSecretLength} chars)` : "missing")}
                     </p>
                   )}
-                  {typeof storageCheck.httpStatus === "number" && (
-                    <p className="mt-1 text-[11px] opacity-70">HTTP {storageCheck.httpStatus}</p>
+                  {storageCheck.image && (
+                    <p className="mt-1 text-[11px] opacity-80">
+                      Photos: {storageCheck.image.authAccepted ? "key accepted" : "key refused"}
+                      {storageCheck.image.httpStatus ? ` (HTTP ${storageCheck.image.httpStatus})` : ""}
+                    </p>
+                  )}
+                  {storageCheck.video && (
+                    <p className="mt-0.5 text-[11px] opacity-80">
+                      Face clips: {storageCheck.video.authAccepted ? "key accepted" : "key refused"}
+                      {storageCheck.video.httpStatus ? ` (HTTP ${storageCheck.video.httpStatus})` : ""}
+                    </p>
+                  )}
+                  {!storageCheck.ok && storageCheck.image?.message && (
+                    <p className="mt-1 break-words text-[11px] opacity-80">
+                      Photo endpoint said: {storageCheck.image.message}
+                    </p>
+                  )}
+                  {!storageCheck.ok && storageCheck.video?.message && (
+                    <p className="mt-0.5 break-words text-[11px] opacity-80">
+                      Video endpoint said: {storageCheck.video.message}
+                    </p>
                   )}
                 </div>
               )}

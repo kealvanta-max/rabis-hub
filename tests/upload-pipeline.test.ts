@@ -49,6 +49,13 @@ describe("storage self-test", () => {
     expect(route).not.toMatch(/secret:\s*apiSecret/);
     expect(route).not.toMatch(/apiSecret\s*[:,]/);
   });
+
+  it("proves both endpoints members upload to, not just photos", () => {
+    expect(route).toContain('probe("image"');
+    expect(route).toContain('probe("video"');
+    expect(route).toContain("/${endpoint}/upload");
+    expect(route).toContain("AUTH_FAILURE");
+  });
 });
 
 describe("signup cannot be blocked by storage", () => {

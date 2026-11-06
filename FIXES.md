@@ -28,7 +28,14 @@ WhatsApp. The member ticks one box, finishes registration, and the application i
 flagged **Documents promised on WhatsApp** so she knows to collect them before
 approving.
 
-**Gates:** `tsc` ✅ · lint ✅ · **175 tests** ✅ · build ✅
+### The check covers face clips too
+A green photo verdict could still have hidden a broken video credential, so the
+self-test now signs the same tiny image against both endpoints members use. On
+`/video/upload` the expected answer is a *format* rejection, and that is the pass:
+Cloudinary trusted the key and only objected to the bytes. The panel prints a
+verdict per endpoint, so a photo-only failure can no longer read as a total outage.
+
+**Gates:** `tsc` ✅ · lint ✅ · **176 tests** ✅ · build ✅
 
 ## 📸 Signup uploads work again, and the owner gets a clean panel
 
