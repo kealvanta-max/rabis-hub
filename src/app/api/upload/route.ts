@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, type RateLimitResult } from "@/lib/rate-limit";
 import { authenticateRequest } from "@/lib/server-auth";
 import {
   explainCloudinaryError,
@@ -45,27 +45,44 @@ export async function POST(request: Request) {
   const actor = await authenticateRequest(request);
 
   /*
-   * The budget has to survive a broken credential, not just abuse.
+   * The budget follows the caller, not the carrier.
    *
-   * A member retrying three documents while storage is misconfigured used to burn
-   * a 40-an-hour allowance in minutes and then get locked out by a message about
-   * "too many uploads", which is a second, unrelated wall in front of the real
-   * error. The ceiling is now high enough for a whole class of retries, while
-   * still stopping a script. Carrier-grade NAT means many real members share one
-   * address, so the anonymous number is deliberately not tight.
+   * Counting the IP address alone was wrong for this country. Mobile networks in
+   * Ghana put hundreds of members behind one carrier-grade NAT address, so a
+   * single person retrying a failing upload spent a shared allowance and then
+   * every stranger on that tower was told she had uploaded too much. An honest
+   * member kept meeting a wall she had not built.
+   *
+   * The allowance now belongs to the phone (`x-rabis-device`, a random id the
+   * browser keeps in localStorage), which no other member can touch. The address
+   * is still counted, but only as a circuit breaker against a script that mints
+   * fresh device ids: 2,500 an hour is roughly 600 signups from one tower, far
+   * beyond anything a tower produces, and far below what a botnet costs us.
    */
-  const limit = actor
-    ? await rateLimit(`upload:${actor.uid}`, 90, 300)
-    : await rateLimit(`upload:ip:${clientIp(request)}`, 150, 3600);
+  const device = (request.headers.get("x-rabis-device") || "").trim().slice(0, 64);
 
-  if (!limit.success) {
+  const budgets: RateLimitResult[] = [];
+  if (actor) {
+    budgets.push(await rateLimit(`upload:uid:${actor.uid}`, 90, 300));
+  } else {
+    if (device) budgets.push(await rateLimit(`upload:dev:${device}`, 60, 3600));
+    budgets.push(await rateLimit(`upload:ip:${clientIp(request)}`, 2500, 3600));
+  }
+
+  const exhausted = budgets.find((entry) => !entry.success);
+
+  if (exhausted) {
+    const retryAfter = Math.max(1, Math.ceil((exhausted.resetAt - Date.now()) / 1000));
+
     return NextResponse.json(
       {
-        error:
-          "Too many upload attempts from this connection in the last hour. Wait a few minutes, or send your documents to Rabi on WhatsApp.",
+        error: actor
+          ? `That is a lot of uploads at once. Try again in ${retryAfter} seconds.`
+          : "That is more uploads than usual from this phone. Send your documents to Rabi on WhatsApp and she will collect them.",
         code: "rate-limited",
+        retryAfter,
       },
-      { status: 429 }
+      { status: 429, headers: { "Retry-After": String(retryAfter) } }
     );
   }
 

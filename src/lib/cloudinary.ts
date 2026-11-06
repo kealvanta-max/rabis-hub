@@ -15,6 +15,7 @@
  *    cloud name.
  */
 
+import { getDeviceId } from "@/lib/device-id";
 import { shrinkImage } from "@/lib/image-compress";
 
 export interface UploadResult {
@@ -27,7 +28,9 @@ function messageForStatus(status: number, serverMessage?: string): string {
   if (status === 401) return "Please sign in again before uploading your documents.";
   if (status === 413) return "That file is too big to upload. Pick a smaller photo.";
   if (status === 415) return "That file is not a photo. Pick a JPG, PNG or HEIC image.";
-  if (status === 429) return "Too many uploads in a row. Wait a minute and try again.";
+  if (status === 429) {
+    return "That is more uploads than usual from this phone. Send your documents to Rabi on WhatsApp and she will collect them.";
+  }
   if (status === 503) return "Uploads are not switched on for this site yet. Tell Rabi.";
   return "The upload failed on the server. Try again, and tell Rabi if it keeps happening.";
 }
@@ -49,14 +52,32 @@ export async function uploadToCloudinary(file: File): Promise<string> {
     }
   }
 
-  const formData = new FormData();
-  formData.append("file", payload);
+  const send = async (): Promise<Response> => {
+    const formData = new FormData();
+    formData.append("file", payload);
 
-  const response = await fetch("/api/upload", {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    body: formData,
-  });
+    const headers: Record<string, string> = { "x-rabis-device": getDeviceId() };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    return fetch("/api/upload", { method: "POST", headers, body: formData });
+  };
+
+  let response: Response;
+  try {
+    response = await send();
+  } catch {
+    /*
+     * A dropped packet on mobile data must not cost a member her signup. One
+     * silent retry, and only for a connection failure: a server answer is never
+     * retried, because repeating a rejection just spends the budget twice.
+     */
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      response = await send();
+    } catch {
+      throw new Error("We could not reach the server. Check your data and try once more.");
+    }
+  }
 
   const data = (await response.json().catch(() => ({}))) as Partial<UploadResult> & { error?: string };
 

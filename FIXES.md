@@ -1,5 +1,27 @@
 # Beta fix pass — what was broken and what changed
 
+## 🚦 The upload limit belonged to the tower, not the member
+
+Storage works. What the owner then met was our own counter: "too many attempts
+from this connection". It was counting the IP address, and in Ghana a mobile
+network puts hundreds of members behind one carrier-grade NAT address. One person
+retrying a failing upload spent an allowance shared with strangers, and the wall
+landed on people who had done nothing.
+
+- The allowance now follows the phone. `src/lib/device-id.ts` keeps a random id in
+  `localStorage`, `src/lib/cloudinary.ts` sends it as `x-rabis-device`, and the
+  route counts `upload:dev:<id>` at **60 an hour**. A signup is four uploads, so
+  that is retries and nothing else, and no other member can spend it.
+- The address is still counted, but only as a circuit breaker against a script that
+  mints new ids: **2,500 an hour**, roughly 600 signups from one tower.
+- The 429 now returns `Retry-After` and, for an anonymous caller, the WhatsApp
+  handover sentence instead of a scolding.
+- A dropped packet is no longer a failed document: the client retries once,
+  silently, after 800ms. A server answer is never retried, so a real rejection is
+  not paid for twice.
+
+**Gates:** `tsc` ✅ · lint ✅ · **181 tests** ✅ · build ✅
+
 ## 🔧 Storage stops being a black box
 
 Branch: `arena/bbb8231d-rabis-hub`.
