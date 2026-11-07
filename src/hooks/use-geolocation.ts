@@ -17,7 +17,6 @@ export function useGeolocation() {
   const [attempts, setAttempts] = useState(0);
 
   const requestLocation = useCallback(async () => {
-    setAttempts((count) => count + 1);
     setStatus("detecting");
     setError(null);
     setFailureCode(null);
@@ -33,6 +32,8 @@ export function useGeolocation() {
       setError(result.suspicious ? result.reason ?? null : null);
       return result;
     } catch (err) {
+      // Count only completed failures, not attempts still in progress.
+      setAttempts((count) => count + 1);
       const code: GpsFailureCode = err instanceof GpsError ? err.code : "unavailable";
       setFailureCode(code);
       setStatus(code === "denied" ? "denied" : "unavailable");
