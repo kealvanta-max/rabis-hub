@@ -6,6 +6,7 @@ import { BackgroundBeams } from "@/components/ui/background-beams";
 import { Spotlight } from "@/components/ui/spotlight";
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { useTranslation } from "@/context/i18n-context";
+import { useEffect, useState } from "react";
 import { LottiePlayer } from "@/components/ui/lottie-player";
 import savingsAnimation from "../../../public/animations/savings-hero.json";
 
@@ -31,6 +32,29 @@ const STATS = [
 
 export default function HeroSection() {
   const { t } = useTranslation();
+
+  /*
+   * The Lottie scene is roughly 78 KiB of animation runtime and it is hidden
+   * below 768px anyway, yet it was being downloaded, parsed and started on
+   * every phone. It now mounts only where it can be seen, and never on a device
+   * that asked for less motion. The placeholder keeps the column height, so
+   * nothing moves when it arrives.
+   */
+  const [showScene, setShowScene] = useState(false);
+
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const wide = window.matchMedia("(min-width: 768px)");
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setShowScene(wide.matches && !still.matches);
+    update();
+    wide.addEventListener?.("change", update);
+    still.addEventListener?.("change", update);
+    return () => {
+      wide.removeEventListener?.("change", update);
+      still.removeEventListener?.("change", update);
+    };
+  }, []);
 
   return (
     <section className="relative min-h-[100svh] flex items-center overflow-hidden pt-20 bg-shader-gradient hero-dots">
@@ -64,7 +88,7 @@ export default function HeroSection() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center lg:justify-start w-full sm:w-auto">
-              <Link href="/auth?mode=signup" className="w-full sm:w-auto">
+              <Link href="/auth?mode=signup" prefetch={false} className="w-full sm:w-auto">
                 <ShimmerButton className="shadow-[0_0_40px_-10px_rgba(250,204,21,0.4)] w-full sm:w-auto">
                   <span className="whitespace-normal text-center text-sm md:text-base font-bold leading-none tracking-tighter text-white">
                     {t.hero_cta}
@@ -74,6 +98,7 @@ export default function HeroSection() {
 
               <Link
                 href="/guide"
+                prefetch={false}
                 className="group relative px-8 py-3.5 text-sm md:text-base font-medium rounded-full text-white hover:text-white transition-colors overflow-hidden text-center w-full sm:w-auto flex items-center justify-center border border-white/20 hover:border-primary/50 glass-card"
               >
                 <span className="relative z-10">How It Works</span>
@@ -95,10 +120,12 @@ export default function HeroSection() {
           {/* Right column: decoration, never the largest paint */}
           <div className="flex-1 w-full h-[300px] sm:h-[400px] lg:h-[600px] relative mt-8 lg:mt-0">
             <div className="hidden md:block w-full h-full relative z-20 mix-blend-screen">
-              <LottiePlayer
-                animationData={savingsAnimation}
-                className="w-full h-full max-h-[500px] object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.4)]"
-              />
+              {showScene ? (
+                <LottiePlayer
+                  animationData={savingsAnimation}
+                  className="w-full h-full max-h-[500px] object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+                />
+              ) : null}
             </div>
 
             <div className="md:hidden w-full h-full flex items-center justify-center relative">
@@ -111,7 +138,8 @@ export default function HeroSection() {
                   sizes="(max-width: 640px) 280px, 320px"
                   priority
                   fetchPriority="high"
-                  className="w-full h-full object-contain drop-shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+                  unoptimized
+                  className="w-full h-full object-contain"
                 />
               </div>
             </div>

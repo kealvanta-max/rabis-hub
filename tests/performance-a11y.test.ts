@@ -162,3 +162,76 @@ describe("console and manifest", () => {
     expect(llms.toLowerCase()).not.toContain("api_key");
   });
 });
+
+describe("mobile weight", () => {
+  it("ships one latin font file per family, preloaded by next/font", () => {
+    const layout = read("src/app/layout.tsx");
+    expect(layout).toContain("next/font/local");
+    // The fontsource stylesheets pulled four extra subset files of Inter and
+    // DM Serif, 173 KiB that a phone in Accra paid for on every visit.
+    expect(layout).not.toContain("@fontsource");
+    for (const file of [
+      "src/fonts/inter-latin-variable.woff2",
+      "src/fonts/dm-serif-display-latin-400.woff2",
+      "src/fonts/space-grotesk-latin-variable.woff2",
+    ]) {
+      expect(existsSync(join(process.cwd(), file)), file).toBe(true);
+    }
+  });
+
+  it("does not start the Lottie scene on a phone", () => {
+    const hero = read("src/components/home/hero.tsx");
+    expect(hero).toContain("min-width: 768px");
+    expect(hero).toContain("prefers-reduced-motion: reduce");
+    expect(hero).toContain("{showScene ? (");
+  });
+
+  it("does not prefetch the signup page from the hero", () => {
+    const hero = read("src/components/home/hero.tsx");
+    // The auth route is 29 KiB of JavaScript and almost all of it was unused on
+    // the landing page.
+    expect(hero.match(/prefetch=\{false\}/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+
+  it("does not run a paint heavy filter on the largest image", () => {
+    const hero = read("src/components/home/hero.tsx");
+    const image = hero.slice(hero.indexOf("<Image"), hero.indexOf("/>", hero.indexOf("<Image")));
+    expect(image).toContain("unoptimized");
+    expect(image).not.toContain("drop-shadow");
+  });
+
+  it("keeps Firestore off the critical path", () => {
+    const hook = read("src/hooks/use-custom-plans.ts");
+    expect(hook).toContain("requestIdleCallback");
+  });
+});
+
+describe("console hygiene", () => {
+  it("allows the Google script that Firebase auth loads", () => {
+    const config = read("next.config.mjs");
+    const scriptSrc = config.slice(config.indexOf('"script-src'), config.indexOf('",', config.indexOf('"script-src')));
+    expect(scriptSrc).toContain("https://apis.google.com");
+  });
+
+  it("does not log its own failures on the landing page", () => {
+    expect(read("src/hooks/use-custom-plans.ts")).not.toContain("console.error");
+  });
+});
+
+describe("agent discovery", () => {
+  it("links real pages from llms.txt", () => {
+    const llms = read("public/llms.txt");
+    expect(llms).toMatch(/^# /m);
+    expect(llms).toMatch(/^> /m);
+    // Lighthouse fails the audit outright when the file contains no links.
+    expect(llms).toMatch(/- \[[^\]]+\]\(https:\/\//);
+    expect((llms.match(/\(https:\/\//g) ?? []).length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("serves the manifest at the current well-known path", () => {
+    const ard = JSON.parse(read("public/.well-known/ard.json"));
+    expect(ard.specVersion).toBe("1.0");
+    expect(ard.entries[0].type).toContain('profile="urn:air:agent-skills"');
+    expect(ard.entries[0].url).toContain("/llms.txt");
+  });
+});

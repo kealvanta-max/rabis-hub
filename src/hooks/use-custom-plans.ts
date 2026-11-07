@@ -16,23 +16,41 @@ export function useCustomPlans() {
 
   useEffect(() => {
     let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    (async () => {
+    /*
+     * Firestore opens a long lived channel and, on a slow phone, competes with
+     * the largest paint for bandwidth. These are optional extras on top of the
+     * published plans, so they are fetched once the page is idle instead of
+     * during load.
+     */
+    const load = async () => {
+      
       try {
         const snap = await getDoc(doc(db, "settings", "customPlans"));
         if (active && snap.exists()) {
           const plans = snap.data()?.plans;
           if (Array.isArray(plans)) setCustomPlans(plans as CustomPlan[]);
         }
-      } catch (error) {
-        console.error("Unable to load custom plans:", error);
+      } catch {
+        /* Not configured, offline, or blocked. The published plans still show. */
       } finally {
         if (active) setLoaded(true);
       }
-    })();
+    };
 
+    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    if (typeof idle === "function") {
+      const handle = idle(() => void load());
+      return () => {
+        active = false;
+        window.cancelIdleCallback?.(handle);
+      };
+    }
+    timer = setTimeout(() => void load(), 2500);
     return () => {
       active = false;
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
