@@ -118,3 +118,56 @@ describe("premium loading", () => {
     expect(css).toContain("prefers-reduced-motion");
   });
 });
+
+describe("server-side identity checks", () => {
+  const ooto = read("src/lib/ooto.ts");
+  const route = read("src/app/api/kyc/verify/route.ts");
+  const diagnose = read("src/app/api/kyc/diagnose/route.ts");
+  const upload = read("src/components/ui/image-upload.tsx");
+  const faceScan = read("src/components/ui/face-scan.tsx");
+
+  it("keeps the credentials on the server", () => {
+    expect(ooto).toContain("process.env.OOTO_APP_ID");
+    expect(ooto).toContain("process.env.OOTO_APP_KEY");
+    // A NEXT_PUBLIC_ variant would ship the app key to every browser.
+    expect(ooto).not.toContain("NEXT_PUBLIC_OOTO");
+    expect(read(".env.example")).not.toContain("NEXT_PUBLIC_OOTO");
+  });
+
+  it("uses the three real endpoints", () => {
+    expect(ooto).toContain("/liveness?check_deepfake=true");
+    expect(ooto).toContain("/video/liveness");
+    expect(ooto).toContain("/recognize");
+    expect(ooto).toContain("/doc/compare");
+  });
+
+  it("treats engine code 5 as no human face", () => {
+    // "can not detect face" is the answer a photo of a dog produces.
+    expect(ooto).toContain("5: \"No human face was found");
+    expect(ooto).toContain('reasons.push("no-face")');
+  });
+
+  it("refuses to fetch anything but our own uploads", () => {
+    // Otherwise the route is a server-side request forger.
+    expect(route).toContain('parsed.hostname !== "res.cloudinary.com"');
+    expect(route).toContain("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME");
+  });
+
+  it("blocks the upload when the server says no", () => {
+    expect(upload).toContain("serverKycCheck");
+    expect(upload).toContain('status: "rejected"');
+    expect(faceScan).toContain("serverKycCheck(\"video\"");
+    expect(faceScan).toContain('setStatus("error")');
+  });
+
+  it("degrades instead of failing when the service is down", () => {
+    // A network failure returns skipped, never a rejection.
+    expect(ooto).toContain("skipped: true");
+    expect(read("src/lib/kyc-server-check.ts")).toContain("return { ok: true, skipped: true }");
+  });
+
+  it("can prove the credentials from production", () => {
+    expect(diagnose).toContain("if (!actor.admin)");
+    expect(diagnose).toContain("cloud.ooto-ai.com/api/v1.0/liveness");
+  });
+});

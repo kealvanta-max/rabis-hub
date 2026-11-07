@@ -6,6 +6,7 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import { captureException } from "@/lib/monitoring";
 import { recognizeDocument } from "@/lib/ghana-card-ocr";
 import { detectHumanFace, fingerprintImage } from "@/lib/face-detection";
+import { serverKycCheck } from "@/lib/kyc-server-check";
 import {
   checkCardAspectRatio,
   evaluateIdBack,
@@ -196,6 +197,47 @@ export default function ImageUpload({
 
       setStage("Uploading…");
       const url = await uploadToCloudinary(file);
+
+      /*
+       * Second opinion, from a server.
+       *
+       * The local model is fast but it runs on the member's phone, so whether it
+       * loads decides whether a photo of a dog gets through. The server check
+       * does not depend on the device at all. It upgrades a local "review" to
+       * "verified" when the card reads cleanly, and it refuses a file the engine
+       * cannot find a human face or a document in.
+       */
+      if (verify === "selfie" || verify === "id-front") {
+        setStage("Confirming with the server…");
+        const server = await serverKycCheck(verify === "selfie" ? "selfie" : "card", url);
+
+        if (!server.skipped && !server.ok) {
+          const rejected: DocVerdict = {
+            status: "rejected",
+            confidence: 0,
+            message: server.message || "That photo could not be verified. Take it again.",
+            reasons: server.reasons ?? ["server-rejected"],
+          };
+          setVerdict(rejected);
+          onVerdict?.(rejected, fingerprint.hash);
+          setError(rejected.message);
+          if (inputRef.current) inputRef.current.value = "";
+          return;
+        }
+
+        if (!server.skipped && server.ok) {
+          nextVerdict = {
+            status: "verified",
+            confidence: 95,
+            message:
+              verify === "selfie"
+                ? "Live human face confirmed."
+                : server.message || nextVerdict?.message || "Card verified.",
+            reasons: [],
+          };
+        }
+      }
+
       onUpload(url);
       onVerdict?.(nextVerdict, fingerprint.hash);
     } catch (uploadError) {

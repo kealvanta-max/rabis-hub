@@ -13,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { serverKycCheck } from "@/lib/kyc-server-check";
 import { createFaceLandmarker } from "@/lib/face-detection";
 import FaceIdTile from "@/components/ui/face-id-tile";
 import { cn } from "@/lib/utils";
@@ -127,6 +128,25 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
           type: blob.type || "video/webm",
         });
         const url = await uploadToCloudinary(file);
+
+        /*
+         * The clip has to survive a server-side liveness check before it counts.
+         * A printed photo, a phone screen or a mask can satisfy a camera, and the
+         * browser cannot tell. The server can.
+         */
+        setStatus("uploading");
+        setMessage("Checking that this is a real, live person…");
+        const server = await serverKycCheck("video", url);
+
+        if (!server.skipped && !server.ok) {
+          setStatus("error");
+          setMessage(
+            server.message ||
+              "That face scan did not look like a live person. Hold the phone at eye level and do it again."
+          );
+          return;
+        }
+
         doneRef.current = true;
         setStatus("done");
         setProgress(100);
