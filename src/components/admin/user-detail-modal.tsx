@@ -154,7 +154,14 @@ export default function UserDetailModal({
             {user.phone || "-"}
           </DataRow>
           <DataRow label="Plan">{planLabel}</DataRow>
-          <DataRow label="Location">{user.gpsAddress || user.location || "Not shared"}</DataRow>
+          <DataRow label="Location">
+            {user.gpsAddress || user.location || "Not shared"}
+            {(!user.gpsLat || user.locationReview) && (
+              <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200 align-middle">
+                Needs review
+              </span>
+            )}
+          </DataRow>
         </dl>
 
         {/*
