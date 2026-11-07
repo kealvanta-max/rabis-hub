@@ -647,6 +647,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           {cardCross && cardCross.status === "rejected" && (
             <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3">
               <p className="text-sm font-semibold text-red-200">{cardCross.message}</p>
+              <p className="mt-1 text-xs text-amber-100/90">Your application can continue, but it will be marked Pending Manual Review for Rabi. Do not approve this card automatically.</p>
               <p className="mt-1 text-xs text-red-200/80">
                 Take a new photo of both sides of the same card. Rabi cannot approve a card whose two sides disagree.
               </p>
