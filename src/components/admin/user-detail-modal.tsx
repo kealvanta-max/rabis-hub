@@ -257,6 +257,13 @@ export default function UserDetailModal({
           </div>
         )}
 
+        {user.kycReviewReason && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.08] p-4" role="status">
+            <p className="text-sm font-semibold text-amber-200">Pending manual review</p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-100/90">{user.kycReviewReason}</p>
+          </div>
+        )}
+
         {/* Verification context */}
         {user.ghanaCardOcrResult && (
           <div

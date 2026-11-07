@@ -14,6 +14,8 @@ export interface UserDoc {
   locationAccuracy?: number | null;
   /** Set when there was no fix, or the pin was outside Ghana. */
   locationReview?: boolean;
+  /** Human-readable KYC exception for Rabi's pending queue. */
+  kycReviewReason?: string;
   plan: string;
   plans?: string[];
   ghanaCardNumber?: string;

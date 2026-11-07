@@ -81,6 +81,7 @@ service cloud.firestore {
           'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
           'gpsLat', 'gpsLng', 'gpsAddress',
           'locationSource', 'locationAccuracy', 'locationReview',
+          'kycReviewReason',
           'termsAccepted', 'termsAcceptedAt'
         ])
         && (
@@ -90,7 +91,7 @@ service cloud.firestore {
             'ghanaCardFront', 'ghanaCardBack',
             'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
             'gpsLat', 'gpsLng', 'gpsAddress',
-            'locationSource', 'locationAccuracy', 'locationReview'
+            'locationSource', 'locationAccuracy', 'locationReview', 'kycReviewReason'
           ])
         )
       );

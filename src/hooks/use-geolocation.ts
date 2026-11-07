@@ -14,8 +14,10 @@ export function useGeolocation() {
   const [gpsData, setGpsData] = useState<GpsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [failureCode, setFailureCode] = useState<GpsFailureCode | null>(null);
+  const [attempts, setAttempts] = useState(0);
 
   const requestLocation = useCallback(async () => {
+    setAttempts((count) => count + 1);
     setStatus("detecting");
     setError(null);
     setFailureCode(null);
@@ -51,6 +53,7 @@ export function useGeolocation() {
     setGpsData(null);
     setError(null);
     setFailureCode(null);
+    setAttempts(0);
   }, []);
 
   return {
@@ -58,6 +61,8 @@ export function useGeolocation() {
     gpsData,
     error,
     failureCode,
+    /** How many times the member has asked the phone for a fix. */
+    attempts,
     requestLocation,
     skip,
     reset,

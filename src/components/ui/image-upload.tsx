@@ -7,6 +7,7 @@ import { captureException } from "@/lib/monitoring";
 import { recognizeDocument } from "@/lib/ghana-card-ocr";
 import { detectHumanFace, fingerprintImage } from "@/lib/face-detection";
 import { serverKycCheck } from "@/lib/kyc-server-check";
+import { assessDocumentPhoto } from "@/lib/document-photo";
 import {
   checkCardAspectRatio,
   evaluateIdBack,
@@ -33,6 +34,11 @@ interface ImageUploadProps {
   onVerdict?: (verdict: DocVerdict | null, fingerprint?: string | null) => void;
   /** Told why an upload failed, so the signup flow can offer a way forward. */
   onFailure?: (message: string) => void;
+  /**
+   * The raw text the card reader produced. The signup flow needs both sides of
+   * the card to compare the printed number with the machine readable zone.
+   */
+  onOcrText?: (text: string, confidence: number) => void;
 }
 
 const modeCopy: Record<VerifyMode, string> = {
@@ -69,6 +75,7 @@ export default function ImageUpload({
   hint,
   onVerdict,
   onFailure,
+  onOcrText,
 }: ImageUploadProps) {
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState<string>("");
@@ -142,6 +149,33 @@ export default function ImageUpload({
         return;
       }
 
+      let photoReview = false;
+
+      if (verify === "id-front" || verify === "id-back") {
+        setStage("Looking closely…");
+        const photo = await assessDocumentPhoto(file);
+
+        if (!photo.ok) {
+          const rejected: DocVerdict = {
+            status: "rejected",
+            confidence: 0,
+            message:
+              photo.message ??
+              "The card is hard to read. Move to a well lit place, hold the phone steady, and take the photo again.",
+            reasons: photo.reasons,
+          };
+          setVerdict(rejected);
+          onVerdict?.(rejected, fingerprint.hash);
+          setError(rejected.message);
+          if (inputRef.current) inputRef.current.value = "";
+          return;
+        }
+
+        // Usable, but the pixels suggest a photo of a screen. Not proof, so it
+        // becomes a note for Rabi rather than a refusal.
+        photoReview = photo.review;
+      }
+
       if (verify === "id-front" || verify === "id-back") {
         setStage("Checking the photo…");
         const aspect = checkCardAspectRatio(fingerprint.width, fingerprint.height);
@@ -157,10 +191,20 @@ export default function ImageUpload({
           setStage(modeCopy[verify]);
           try {
             const ocr = await recognizeDocument(file);
+            onOcrText?.(ocr.text, ocr.confidence);
             nextVerdict =
               verify === "id-front"
                 ? evaluateIdFront(ocr.text, declaredCardNumber, aspect)
                 : evaluateIdBack(ocr.text, declaredCardNumber, aspect);
+
+            if (photoReview && nextVerdict.status === "verified") {
+              nextVerdict = {
+                ...nextVerdict,
+                status: "review",
+                message: "This photo looks like it may be of a screen. Rabi will check it by hand.",
+                reasons: [...nextVerdict.reasons, "possible-screen"],
+              };
+            }
           } catch {
             // The reader itself failed (slow network, CDN blocked, exotic format).
             // Never trap the member: accept the photo for manual admin review.
