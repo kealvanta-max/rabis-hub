@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import "@fontsource-variable/inter";
-import "@fontsource/dm-serif-display";
-import "@fontsource-variable/space-grotesk";
+import localFont from "next/font/local";
 import { AuthProvider } from "@/context/auth-context";
 import {
   SITE,
@@ -19,6 +17,40 @@ import { SmoothScroll } from "@/components/providers/smooth-scroll";
 import AnalyticsProvider from "@/components/providers/analytics-provider";
 import CookieConsent from "@/components/layout/cookie-consent";
 import "./globals.css";
+
+/*
+ * Fonts, self hosted, latin only.
+ *
+ * The fontsource packages ship every subset in one stylesheet, so a phone in
+ * Accra was pulling two Inter files and two DM Serif files, 173 KiB in total,
+ * and the browser had to resolve four font requests before it could settle the
+ * layout. These are the same files, reduced to the one subset this site needs,
+ * declared through next/font so they are preloaded and given metric compatible
+ * fallbacks that keep the text from jumping when they land.
+ */
+const inter = localFont({
+  src: "../fonts/inter-latin-variable.woff2",
+  variable: "--font-inter",
+  display: "swap",
+  weight: "100 900",
+  adjustFontFallback: "Arial",
+});
+
+const serif = localFont({
+  src: "../fonts/dm-serif-display-latin-400.woff2",
+  variable: "--font-dm-serif",
+  display: "swap",
+  weight: "400",
+  adjustFontFallback: "Times New Roman",
+});
+
+const grotesk = localFont({
+  src: "../fonts/space-grotesk-latin-variable.woff2",
+  variable: "--font-space-grotesk",
+  display: "swap",
+  weight: "300 700",
+  adjustFontFallback: "Arial",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -82,7 +114,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`dark ${inter.variable} ${serif.variable} ${grotesk.variable}`}
+      suppressHydrationWarning
+    >
       <body
         suppressHydrationWarning
         className="bg-[#020C06] font-sans antialiased text-gray-100 min-h-screen overflow-x-hidden"
