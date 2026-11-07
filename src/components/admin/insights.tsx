@@ -113,7 +113,7 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
           <div className="mb-5 flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-white">New members this week</p>
-              <p className="text-xs text-gray-500">{stats.week} applications in the last 7 days</p>
+              <p className="text-xs text-gray-400">{stats.week} applications in the last 7 days</p>
             </div>
             <span className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-2.5 py-1 text-[11px] font-bold text-emerald-300">
               <TrendingUp className="h-3 w-3" />
@@ -131,7 +131,7 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
                     title={`${day.count} application${day.count === 1 ? "" : "s"}`}
                   />
                 </div>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">{day.label}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">{day.label}</span>
               </div>
             ))}
           </div>
@@ -146,7 +146,7 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
         {/* Funnel */}
         <div className="glass-soft rounded-2xl p-5 lg:col-span-2">
           <p className="text-sm font-semibold text-white">Application funnel</p>
-          <p className="text-xs text-gray-500">Where people are right now</p>
+          <p className="text-xs text-gray-400">Where people are right now</p>
 
           <div className="mt-5 space-y-4">
             <FunnelBar label="Applied" value={stats.total} total={stats.total} tone="from-emerald-500 to-emerald-300" />
@@ -164,7 +164,7 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
               <div className="grid h-[86px] w-[86px] place-items-center rounded-full bg-[#06130c]">
                 <div className="text-center">
                   <p className="text-xl font-bold text-white">{stats.approvalRate}%</p>
-                  <p className="text-[9px] uppercase tracking-widest text-gray-500">approved</p>
+                  <p className="text-[9px] uppercase tracking-widest text-gray-400">approved</p>
                 </div>
               </div>
             </div>
@@ -176,10 +176,10 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
         {/* Popular plans */}
         <div className="glass-soft rounded-2xl p-5">
           <p className="text-sm font-semibold text-white">Most requested plans</p>
-          <p className="text-xs text-gray-500">What members choose when they sign up</p>
+          <p className="text-xs text-gray-400">What members choose when they sign up</p>
 
           <div className="mt-4 space-y-3">
-            {stats.topPlans.length === 0 && <p className="py-6 text-center text-sm text-gray-500">No plans yet.</p>}
+            {stats.topPlans.length === 0 && <p className="py-6 text-center text-sm text-gray-400">No plans yet.</p>}
             {stats.topPlans.map((plan) => (
               <div key={plan.id} className="flex items-center gap-3">
                 <span className="w-32 shrink-0 truncate text-xs text-gray-300">{getPlanLabel(plan.id)}</span>
@@ -200,13 +200,13 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-white">Latest activity</p>
-              <p className="text-xs text-gray-500">Newest applications first</p>
+              <p className="text-xs text-gray-400">Newest applications first</p>
             </div>
-            <CalendarDays className="h-4 w-4 text-gray-500" />
+            <CalendarDays className="h-4 w-4 text-gray-400" />
           </div>
 
           <div className="mt-4 space-y-2">
-            {stats.recent.length === 0 && <p className="py-6 text-center text-sm text-gray-500">Nothing yet.</p>}
+            {stats.recent.length === 0 && <p className="py-6 text-center text-sm text-gray-400">Nothing yet.</p>}
             {stats.recent.map((member) => (
               <button
                 key={member.id}
@@ -216,7 +216,7 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-white">{member.name || "Unnamed"}</p>
-                  <p className="truncate text-[11px] text-gray-500">
+                  <p className="truncate text-[11px] text-gray-400">
                     {member.createdAt ? formatDate(member.createdAt) : "-"} · {getPlanLabel(member.plan || "")}
                   </p>
                 </div>
@@ -272,7 +272,7 @@ function StatCard({
       </div>
       <p className="text-2xl font-bold text-white">{value}</p>
       <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{label}</p>
-      <p className="mt-1 text-[11px] text-gray-500">{hint}</p>
+      <p className="mt-1 text-[11px] text-gray-400">{hint}</p>
     </div>
   );
 }
@@ -281,7 +281,7 @@ function MiniStat({ label, value }: { label: string; value: number }) {
   return (
     <div>
       <p className="text-lg font-bold text-white">{value}</p>
-      <p className="text-[10px] uppercase tracking-wider text-gray-500">{label}</p>
+      <p className="text-[10px] uppercase tracking-wider text-gray-400">{label}</p>
     </div>
   );
 }
@@ -292,7 +292,7 @@ function FunnelBar({ label, value, total, tone }: { label: string; value: number
     <div>
       <div className="mb-1.5 flex items-center justify-between text-[11px]">
         <span className="font-semibold text-gray-300">{label}</span>
-        <span className="text-gray-500">
+        <span className="text-gray-400">
           {value} · {pct}%
         </span>
       </div>

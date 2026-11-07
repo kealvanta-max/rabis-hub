@@ -72,7 +72,7 @@ export default function WhatsAppLinksPanel({
         <label className="relative mt-4 block">
           <span className="sr-only">Search plans</span>
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
             aria-hidden="true"
           />
           <input
@@ -80,13 +80,13 @@ export default function WhatsAppLinksPanel({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Find a plan, daily, weekly, achiever…"
-            className="h-11 w-full rounded-xl bg-black/30 pl-9 pr-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-600 focus:ring-emerald-400/60"
+            className="h-11 w-full rounded-xl bg-black/30 pl-9 pr-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-400 focus:ring-emerald-400/60"
           />
         </label>
       </header>
 
       {grouped.length === 0 && (
-        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-gray-500">
+        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-gray-400">
           No plan matches “{query}”.
         </p>
       )}
@@ -95,7 +95,7 @@ export default function WhatsAppLinksPanel({
         <section key={group.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <h3 className="font-grotesk text-sm font-semibold text-white">{group.label}</h3>
-            <span className="text-[11px] uppercase tracking-[0.12em] text-gray-500">{group.hint}</span>
+            <span className="text-[11px] uppercase tracking-[0.12em] text-gray-400">{group.hint}</span>
           </div>
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -127,7 +127,7 @@ export default function WhatsAppLinksPanel({
 
                   <div className="relative">
                     <Link2
-                      className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-600"
+                      className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
                       aria-hidden="true"
                     />
                     <input
@@ -142,7 +142,7 @@ export default function WhatsAppLinksPanel({
                       aria-invalid={!isWhatsApp}
                       className={cn(
                         "h-11 w-full min-w-0 truncate rounded-xl bg-black/30 pl-9 pr-3 text-xs text-gray-100",
-                        "outline-none ring-1 ring-inset transition-colors placeholder:text-gray-600",
+                        "outline-none ring-1 ring-inset transition-colors placeholder:text-gray-400",
                         isWhatsApp
                           ? "ring-white/10 focus:ring-emerald-400/60"
                           : "ring-amber-500/50 focus:ring-amber-400/70"

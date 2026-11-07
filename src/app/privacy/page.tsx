@@ -10,7 +10,7 @@ export default function PrivacyPolicyPage() {
       <main className="min-h-screen pt-28 pb-20 px-4">
         <article className="max-w-3xl mx-auto prose-container">
           <h1 className="font-display text-3xl md:text-4xl text-white mb-2">Privacy Policy</h1>
-          <p className="text-sm text-gray-500 mb-10">Last updated: 28 March 2026</p>
+          <p className="text-sm text-gray-400 mb-10">Last updated: 28 March 2026</p>
 
           <div className="space-y-8 text-gray-300 text-[15px] leading-relaxed">
 
@@ -45,7 +45,7 @@ export default function PrivacyPolicyPage() {
                     <li><span className="text-gray-300">Ghana Card (front and back)</span>, to verify your identity before we approve your account</li>
                     <li><span className="text-gray-300">Passport-style photo or clear selfie</span>, to confirm you are who you say you are</li>
                   </ul>
-                  <p className="text-sm text-gray-500 mt-2">
+                  <p className="text-sm text-gray-400 mt-2">
                     These images are uploaded securely through Cloudinary, a trusted cloud media service. We do not store them on our own servers.
                   </p>
                 </div>

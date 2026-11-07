@@ -429,7 +429,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
             >
               Camera not opening? Tap here to start
             </button>
-            <p className="max-w-[240px] text-[10px] leading-relaxed text-gray-500">
+            <p className="max-w-[240px] text-[10px] leading-relaxed text-gray-400">
               Smile + blink · about 5 seconds · nothing is posted publicly
             </p>
           </div>
@@ -439,7 +439,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
             <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
             <p className="text-sm text-gray-300">Waiting for camera permission…</p>
-            <p className="px-8 text-center text-[11px] text-gray-500">
+            <p className="px-8 text-center text-[11px] text-gray-400">
               Tap <strong>Allow</strong> when your browser asks.
             </p>
           </div>
@@ -548,7 +548,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
         <button
           type="button"
           onClick={manualReview}
-          className="w-full text-center text-[11px] text-gray-500 underline-offset-4 hover:text-gray-300 hover:underline"
+          className="w-full text-center text-[11px] text-gray-400 underline-offset-4 hover:text-gray-300 hover:underline"
         >
           Camera not working? Ask for manual review
         </button>

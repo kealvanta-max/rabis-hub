@@ -84,7 +84,7 @@ export default function ReviewsPanel({ testimonials, onStatus, onDelete, toolbar
                 )}
               >
                 {item.label}
-                <span className={cn("text-[10px] font-bold", active ? "text-emerald-300/80" : "text-gray-500")}>
+                <span className={cn("text-[10px] font-bold", active ? "text-emerald-300/80" : "text-gray-400")}>
                   {counts[item.id]}
                 </span>
               </button>
@@ -95,7 +95,7 @@ export default function ReviewsPanel({ testimonials, onStatus, onDelete, toolbar
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-gray-500">
+        <p className="rounded-2xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-gray-400">
           Nothing here yet{filter !== "all" ? `, no ${filter} reviews` : ""}.
         </p>
       ) : (
@@ -110,7 +110,7 @@ export default function ReviewsPanel({ testimonials, onStatus, onDelete, toolbar
                       <h3 className="truncate font-grotesk text-sm font-semibold text-white">
                         {testimonial.userName}
                       </h3>
-                      <p className="mt-0.5 text-[11px] text-gray-500">{testimonial.planName}</p>
+                      <p className="mt-0.5 text-[11px] text-gray-400">{testimonial.planName}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span

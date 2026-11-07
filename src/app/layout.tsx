@@ -18,8 +18,6 @@ import FloatingTabBar from "@/components/layout/floating-tab-bar";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
 import AnalyticsProvider from "@/components/providers/analytics-provider";
 import CookieConsent from "@/components/layout/cookie-consent";
-import AudioPlayer from "@/components/ui/audio-player";
-import LoadingScreen from "@/components/ui/loading-screen";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -107,10 +105,8 @@ export default function RootLayout({
             <AuthProvider>
               <ToastProvider>
                 <AnalyticsProvider />
-                <LoadingScreen />
                 <div id="main-content">{children}</div>
                 <FloatingWhatsApp />
-                <AudioPlayer />
                 <FloatingTabBar />
                 <CookieConsent />
               </ToastProvider>

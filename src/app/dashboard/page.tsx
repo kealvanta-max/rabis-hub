@@ -206,7 +206,7 @@ function DashboardContent() {
                       <h4 className="font-display mt-1 text-lg leading-snug text-white">{a.title}</h4>
                       <p className="mt-1.5 text-sm leading-relaxed text-gray-300">{a.message}</p>
                       {a.createdAt && (
-                        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-500">
+                        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-400">
                           <Clock className="h-3 w-3" />
                           {formatDateTime(a.createdAt, "")}
                         </p>
@@ -311,7 +311,7 @@ function DashboardContent() {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-white flex items-center gap-3">
                 My Plans
-                <span className="text-xs bg-white/5 px-3 py-1 rounded-full text-gray-500 font-normal">{userPlans.length} Active</span>
+                <span className="text-xs bg-white/5 px-3 py-1 rounded-full text-gray-400 font-normal">{userPlans.length} Active</span>
               </h2>
               <Button variant="secondary" size="sm" onClick={() => router.push("/#plans")} className="gap-2">
                 <Plus className="w-4 h-4" /> Join Another
@@ -330,7 +330,7 @@ function DashboardContent() {
                   <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors mb-2">
                     {getPlanLabel(pId, customPlans)}
                   </h3>
-                  <p className="text-sm text-gray-500 mb-6 uppercase tracking-widest font-medium">Active Subscription</p>
+                  <p className="text-sm text-gray-400 mb-6 uppercase tracking-widest font-medium">Active Subscription</p>
                   <a
                     href={
                       memberWhatsappLink([pId], customPlans, {}) ||
@@ -348,7 +348,7 @@ function DashboardContent() {
                 </Card>
               )) : (
                 <div className="col-span-full py-12 text-center bg-white/[0.02] rounded-3xl border border-dashed border-white/10">
-                   <p className="text-gray-500">No active plans found. Start your journey today!</p>
+                   <p className="text-gray-400">No active plans found. Start your journey today!</p>
                    <Button onClick={() => router.push("/#plans")} className="mt-4" size="sm">Browse Plans</Button>
                 </div>
               )}
@@ -358,13 +358,13 @@ function DashboardContent() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
             {/* Account Status Card */}
             <Card>
-              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Account Verification</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Account Verification</p>
               {userData && <Badge status={userData.status} size="md" />}
             </Card>
 
             {/* Location Card */}
             <Card>
-              <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Primary Location</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Primary Location</p>
               <p className="text-sm text-white">{userData?.gpsAddress || userData?.location || "Not set"}</p>
             </Card>
           </div>
@@ -398,17 +398,17 @@ function DashboardContent() {
           <Card className="mb-8">
             <h3 className="text-lg font-bold text-white mb-4">Profile Information</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-              <div><span className="text-gray-500">Name:</span> <span className="text-white ml-2">{userData?.name}</span></div>
-              <div><span className="text-gray-500">Email:</span> <span className="text-white ml-2">{userData?.email}</span></div>
-              <div><span className="text-gray-500">Phone:</span> <span className="text-white ml-2">{userData?.phone}</span></div>
-              <div><span className="text-gray-500">Main Plan:</span> <span className="text-white ml-2">{getPlanLabel(userData?.plan || "", customPlans)}</span></div>
-              <div className="sm:col-span-2"><span className="text-gray-500">All Active Plans:</span> <span className="text-primary ml-2 font-bold">{userPlans.map(p => getPlanLabel(p, customPlans)).join(", ")}</span></div>
+              <div><span className="text-gray-400">Name:</span> <span className="text-white ml-2">{userData?.name}</span></div>
+              <div><span className="text-gray-400">Email:</span> <span className="text-white ml-2">{userData?.email}</span></div>
+              <div><span className="text-gray-400">Phone:</span> <span className="text-white ml-2">{userData?.phone}</span></div>
+              <div><span className="text-gray-400">Main Plan:</span> <span className="text-white ml-2">{getPlanLabel(userData?.plan || "", customPlans)}</span></div>
+              <div className="sm:col-span-2"><span className="text-gray-400">All Active Plans:</span> <span className="text-primary ml-2 font-bold">{userPlans.map(p => getPlanLabel(p, customPlans)).join(", ")}</span></div>
             </div>
 
             {/* Document Thumbnails */}
             {userData && (
               <div className="mt-6 pt-4 border-t border-white/10">
-                <p className="text-sm text-gray-500 mb-3">Submitted Documents</p>
+                <p className="text-sm text-gray-400 mb-3">Submitted Documents</p>
                 <div className="grid grid-cols-3 gap-3">
                   {[
                     { label: "Ghana Card Front", url: userData.ghanaCardFront },
@@ -420,10 +420,10 @@ function DashboardContent() {
                         <Image src={docItem.url} alt={docItem.label} width={200} height={80} className="w-full h-20 object-cover rounded-lg border border-white/10 mb-1" />
                       ) : (
                         <div className="w-full h-20 bg-white/5 rounded-lg border border-white/10 flex items-center justify-center mb-1">
-                          <span className="text-xs text-gray-600">N/A</span>
+                          <span className="text-xs text-gray-400">N/A</span>
                         </div>
                       )}
-                      <p className="text-xs text-gray-500">{docItem.label}</p>
+                      <p className="text-xs text-gray-400">{docItem.label}</p>
                     </div>
                   ))}
                 </div>
@@ -516,7 +516,7 @@ function SubmitReview({ userData, userId }: { userData: { name: string; passport
         maxLength={500}
       />
       <div className="flex items-center justify-between mt-3">
-        <span className="text-xs text-gray-500">{review.length}/500</span>
+        <span className="text-xs text-gray-400">{review.length}/500</span>
         <Button onClick={handleSubmit} loading={loading} size="sm" disabled={!review.trim()}>
           Submit Review
         </Button>

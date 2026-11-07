@@ -50,7 +50,8 @@ export default function TrustSection() {
 
 
   return (
-    <section className="py-24 bg-shader-gradient relative overflow-hidden">
+    <section className="py-24 bg-shader-gradient relative overflow-hidden" aria-labelledby="trust-heading">
+      <h2 id="trust-heading" className="sr-only">Why members trust Rabi</h2>
       {/* Decorative background circle */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
       

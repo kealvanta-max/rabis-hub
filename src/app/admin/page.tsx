@@ -679,7 +679,7 @@ export default function AdminPage() {
                 <label className="relative block w-full sm:max-w-xs">
                   <span className="sr-only">Search members</span>
                   <Search
-                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
                     aria-hidden="true"
                   />
                   <input
@@ -687,7 +687,7 @@ export default function AdminPage() {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search name or email…"
-                    className="h-11 w-full rounded-xl bg-black/30 pl-9 pr-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-600 focus:ring-emerald-400/60"
+                    className="h-11 w-full rounded-xl bg-black/30 pl-9 pr-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-400 focus:ring-emerald-400/60"
                   />
                 </label>
 
@@ -709,7 +709,7 @@ export default function AdminPage() {
                         }`}
                       >
                         {option}
-                        <span className={active ? "text-[10px] text-emerald-300/80" : "text-[10px] text-gray-500"}>
+                        <span className={active ? "text-[10px] text-emerald-300/80" : "text-[10px] text-gray-400"}>
                           {count}
                         </span>
                       </button>
@@ -718,14 +718,14 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <p className="text-xs text-gray-500" role="status">
+              <p className="text-xs text-gray-400" role="status">
                 Showing {filteredUsers.length} of {users.length} members
               </p>
 
               {filteredUsers.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/10 px-4 py-12 text-center">
                   <p className="font-grotesk text-sm font-semibold text-white">No members here</p>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-gray-400">
                     {search ? `Nothing matches “${search}”.` : "Try a different filter."}
                   </p>
                 </div>
@@ -797,7 +797,7 @@ export default function AdminPage() {
                 onAdd={(a) => setAnnouncements((prev) => [a, ...prev])}
               />
               {announcements.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No announcements yet.</p>
+                <p className="text-center text-gray-400 py-8">No announcements yet.</p>
               ) : (
                 announcements.map((a) => (
                   <Card key={a.id} className="!p-5 border-l-4 border-l-primary selection:bg-primary/20">
@@ -808,7 +808,7 @@ export default function AdminPage() {
                         <p className="text-[11px] text-primary/70 mt-1">
                           Audience: {a.planId ? getPlanLabel(a.planId, customPlans) : "All members"}
                         </p>
-                        <p className="text-xs text-gray-500 mt-2">{formatDateTime(a.createdAt)}</p>
+                        <p className="text-xs text-gray-400 mt-2">{formatDateTime(a.createdAt)}</p>
                       </div>
                       <button onClick={async () => {
                         try {
@@ -847,7 +847,7 @@ export default function AdminPage() {
                 }
               }} />
               {customPlans.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No custom plans created yet.</p>
+                <p className="text-center text-gray-400 py-8">No custom plans created yet.</p>
               ) : (
                 customPlans.map((plan) => (
                   <Card key={plan.id} className="!p-5">
@@ -954,7 +954,7 @@ export default function AdminPage() {
             you would say it on WhatsApp.
           </p>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.12em] text-gray-400">
               Reason
             </span>
             <textarea
@@ -962,7 +962,7 @@ export default function AdminPage() {
               onChange={(event) => setRejectionReason(event.target.value)}
               placeholder="e.g. The photo of your card is blurred, please send a clearer one."
               rows={4}
-              className="w-full resize-y rounded-xl bg-black/30 px-3 py-2.5 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-600 focus:ring-emerald-400/60"
+              className="w-full resize-y rounded-xl bg-black/30 px-3 py-2.5 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-400 focus:ring-emerald-400/60"
             />
           </label>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1023,7 +1023,7 @@ function StatusPill({ ok, label }: { ok: boolean; label: string }) {
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <Card>
-      <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">{label}</p>
       <p className={`text-2xl font-bold ${color}`}>{value}</p>
     </Card>
   );

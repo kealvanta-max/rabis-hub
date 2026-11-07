@@ -40,14 +40,14 @@ function Field({
       {error ? (
         <p className="mt-1 text-[11px] font-medium text-red-300">{error}</p>
       ) : hint ? (
-        <p className="mt-1 text-[11px] text-gray-500">{hint}</p>
+        <p className="mt-1 text-[11px] text-gray-400">{hint}</p>
       ) : null}
     </div>
   );
 }
 
 const inputClass =
-  "h-11 w-full min-w-0 rounded-xl bg-black/30 px-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-600 focus:ring-emerald-400/60";
+  "h-11 w-full min-w-0 rounded-xl bg-black/30 px-3 text-sm text-gray-100 outline-none ring-1 ring-inset ring-white/10 transition-colors placeholder:text-gray-400 focus:ring-emerald-400/60";
 
 /**
  * The plan form, rebuilt around one rule: **only the name is required.**
@@ -214,7 +214,7 @@ function PlanForm({
         >
           <div className="relative">
             <Link2
-              className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-600"
+              className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
               aria-hidden="true"
             />
             <input
@@ -240,15 +240,15 @@ function PlanForm({
         <p className="mt-1 font-grotesk text-sm font-semibold text-white">{preview.title}</p>
         <dl className="mt-3 grid grid-cols-1 gap-2 text-[11px] text-gray-400 sm:grid-cols-3">
           <div className="min-w-0">
-            <dt className="text-gray-500">Rate</dt>
+            <dt className="text-gray-400">Rate</dt>
             <dd className="truncate text-gray-200">{preview.rate}</dd>
           </div>
           <div className="min-w-0">
-            <dt className="text-gray-500">Payout</dt>
+            <dt className="text-gray-400">Payout</dt>
             <dd className="truncate text-gray-200">{preview.payout}</dd>
           </div>
           <div className="min-w-0">
-            <dt className="text-gray-500">Slots</dt>
+            <dt className="text-gray-400">Slots</dt>
             <dd className="truncate text-gray-200">{preview.slots}</dd>
           </div>
         </dl>

@@ -168,13 +168,13 @@ function SigninForm({ onSwitch }: { onSwitch: () => void }) {
           type="button"
           onClick={handleReset}
           disabled={resetting}
-          className="w-full text-center text-xs text-gray-500 hover:text-primary transition-colors cursor-pointer disabled:opacity-50"
+          className="w-full text-center text-xs text-gray-400 hover:text-primary transition-colors cursor-pointer disabled:opacity-50"
         >
           {resetting ? "Sending reset link…" : "Forgot your password?"}
         </button>
       </form>
 
-      <p className="text-center text-sm text-gray-500 mt-6">
+      <p className="text-center text-sm text-gray-400 mt-6">
         Don&apos;t have an account?{" "}
         <button onClick={onSwitch} className="text-primary hover:underline cursor-pointer">Create one</button>
       </p>
@@ -549,7 +549,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           )}
 
           <div className="glass-soft rounded-2xl p-4">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400">
               Document status
             </p>
             <div className="divide-y divide-white/5">
@@ -561,7 +561,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                 <div key={label} className="flex items-center justify-between py-1.5">
                   <span className="text-xs text-gray-400">{label}</span>
                   {!uploaded ? (
-                    <span className="text-[11px] text-gray-600">Not uploaded</span>
+                    <span className="text-[11px] text-gray-400">Not uploaded</span>
                   ) : verdict?.status === "verified" ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300">
                       <Check className="h-3 w-3" /> Verified
@@ -633,7 +633,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                     Continue with manual review
                   </Button>
                 </div>
-                <p className="break-words text-[10px] leading-relaxed text-gray-500">
+                <p className="break-words text-[10px] leading-relaxed text-gray-400">
                   Reason: {error?.message || error?.name || "unknown"}. Send this line to Rabi if it keeps happening.
                 </p>
               </div>
@@ -707,7 +707,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                   <span className="text-sm font-semibold text-emerald-300">Location Detected</span>
                 </div>
                 <p className="text-sm text-gray-300">{gpsData.address}</p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-400 mt-1">
                   GPS: {gpsData.lat.toFixed(6)}, {gpsData.lng.toFixed(6)}
                 </p>
               </div>
@@ -716,7 +716,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             {(gpsStatus === "denied" || gpsStatus === "error") && (
               <div className="bg-red-900/20 border border-red-500/20 rounded-xl p-4">
                 <p className="text-sm text-red-300 mb-3">{gpsError}</p>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className="text-xs text-gray-400 mb-4">
                   Please enable location access in your browser settings and try again.
                 </p>
                 <Button variant="danger" onClick={requestLocation} className="w-full">
@@ -799,7 +799,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         </div>
       )}
 
-      <p className="text-center text-sm text-gray-500 mt-6">
+      <p className="text-center text-sm text-gray-400 mt-6">
         Already have an account?{" "}
         <button onClick={onSwitch} className="text-primary hover:underline cursor-pointer">Sign in</button>
       </p>
