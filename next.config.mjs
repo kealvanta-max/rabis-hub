@@ -66,6 +66,7 @@ const nextConfig = {
       "worker-src 'self' blob: https://cdn.jsdelivr.net",
       "child-src 'self' blob: https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline'",
+      "manifest-src 'self'",
       "img-src 'self' data: blob: https://res.cloudinary.com https://lh3.googleusercontent.com https://i.pravatar.cc https://firebasestorage.googleapis.com https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
       "font-src 'self' data:",
       "media-src 'self' blob: https://res.cloudinary.com https://firebasestorage.googleapis.com",
@@ -79,6 +80,22 @@ const nextConfig = {
       "upgrade-insecure-requests",
     ].join("; ");
 
+    /*
+     * Two things Lighthouse asks for that this policy deliberately does not do,
+     * both for the same reason: Next 14 writes its hydration payload and our
+     * structured data as inline script on every page.
+     *
+     * 1. A nonce or hash on script-src instead of 'unsafe-inline'. A nonce has
+     *    to differ per response, which forces every page to render dynamically
+     *    and gives back the 5.1s to 1.3s Largest Contentful Paint win.
+     * 2. require-trusted-types-for 'script'. React sets innerHTML for the
+     *    JSON-LD blocks, so enforcing this blanks the page until every one of
+     *    those calls goes through a named policy.
+     *
+     * Both are marked Unscored by Chrome, so they do not move the Best
+     * Practices number. Doing them properly means a nonce pipeline and a policy
+     * for every HTML sink, tested end to end. That is its own change.
+     */
     const commonSecurityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

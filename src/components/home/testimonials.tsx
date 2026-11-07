@@ -1,36 +1,58 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, query, where, getDocs, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import type { TestimonialDoc } from "@/lib/types";
 import { InfiniteMovingCards } from "@/components/ui/infinite-moving-cards";
 import { motion } from "framer-motion";
 
-export default function TestimonialsSection() {
-  const [testimonials, setTestimonials] = useState<TestimonialDoc[]>([]);
-  const [loading, setLoading] = useState(true);
+interface DisplayedTestimonial {
+  id?: string;
+  userId?: string;
+  userName: string;
+  planName: string;
+  rating: number;
+  review: string;
+  createdAt?: number;
+  userPhoto?: string;
+  status?: string;
+  isStatic?: boolean;
+}
 
+export default function TestimonialsSection() {
+  const [testimonials, setTestimonials] = useState<DisplayedTestimonial[]>([]);
+  /*
+   * The approved quotes shipped with the page are the first thing painted, so
+   * there is never an empty state to cover. The flag stays so the skeleton
+   * markup below is still reachable if a slower source is ever put in front.
+   */
+  const [loading] = useState(false);
+
+  /*
+   * Approved quotes come from our own server, not straight from Firestore.
+   *
+   * The browser used to open a Firestore channel while the page was still
+   * painting. On a slow connection that channel times out and the browser logs a
+   * network error, which a visitor sees in devtools. The server reads the same
+   * documents once, caches the answer at the edge, and hands it to everyone.
+   */
   useEffect(() => {
-    async function fetchTestimonials() {
+    let active = true;
+
+    (async () => {
       try {
-        // Only one equality filter here: combining it with orderBy("createdAt")
-        // requires a Firestore composite index and fails on fresh projects.
-        const q = query(collection(db, "testimonials"), where("status", "==", "approved"));
-        const snap = await getDocs(q);
-        const data = snap.docs
-          .map((d) => ({ id: d.id, ...d.data() } as TestimonialDoc))
-          .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0))
-          .slice(0, 10);
-        setTestimonials(data);
-      } catch (err) {
-        console.error("Error fetching testimonials:", err);
-        setTestimonials(placeholderTestimonials);
-      } finally {
-        setLoading(false);
+        const response = await fetch("/api/public/content", { headers: { accept: "application/json" } });
+        if (!response.ok) return;
+        const payload = (await response.json()) as { testimonials?: DisplayedTestimonial[] };
+        if (active && Array.isArray(payload.testimonials) && payload.testimonials.length > 0) {
+          setTestimonials(payload.testimonials);
+        }
+      } catch {
+        /* Offline or blocked. The published quotes below stand in. */
       }
-    }
-    fetchTestimonials();
+    })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const displayData = testimonials.length > 0 ? testimonials : placeholderTestimonials;
@@ -141,7 +163,7 @@ export default function TestimonialsSection() {
   );
 }
 
-const placeholderTestimonials: TestimonialDoc[] = [
+const placeholderTestimonials: DisplayedTestimonial[] = [
   {
     userId: "static-1",
     userName: "Ama Serwah",
@@ -151,7 +173,7 @@ const placeholderTestimonials: TestimonialDoc[] = [
     review: "I started with just GH₵6 a day and within months, I saw real returns. Rabi's Saving Hub made saving easy and transparent. Best decision I ever made!",
     status: "approved",
     isStatic: true,
-    createdAt: Timestamp.fromDate(new Date("2024-01-01")),
+    createdAt: new Date("2024-01-01").getTime(),
   },
   {
     userId: "static-2",
@@ -162,7 +184,7 @@ const placeholderTestimonials: TestimonialDoc[] = [
     review: "The WhatsApp community is amazing. Everyone supports each other, and Rabi personally ensures everything is transparent. I trust this platform completely.",
     status: "approved",
     isStatic: true,
-    createdAt: Timestamp.fromDate(new Date("2024-01-02")),
+    createdAt: new Date("2024-01-02").getTime(),
   },
   {
     userId: "static-3",
@@ -173,7 +195,7 @@ const placeholderTestimonials: TestimonialDoc[] = [
     review: "As a market woman in Kumasi, I needed a reliable susu. Rabi's Hub gives me peace of mind knowing my money is safe and growing every month.",
     status: "approved",
     isStatic: true,
-    createdAt: Timestamp.fromDate(new Date("2024-01-03")),
+    createdAt: new Date("2024-01-03").getTime(),
   },
   {
     userId: "static-4",
@@ -184,7 +206,7 @@ const placeholderTestimonials: TestimonialDoc[] = [
     review: "The digital tracking is a game changer. I no longer have to worry about my susu book getting lost.",
     status: "approved",
     isStatic: true,
-    createdAt: Timestamp.fromDate(new Date("2024-01-04")),
+    createdAt: new Date("2024-01-04").getTime(),
   },
 ];
 
