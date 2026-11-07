@@ -337,6 +337,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     form.ghanaCardNumber &&
       form.ghanaCardValid &&
       !duplicateDocs &&
+      !cardRejected &&
       (documentsReady || documentsDeferred)
   );
   const canStep4 = Boolean(form.faceScanVideo) || livenessMode === "manual_review";

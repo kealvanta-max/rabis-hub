@@ -17,6 +17,7 @@ export function useGeolocation() {
   const [attempts, setAttempts] = useState(0);
 
   const requestLocation = useCallback(async () => {
+    setAttempts((count) => count + 1);
     setStatus("detecting");
     setError(null);
     setFailureCode(null);
