@@ -130,6 +130,16 @@
   transition: all 0.3s ease;
 }
 
+/* === HERO TEXTURE ===
+ * A flat dotted pattern replaces the old mouse-following mask, which needed a
+ * motion value and a repaint on every mousemove. This costs one paint and no
+ * JavaScript. */
+.hero-dots {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background-size: 26px 26px;
+  background-position: -13px -13px;
+}
+
 /* === GOD MODE SHADER GRADIENT === */
 .bg-shader-gradient {
   position: relative;
@@ -137,16 +147,25 @@
   overflow: hidden;
 }
 
+/*
+ * The two glow blobs used to be blended into the page with mix-blend-mode and
+ * animated forever. A blended, 80px blurred element cannot be reused between
+ * frames, so the phone repainted two large areas on every tick. Dropping the
+ * blend mode and the blur radius lets the compositor move an already rendered
+ * layer instead, which is what makes scrolling stop stuttering on a mid range
+ * Android.
+ */
 .bg-shader-gradient::before,
 .bg-shader-gradient::after {
   content: '';
   position: absolute;
-  width: 60vw;
-  height: 60vw;
+  width: 52vw;
+  height: 52vw;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.4;
+  filter: blur(56px);
+  opacity: 0.35;
   animation: flow 20s infinite alternate ease-in-out;
+  will-change: transform;
   pointer-events: none;
   z-index: 0;
 }
@@ -155,7 +174,6 @@
   background: radial-gradient(circle at center, rgba(16, 185, 129, 0.5) 0%, transparent 70%);
   top: -10%;
   left: -10%;
-  mix-blend-mode: color-dodge;
 }
 
 .bg-shader-gradient::after {
@@ -163,7 +181,6 @@
   bottom: -20%;
   right: -10%;
   animation-delay: -10s;
-  mix-blend-mode: screen;
 }
 
 .glass-card {
@@ -329,6 +346,10 @@ select optgroup {
 
 /* === REDUCED MOTION === */
 @media (prefers-reduced-motion: reduce) {
+  .bg-shader-gradient::before,
+  .bg-shader-gradient::after {
+    animation: none;
+  }
 
   *,
   *::before,

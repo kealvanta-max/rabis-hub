@@ -56,7 +56,7 @@ export default function UserRow({ user, planLabel, onOpen, onApprove, onReject }
                 const Icon = fact.icon;
                 const content = (
                   <>
-                    <Icon className="mt-px h-3.5 w-3.5 shrink-0 text-gray-500" aria-hidden="true" />
+                    <Icon className="mt-px h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
                     <span className="sr-only">{fact.srLabel}: </span>
                     <span className="truncate text-gray-400">{fact.value}</span>
                   </>
@@ -83,7 +83,7 @@ export default function UserRow({ user, planLabel, onOpen, onApprove, onReject }
             </dl>
 
             {joined && (
-              <p className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-500">
+              <p className="mt-2 flex items-center gap-1.5 text-[11px] text-gray-400">
                 <CalendarDays className="h-3 w-3" aria-hidden="true" />
                 Joined {joined}
               </p>

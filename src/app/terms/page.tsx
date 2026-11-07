@@ -10,7 +10,7 @@ export default function TermsOfServicePage() {
       <main className="min-h-screen pt-28 pb-20 px-4">
         <article className="max-w-3xl mx-auto prose-container">
           <h1 className="font-display text-3xl md:text-4xl text-white mb-2">Platform Rules & Agreements</h1>
-          <p className="text-sm text-gray-500 mb-10">Last updated: 5 April 2026</p>
+          <p className="text-sm text-gray-400 mb-10">Last updated: 5 April 2026</p>
 
           <div className="space-y-8 text-gray-300 text-[15px] leading-relaxed">
 

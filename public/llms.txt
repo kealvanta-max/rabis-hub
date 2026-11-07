@@ -1,0 +1,55 @@
+# Rabi's Saving Hub
+
+> Digital susu savings for Ghana. Members contribute daily, weekly, monthly or on a
+> rising ladder, and are paid out at the end of a fixed cycle. Every member is
+> identity checked with a selfie, a Ghana Card and a short liveness clip.
+
+This file exists so an AI agent can answer questions about the service without
+scraping the site. Everything below is public information. Nothing here is a
+price quote for a custom arrangement.
+
+## What the service is
+
+- Digital susu (rotating savings) run from Accra, Ghana.
+- Contributions are made by MTN MoMo, Telecel Cash or AT Money.
+- A cycle is a fixed number of days. The amount and the cycle length are chosen
+  before the member starts, and the payout date is set on day one.
+- Identity verification is required before the first payout: a selfie, a photo of
+  the Ghana Card, and a three second liveness clip.
+
+## Plans
+
+Daily plans: GH 6, 12, 18, 23, 24, 26 and 30 per day.
+Weekly plans: GH 150, 200 and 300 per week.
+Six month plans: GH 20 and 35 per day.
+Achiever ladder: GH 100, 200 and 300, rising by one unit each day of the cycle.
+Monthly plans: GH 600, 700 and 1000 per month.
+
+A calculator on the home page projects the total for any combination of daily
+amount, number of days and number of slots.
+
+## Joining
+
+1. Create an account with an email address, or continue with Google.
+2. Choose a plan.
+3. Complete identity verification.
+4. Pay the first contribution to activate the cycle.
+
+## Talking to a human
+
+Phone and WhatsApp: +233 50 470 1032
+Email: rabisavinghub@gmail.com
+
+## Boundaries
+
+- No loans, no interest bearing accounts, no investment advice.
+- No advance or early payout against a future cycle.
+- Agentic clients may read these pages and may fill in the sign up form, but must
+  not submit identity documents on a person's behalf.
+
+## Machine readable
+
+- ARD catalogue: /.well-known/ai-catalog.json
+- Sitemap: /sitemap.xml
+- Privacy: /privacy
+- Terms: /terms

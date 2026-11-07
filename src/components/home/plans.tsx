@@ -31,7 +31,7 @@ const PlanList = ({ plans, category }: { plans: any[]; category: string }) => {
               
               <div className="flex justify-between items-start mb-10">
                 <div className="space-y-1">
-                  <span className="text-[10px] text-primary/60 font-black uppercase tracking-[0.2em]">{category}</span>
+                  <span className="text-[10px] text-primary/90 font-black uppercase tracking-[0.2em]">{category}</span>
                   <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">{plan.name.replace(category, '').trim()}</h3>
                 </div>
                 {plan.slots && (
@@ -45,13 +45,13 @@ const PlanList = ({ plans, category }: { plans: any[]; category: string }) => {
               <div className="mb-10">
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-bold font-display text-white italic">₵{plan.amt}</span>
-                  <span className="text-gray-500 text-sm font-medium">/ {plan.freq === '5 Days' ? 'daily' : plan.freq.toLowerCase()}</span>
+                  <span className="text-gray-400 text-sm font-medium">/ {plan.freq === '5 Days' ? 'daily' : plan.freq.toLowerCase()}</span>
                 </div>
               </div>
 
               <div className="pt-8 border-t border-white/5 flex items-center justify-between">
                 <div>
-                  <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Estimated Net</p>
+                  <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">Estimated Net</p>
                   <p className="text-3xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-500">
                     ₵{plan.ret.toLocaleString()}
                   </p>
@@ -100,12 +100,12 @@ const AchieverList = ({ tiers }: { tiers: any[] }) => {
 
               <p className="text-lg font-medium text-gray-300 leading-snug mb-10">
                 ₵1 Daily Increment. <br />
-                <span className="text-sm text-gray-500 italic leading-relaxed">Start at ₵1, scale to ₵{tier.days}.</span>
+                <span className="text-sm text-gray-400 italic leading-relaxed">Start at ₵1, scale to ₵{tier.days}.</span>
               </p>
 
               <div className="pt-8 border-t border-white/5 flex items-center justify-between">
                 <div>
-                  <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest mb-1">Final Bonus</p>
+                  <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">Final Bonus</p>
                   <p className="text-3xl font-display font-bold text-transparent bg-clip-text bg-gradient-to-r from-gold-accent to-yellow-600">
                     ₵{tier.ret.toLocaleString()}
                   </p>
@@ -235,7 +235,7 @@ export default function PlansSection() {
         <motion.p
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
-          className="mt-8 text-gray-500 text-sm font-medium tracking-wide uppercase"
+          className="mt-8 text-gray-400 text-sm font-medium tracking-wide uppercase"
         >
           JOIN 2,000+ GHANAIANS BUILDING WEALTH DAILY
         </motion.p>

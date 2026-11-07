@@ -51,7 +51,7 @@ export default function CookieConsent() {
             type="button"
             aria-label="Dismiss"
             onClick={() => choose("essential-only")}
-            className="rounded-full p-1 text-gray-500 transition-colors hover:text-white"
+            className="rounded-full p-1 text-gray-400 transition-colors hover:text-white"
           >
             <X className="h-4 w-4" />
           </button>

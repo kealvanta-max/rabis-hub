@@ -76,7 +76,7 @@ function DataRow({
 
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">{label}</dt>
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">{label}</dt>
       <dd className="mt-1 min-w-0">{value}</dd>
     </div>
   );
@@ -170,11 +170,11 @@ export default function UserDetailModal({
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
                   Decision email
                 </p>
                 <p className="mt-1 text-sm text-gray-200">{decisionEmailState(user)}</p>
-                <p className="mt-0.5 text-[11px] text-gray-500">
+                <p className="mt-0.5 text-[11px] text-gray-400">
                   Sent by the server, so it does not depend on this tab staying open.
                 </p>
               </div>
@@ -195,7 +195,7 @@ export default function UserDetailModal({
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-500">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
                 Ghana Card number
               </p>
               <p className="mt-1 font-mono text-sm tracking-wide text-white">
@@ -290,7 +290,7 @@ export default function UserDetailModal({
         <div>
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-300">
-              <Video className="h-3.5 w-3.5 text-gray-500" aria-hidden="true" />
+              <Video className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
               Liveness scan
             </p>
             {user.faceScanVideo ? (
@@ -298,7 +298,7 @@ export default function UserDetailModal({
                 <ShieldCheck className="h-3 w-3" /> Verified
               </span>
             ) : (
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Not recorded</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Not recorded</span>
             )}
           </div>
 
@@ -323,7 +323,7 @@ export default function UserDetailModal({
               </a>
             </>
           ) : (
-            <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-4 text-center text-xs text-gray-500">
+            <p className="rounded-xl border border-white/[0.07] bg-white/[0.02] px-3 py-4 text-center text-xs text-gray-400">
               No liveness clip, reviewed manually.
             </p>
           )}
@@ -346,7 +346,7 @@ export default function UserDetailModal({
                       />
                     </a>
                   ) : (
-                    <span className="grid h-full place-items-center text-[10px] text-gray-600">Not uploaded</span>
+                    <span className="grid h-full place-items-center text-[10px] text-gray-400">Not uploaded</span>
                   )}
                   {document.tag && document.url && (
                     <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white/80 backdrop-blur">
@@ -354,7 +354,7 @@ export default function UserDetailModal({
                     </span>
                   )}
                 </div>
-                <figcaption className="mt-1 truncate text-[10px] text-gray-500">{document.label}</figcaption>
+                <figcaption className="mt-1 truncate text-[10px] text-gray-400">{document.label}</figcaption>
               </figure>
             ))}
           </div>
@@ -393,7 +393,7 @@ export default function UserDetailModal({
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           Delete this member
         </button>
-        <p className="mt-1.5 max-w-prose text-[11px] leading-relaxed text-gray-500">
+        <p className="mt-1.5 max-w-prose text-[11px] leading-relaxed text-gray-400">
           Removes the application, the document links and the payment history for good. Their
           login still exists in Firebase Auth, so delete it there too if this was a test account.
         </p>

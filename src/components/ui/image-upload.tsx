@@ -299,7 +299,7 @@ export default function ImageUpload({
         )}
       </div>
 
-      {hint && !value && <p className="mb-2 text-xs leading-relaxed text-gray-500">{hint}</p>}
+      {hint && !value && <p className="mb-2 text-xs leading-relaxed text-gray-400">{hint}</p>}
 
       {value ? (
         <div>
@@ -356,7 +356,7 @@ export default function ImageUpload({
               <span className="px-4 text-center text-xs text-gray-300 transition-opacity" aria-live="polite">
                 {stage || "Working…"}
               </span>
-              <span className="text-[10px] text-gray-500">This takes a couple of seconds</span>
+              <span className="text-[10px] text-gray-400">This takes a couple of seconds</span>
             </>
           ) : (
             <>
@@ -364,7 +364,7 @@ export default function ImageUpload({
                 <Camera className="h-5 w-5 text-gray-300" />
               </span>
               <span className="text-xs font-semibold text-gray-300">Take a photo or choose a file</span>
-              <span className="text-[10px] text-gray-500">JPG or PNG · good light · no glare</span>
+              <span className="text-[10px] text-gray-400">JPG or PNG · good light · no glare</span>
             </>
           )}
           <input

@@ -19,7 +19,7 @@ export default function Footer() {
               />
               <span className="font-display text-xl gold-text-gradient font-bold tracking-tight">Rabi&apos;s Saving Hub</span>
             </div>
-            <p className="text-sm text-gray-500 leading-relaxed max-w-sm mb-6">
+            <p className="text-sm text-gray-400 leading-relaxed max-w-sm mb-6">
               Ghana&apos;s trusted Susu savings platform. Save smart, grow together with a community that cares.
             </p>
             {/* Social Media Links */}
@@ -38,7 +38,7 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-wide">Quick Links</h4>
+            <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wide">Quick Links</h3>
             <ul className="space-y-2.5">
               <FooterLink href="/#plans">Our Plans</FooterLink>
               <FooterLink href="/#calculator">Calculator</FooterLink>
@@ -49,7 +49,7 @@ export default function Footer() {
 
           {/* Account */}
           <div>
-            <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-wide">Account</h4>
+            <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wide">Account</h3>
             <ul className="space-y-2.5">
               <FooterLink href="/auth?mode=signup">Create Account</FooterLink>
               <FooterLink href="/auth?mode=signin">Sign In</FooterLink>
@@ -59,32 +59,32 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h4 className="text-sm font-bold text-white mb-4 uppercase tracking-wide">Contact</h4>
+            <h3 className="text-sm font-bold text-white mb-4 uppercase tracking-wide">Contact</h3>
             <ul className="space-y-2.5">
               <li>
-                <a href="tel:+233244990995" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                <a href="tel:+233244990995" className="text-sm text-gray-400 hover:text-primary transition-colors">
                   +233 244 990 995
                 </a>
               </li>
               <li>
-                <a href="mailto:rabisavinghub@gmail.com" className="text-sm text-gray-500 hover:text-primary transition-colors">
+                <a href="mailto:rabisavinghub@gmail.com" className="text-sm text-gray-400 hover:text-primary transition-colors">
                   rabisavinghub@gmail.com
                 </a>
               </li>
-              <li className="text-sm text-gray-500">Accra, Ghana</li>
+              <li className="text-sm text-gray-400">Accra, Ghana</li>
             </ul>
           </div>
         </div>
 
         {/* Bottom */}
         <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-gray-600">
+          <p className="text-xs text-gray-400">
             © {new Date().getFullYear()} Rabi&apos;s Saving Hub. All rights reserved.
           </p>
           <div className="flex gap-4 items-center">
-            <Link href="/privacy" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Privacy Policy</Link>
+            <Link href="/privacy" className="text-xs text-gray-400 hover:text-gray-400 transition-colors">Privacy Policy</Link>
             <div className="w-1 h-1 rounded-full bg-gray-800" />
-            <Link href="/terms" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Terms of Service</Link>
+            <Link href="/terms" className="text-xs text-gray-400 hover:text-gray-400 transition-colors">Terms of Service</Link>
           </div>
         </div>
       </div>
@@ -95,7 +95,7 @@ export default function Footer() {
 function FooterLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <li>
-      <Link href={href} className="text-sm text-gray-500 hover:text-primary transition-colors">
+      <Link href={href} className="text-sm text-gray-400 hover:text-primary transition-colors">
         {children}
       </Link>
     </li>

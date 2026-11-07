@@ -27,7 +27,8 @@ const itemVariants = {
 
 export default function ContactSection() {
   return (
-    <section id="contact" className="py-24 bg-navy-light/30 relative overflow-hidden">
+    <section id="contact" className="py-24 bg-navy-light/30 relative overflow-hidden" aria-labelledby="contact-heading">
+      <h2 id="contact-heading" className="sr-only">Contact Rabi</h2>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center mb-16">
           <motion.p 

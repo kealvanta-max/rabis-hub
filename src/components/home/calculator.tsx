@@ -91,12 +91,14 @@ export default function CalculatorSection() {
                     className="space-y-8"
                   >
                     <div>
-                      <label className="flex items-center justify-between text-sm text-gray-300 mb-4">
+                      <div className="flex items-center justify-between text-sm text-gray-300 mb-4">
                         <span className="font-grotesk tracking-wide text-white font-medium">Daily Contribution</span>
                         <span className="font-bold text-primary text-lg">GH₵{contribution}</span>
-                      </label>
+                      </div>
                       <input
                         type="range"
+                        id="calc-contribution"
+                        aria-label="Daily contribution in Ghana cedis"
                         min={1}
                         max={200}
                         value={contribution}
@@ -106,12 +108,14 @@ export default function CalculatorSection() {
                     </div>
 
                     <div>
-                      <label className="flex items-center justify-between text-sm text-gray-300 mb-4">
+                      <div className="flex items-center justify-between text-sm text-gray-300 mb-4">
                         <span className="font-grotesk tracking-wide text-white font-medium">Number of Days</span>
                         <span className="font-bold text-primary text-lg">{days} days</span>
-                      </label>
+                      </div>
                       <input
                         type="range"
+                        id="calc-days"
+                        aria-label="Number of days"
                         min={1}
                         max={365}
                         value={days}
@@ -121,12 +125,14 @@ export default function CalculatorSection() {
                     </div>
 
                     <div>
-                      <label className="flex items-center justify-between text-sm text-gray-300 mb-4">
+                      <div className="flex items-center justify-between text-sm text-gray-300 mb-4">
                         <span className="font-grotesk tracking-wide text-white font-medium">Number of Slots</span>
                         <span className="font-bold text-primary text-lg">{slots} slots</span>
-                      </label>
+                      </div>
                       <input
                         type="range"
+                        id="calc-slots"
+                        aria-label="Number of slots"
                         min={1}
                         max={50}
                         value={slots}
@@ -148,12 +154,14 @@ export default function CalculatorSection() {
                       You save GH₵1 on Day 1, GH₵2 on Day 2, GH₵3 on Day 3, and so on until the end of your cycle.
                     </div>
                     <div>
-                      <label className="flex items-center justify-between text-sm text-gray-300 mb-4">
+                      <div className="flex items-center justify-between text-sm text-gray-300 mb-4">
                         <span className="font-grotesk tracking-wide text-white font-medium">Cycle Duration</span>
                         <span className="font-bold text-primary text-lg">{days} days</span>
-                      </label>
+                      </div>
                       <input
                         type="range"
+                        id="calc-cycle"
+                        aria-label="Cycle duration in days"
                         min={1}
                         max={365}
                         value={days}
@@ -182,7 +190,7 @@ export default function CalculatorSection() {
                     </span>
                   </motion.div>
                 </div>
-                <p className="text-xs text-gray-500 mt-6 text-center italic opacity-60">
+                <p className="text-xs text-gray-400 mt-6 text-center italic opacity-60">
                   {mode === "standard" 
                     ? `Formula: ${contribution} (Amt) × ${days} (Days) × ${slots} (Slots)`
                     : `Formula: Sum of 1 to ${days} (Arithmetic Progression)`}

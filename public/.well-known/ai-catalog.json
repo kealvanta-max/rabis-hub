@@ -1,0 +1,31 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Rabi's Saving Hub",
+    "identifier": "urn:air:rabis-saving-hub.vercel.app:host"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:rabis-saving-hub.vercel.app:skills:savings-plans",
+      "displayName": "Susu savings plans and rates",
+      "type": "text/markdown",
+      "profile": "urn:air:agent-skills",
+      "url": "https://rabis-saving-hub.vercel.app/llms.txt",
+      "description": "Plain text summary of the daily, weekly, six month, monthly and achiever susu plans offered by Rabi's Saving Hub in Ghana, including contribution amounts, durations, payout rules, how to join, and how to reach a human.",
+      "capabilities": [
+        "savings-plan-catalogue",
+        "contribution-calculator",
+        "sign-up-guidance",
+        "contact-details"
+      ],
+      "tags": ["susu", "savings", "ghana", "finance", "mobile-money"],
+      "representativeQueries": [
+        "what susu savings plans does Rabi's Saving Hub offer in Ghana",
+        "how much is the daily susu plan with Rabi",
+        "when do I get paid out on a weekly susu cycle",
+        "how do I join Rabi's Saving Hub and verify my Ghana Card",
+        "how do I contact Rabi's Saving Hub about my savings"
+      ]
+    }
+  ]
+}

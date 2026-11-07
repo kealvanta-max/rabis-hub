@@ -121,7 +121,7 @@ export default function PlanPicker({ value, onChange, customPlans = [] }: PlanPi
     <div className="space-y-4">
       <div className="flex items-baseline justify-between">
         <label className="block text-sm font-medium text-gray-300">Choose a plan</label>
-        <span className="text-[11px] uppercase tracking-[0.14em] text-gray-500">Step 1 of 2</span>
+        <span className="text-[11px] uppercase tracking-[0.14em] text-gray-400">Step 1 of 2</span>
       </div>
 
       {/* Category chips */}
@@ -147,7 +147,7 @@ export default function PlanPicker({ value, onChange, customPlans = [] }: PlanPi
         })}
       </div>
 
-      <p className="text-xs leading-relaxed text-gray-500">{active.hint}</p>
+      <p className="text-xs leading-relaxed text-gray-400">{active.hint}</p>
 
       {/* Plan cards */}
       <div className="grid grid-cols-2 gap-2.5">
@@ -188,7 +188,7 @@ export default function PlanPicker({ value, onChange, customPlans = [] }: PlanPi
                 <span className="text-sm font-bold">{cedis(card.payout)}</span>
               </div>
 
-              <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500">
+              <div className="mt-1 flex items-center justify-between text-[10px] text-gray-400">
                 <span>payout</span>
                 {card.slots ? (
                   <span className="inline-flex items-center gap-1">

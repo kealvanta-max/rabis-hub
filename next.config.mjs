@@ -66,12 +66,12 @@ const nextConfig = {
       "worker-src 'self' blob: https://cdn.jsdelivr.net",
       "child-src 'self' blob: https://cdn.jsdelivr.net",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: https://res.cloudinary.com https://lh3.googleusercontent.com https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+      "img-src 'self' data: blob: https://res.cloudinary.com https://lh3.googleusercontent.com https://i.pravatar.cc https://firebasestorage.googleapis.com https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
       "font-src 'self' data:",
-      "media-src 'self' blob: https://res.cloudinary.com",
+      "media-src 'self' blob: https://res.cloudinary.com https://firebasestorage.googleapis.com",
       // Google sign-in popups and the Firebase auth handler frame.
       "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com",
-      "connect-src 'self' https://tessdata.projectnaptha.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.cloudinary.com https://res.cloudinary.com https://storage.googleapis.com https://cdn.jsdelivr.net https://*.posthog.com https://*.ingest.sentry.io https://nominatim.openstreetmap.org https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
+      "connect-src 'self' https://firebasestorage.googleapis.com https://tessdata.projectnaptha.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.cloudinary.com https://res.cloudinary.com https://storage.googleapis.com https://cdn.jsdelivr.net https://*.posthog.com https://*.ingest.sentry.io https://nominatim.openstreetmap.org https://tile.openstreetmap.org https://*.basemaps.cartocdn.com",
       "frame-ancestors 'self' https://*.e2b.app",
       "base-uri 'self'",
       "form-action 'self'",
@@ -92,6 +92,20 @@ const nextConfig = {
     ];
 
     return [
+      {
+        // Static art and the agent manifest never change between deploys, so a
+        // phone should keep them instead of re-downloading them.
+        source: "/images/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      {
+        source: "/.well-known/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=3600" },
+          // Agents on other origins are meant to read this one.
+          { key: "Access-Control-Allow-Origin", value: "*" },
+        ],
+      },
       {
         // Public site, auth and dashboard pages. Deliberately no X-Frame-Options
         // so the app can be embedded in preview/hosting dashboards.
