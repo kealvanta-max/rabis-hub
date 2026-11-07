@@ -186,7 +186,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const router = useRouter();
   const params = useSearchParams();
   const { addToast } = useToastContext();
-  const { status: gpsStatus, gpsData, error: gpsError, requestLocation } = useGeolocation();
+  const {
+    status: gpsStatus,
+    gpsData,
+    error: gpsError,
+    failureCode: gpsFailure,
+    requestLocation,
+    skip: skipLocation,
+  } = useGeolocation();
   const [step, setStep] = useState(1);
   /*
    * Storage can fail for reasons that are nobody's fault on this phone: a
@@ -284,7 +291,6 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       (documentsReady || documentsDeferred)
   );
   const canStep4 = Boolean(form.faceScanVideo) || livenessMode === "manual_review";
-  const canStep5 = gpsStatus === "success";
   const mathPassed = mathAns.trim() === (mathObj.a + mathObj.b).toString();
 
   const handleFaceScanComplete = useCallback((url: string) => {
@@ -341,9 +347,18 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         passportPhoto: form.passportPhoto,
         faceScanVideo: form.faceScanVideo || "",
         livenessStatus: livenessMode === "manual_review" ? "manual_review" : "video",
-        gpsLat: gpsData?.lat || 0,
-        gpsLng: gpsData?.lng || 0,
-        gpsAddress: gpsData?.address || "",
+        /*
+         * A member who could not get a fix still gets through. The record says
+         * so plainly instead of carrying a silent zero, and the admin queue is
+         * told to look at the address.
+         */
+        gpsLat: gpsData?.lat ?? 0,
+        gpsLng: gpsData?.lng ?? 0,
+        gpsAddress:
+          gpsData?.address || (form.location ? `${form.location} (typed by the member)` : "Unknown, pending"),
+        locationSource: gpsData ? gpsData.source : form.location ? "manual" : "unknown",
+        locationAccuracy: gpsData?.accuracy ?? null,
+        locationReview: !gpsData || gpsData.suspicious,
         ghanaCardOcrResult: form.ghanaCardOcrResult || "",
         documentsDeferred: documentsDeferred,
         status: "pending",
@@ -667,70 +682,126 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         </div>
       )}
 
-      {/* STEP 4 — GPS Location (MANDATORY) */}
+      {/* STEP 4 — Location. Helpful, never a gate. */}
       {step === 4 && (
         <div className="space-y-5">
           <div className="text-center py-6">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 text-primary mb-4">
-              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
             <h3 className="text-lg font-bold text-white mb-2">Enable Your Location</h3>
-            <p className="text-sm text-gray-400 mb-6">
-              We need your GPS location for verification. This is <span className="text-primary font-semibold">required</span> to complete registration.
+            <p className="text-sm text-gray-300 mb-6">
+              A GPS pin helps Rabi confirm you are in Ghana. If your phone cannot find you, type your area below and continue.
             </p>
 
             {gpsStatus === "idle" && (
-              <Button onClick={requestLocation} className="w-full">
-                Detect My Location
-              </Button>
+              <div className="space-y-3">
+                <Button onClick={requestLocation} className="w-full">Detect My Location</Button>
+                <button
+                  type="button"
+                  onClick={skipLocation}
+                  className="text-xs text-gray-300 underline underline-offset-4 hover:text-white"
+                >
+                  Skip, I will type my area
+                </button>
+              </div>
             )}
 
             {gpsStatus === "detecting" && (
               <div className="flex flex-col items-center gap-3">
-                <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                <p className="text-sm text-gray-400">Detecting your location...</p>
+                <p className="text-sm text-gray-300">Finding you. Indoors this can take up to 20 seconds.</p>
+                <button
+                  type="button"
+                  onClick={skipLocation}
+                  className="text-xs text-gray-300 underline underline-offset-4 hover:text-white"
+                >
+                  Skip for now
+                </button>
               </div>
             )}
 
             {gpsStatus === "success" && gpsData && (
-              <div className="bg-emerald-900/20 border border-emerald-500/20 rounded-xl p-4 text-left">
+              <div
+                className={`rounded-xl p-4 text-left border ${
+                  gpsData.suspicious
+                    ? "bg-amber-500/10 border-amber-400/30"
+                    : "bg-emerald-900/20 border-emerald-500/20"
+                }`}
+              >
                 <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <svg className={`w-5 h-5 ${gpsData.suspicious ? "text-amber-300" : "text-emerald-400"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={gpsData.suspicious ? "M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" : "M5 13l4 4L19 7"} />
                   </svg>
-                  <span className="text-sm font-semibold text-emerald-300">Location Detected</span>
+                  <span className={`text-sm font-semibold ${gpsData.suspicious ? "text-amber-200" : "text-emerald-300"}`}>
+                    {gpsData.suspicious ? "Location needs a check" : "Location detected"}
+                  </span>
                 </div>
-                <p className="text-sm text-gray-300">{gpsData.address}</p>
+                <p className="text-sm text-gray-200">{gpsData.address}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  GPS: {gpsData.lat.toFixed(6)}, {gpsData.lng.toFixed(6)}
+                  Accurate to about {gpsData.accuracy} m, from {gpsData.source === "gps" ? "GPS" : "your network"}
                 </p>
+                {gpsData.suspicious && (
+                  <p className="text-xs text-amber-200/90 mt-2">
+                    We could not confirm this pin is in Ghana. You can continue, and Rabi will check your address.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={requestLocation}
+                  className="mt-3 text-xs text-gray-300 underline underline-offset-4 hover:text-white"
+                >
+                  Detect again
+                </button>
               </div>
             )}
 
-            {(gpsStatus === "denied" || gpsStatus === "error") && (
-              <div className="bg-red-900/20 border border-red-500/20 rounded-xl p-4">
-                <p className="text-sm text-red-300 mb-3">{gpsError}</p>
-                <p className="text-xs text-gray-400 mb-4">
-                  Please enable location access in your browser settings and try again.
+            {(gpsStatus === "denied" || gpsStatus === "unavailable") && (
+              <div className="bg-amber-500/10 border border-amber-400/30 rounded-xl p-4 text-left">
+                <p className="text-sm text-amber-100">
+                  {gpsError || "We could not get your exact GPS location. You can proceed, but Rabi may ask for your address later."}
                 </p>
-                <Button variant="danger" onClick={requestLocation} className="w-full">
+                {gpsFailure === "denied" && (
+                  <p className="text-xs text-amber-200/90 mt-2">
+                    Tap the lock icon next to the address bar, set Location to Allow, then try again.
+                  </p>
+                )}
+                <Button variant="secondary" onClick={requestLocation} className="w-full mt-4">
                   Try Again
                 </Button>
               </div>
             )}
 
-
+            <div className="mt-6 text-left">
+              <label
+                htmlFor="signup-area"
+                className="block text-xs font-semibold uppercase tracking-widest text-gray-300 mb-2"
+              >
+                Your area
+              </label>
+              <input
+                id="signup-area"
+                value={form.location}
+                onChange={(e) => update("location", e.target.value)}
+                placeholder="e.g. Kpormetey, Accra"
+                autoComplete="address-level2"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-gray-400 focus:border-primary focus:outline-none"
+              />
+              <p className="mt-2 text-xs text-gray-400">
+                Used when your phone cannot share a location. Rabi reads this herself.
+              </p>
+            </div>
           </div>
 
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => setStep(3)} className="flex-1">Back</Button>
-            <Button onClick={() => setStep(5)} disabled={!canStep5} className="flex-1">Continue</Button>
+            <Button onClick={() => setStep(5)} className="flex-1">Continue</Button>
           </div>
         </div>
       )}
@@ -743,7 +814,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <p className="text-gray-400">Email: <span className="text-white">{form.email}</span></p>
             <p className="text-gray-400">Phone: <span className="text-white">{form.phone}</span></p>
             <p className="text-gray-400">Plan: <span className="text-white">{getPlanLabel(form.plan, customPlans)}</span></p>
-            <p className="text-gray-400">Location: <span className="text-white">{gpsData?.address}</span></p>
+            <p className="text-gray-400">Location: <span className="text-white">{gpsData?.address || form.location || "To be confirmed"}</span></p>
             <p className="text-gray-400">Documents: <span className="text-emerald-400">3 uploaded + Verified Face Scan</span></p>
           </div>
 

@@ -80,6 +80,7 @@ service cloud.firestore {
           'ghanaCardNumber', 'ghanaCardValid', 'ghanaCardFront', 'ghanaCardBack',
           'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
           'gpsLat', 'gpsLng', 'gpsAddress',
+          'locationSource', 'locationAccuracy', 'locationReview',
           'termsAccepted', 'termsAcceptedAt'
         ])
         && (
@@ -88,7 +89,8 @@ service cloud.firestore {
             'ghanaCardNumber', 'ghanaCardValid',
             'ghanaCardFront', 'ghanaCardBack',
             'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
-            'gpsLat', 'gpsLng', 'gpsAddress'
+            'gpsLat', 'gpsLng', 'gpsAddress',
+            'locationSource', 'locationAccuracy', 'locationReview'
           ])
         )
       );

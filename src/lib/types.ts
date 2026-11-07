@@ -8,6 +8,12 @@ export interface UserDoc {
   gpsLat: number;
   gpsLng: number;
   gpsAddress: string;
+  /** How the pin was obtained: a real fix, the network, or typed by the member. */
+  locationSource?: "gps" | "network" | "manual" | "unknown";
+  /** Radius of uncertainty in metres, when a fix was read. */
+  locationAccuracy?: number | null;
+  /** Set when there was no fix, or the pin was outside Ghana. */
+  locationReview?: boolean;
   plan: string;
   plans?: string[];
   ghanaCardNumber?: string;
