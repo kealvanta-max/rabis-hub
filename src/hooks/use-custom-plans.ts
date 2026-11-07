@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import type { CustomPlan } from "@/lib/plans-data";
 
 /**
@@ -27,10 +25,12 @@ export function useCustomPlans() {
     const load = async () => {
       
       try {
-        const snap = await getDoc(doc(db, "settings", "customPlans"));
-        if (active && snap.exists()) {
-          const plans = snap.data()?.plans;
-          if (Array.isArray(plans)) setCustomPlans(plans as CustomPlan[]);
+        const response = await fetch("/api/public/content", { headers: { accept: "application/json" } });
+        if (response.ok) {
+          const payload = (await response.json()) as { customPlans?: unknown };
+          if (active && Array.isArray(payload.customPlans)) {
+            setCustomPlans(payload.customPlans as CustomPlan[]);
+          }
         }
       } catch {
         /* Not configured, offline, or blocked. The published plans still show. */

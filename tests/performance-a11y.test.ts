@@ -235,3 +235,31 @@ describe("agent discovery", () => {
     expect(ard.entries[0].url).toContain("/llms.txt");
   });
 });
+
+describe("no third party reads while the page paints", () => {
+  it("keeps the landing page off the Firestore SDK", () => {
+    // A Firestore channel opened during load times out on slow connections and
+    // the browser logs net::ERR_TIMED_OUT, which is a visible console error.
+    const files = readdirSync(join(process.cwd(), "src/components/home")).map((f) => `src/components/home/${f}`);
+    for (const file of files) {
+      expect(read(file), file).not.toContain("firebase/firestore");
+    }
+    expect(read("src/hooks/use-custom-plans.ts")).not.toContain("firebase/firestore");
+  });
+
+  it("serves that content from our own origin instead", () => {
+    const route = read("src/app/api/public/content/route.ts");
+    expect(route).toContain("adminFirestore");
+    expect(route).toContain("s-maxage=300");
+    // Every failure path answers 200 with an empty payload, so the page falls
+    // back to its published content instead of showing an error.
+    expect(route).toContain("EMPTY");
+    expect(route).toContain('"Cache-Control": "no-store"');
+  });
+
+  it("never logs its own read failures", () => {
+    for (const file of ["src/components/home/testimonials.tsx", "src/hooks/use-custom-plans.ts"]) {
+      expect(read(file), file).not.toContain("console.error");
+    }
+  });
+});
