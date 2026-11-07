@@ -14,6 +14,7 @@ import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 import { useToastContext } from "@/components/layout/toast-provider";
 import { useAuth } from "@/context/auth-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
+import { crossVerifyCard, extractCardNumbers, normalizeCardNumber, type CardCrossCheck } from "@/lib/kyc-verification";
 import { getPlanLabel } from "@/lib/plans-data";
 import { Check, ShieldCheck, TriangleAlert, XCircle } from "lucide-react";
 import { useCustomPlans } from "@/hooks/use-custom-plans";
@@ -191,9 +192,22 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     gpsData,
     error: gpsError,
     failureCode: gpsFailure,
+    attempts: gpsAttempts,
     requestLocation,
     skip: skipLocation,
   } = useGeolocation();
+
+  /*
+   * The typed area used to be the first thing a member saw on the location
+   * step, which made the whole step look like a form to fill in by hand. It now
+   * appears only after the phone has genuinely failed three times, or when the
+   * member chooses it.
+   */
+  const [showManualArea, setShowManualArea] = useState(false);
+
+  useEffect(() => {
+    if (gpsAttempts >= 3) setShowManualArea(true);
+  }, [gpsAttempts]);
   const [step, setStep] = useState(1);
   /*
    * Storage can fail for reasons that are nobody's fault on this phone: a
@@ -210,6 +224,18 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   }, [step]);
   const [loading, setLoading] = useState(false);
   const { customPlans } = useCustomPlans();
+  /*
+   * The card reader's own number, and what the member typed over it. The reader
+   * is the honest witness here: if the field and the card disagree, Rabi has to
+   * be told, because that is exactly how a swapped card gets through.
+   */
+  const [ocrCardNumber, setOcrCardNumber] = useState("");
+  const [cardEditsAcknowledged, setCardEditsAcknowledged] = useState(false);
+  const [cardEditPrompt, setCardEditPrompt] = useState<{ from: string; to: string } | null>(null);
+  const [cardTexts, setCardTexts] = useState({ front: "", back: "" });
+  const [backOcrLowConfidence, setBackOcrLowConfidence] = useState(false);
+  const [cardCross, setCardCross] = useState<CardCrossCheck | null>(null);
+
   const [docVerdicts, setDocVerdicts] = useState<
     Partial<Record<"front" | "back" | "selfie", DocVerdict | null>>
   >({});
@@ -284,10 +310,34 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
 
   const documentsReady = frontReady && backReady && selfieReady;
   const documentsDeferred = uploadFailures > 0 && sendDocsOnWhatsApp;
+  /*
+   * Both sides of the card, compared.
+   *
+   * The front carries the number in ink, the back carries it in the machine
+   * readable zone with an ICAO 9303 check digit. If they disagree, the card is a
+   * copy, an edit, or two cards in one envelope, and this stops here.
+   */
+  useEffect(() => {
+    if (!cardTexts.front && !cardTexts.back) {
+      setCardCross(null);
+      return;
+    }
+    setCardCross(
+      crossVerifyCard({
+        frontText: cardTexts.front,
+        backText: cardTexts.back,
+      })
+    );
+  }, [cardTexts, form.ghanaCardNumber]);
+
+  const cardRejected = cardCross?.status === "rejected";
+  const cardNeedsReview = Boolean(cardCross && (cardCross.status === "review" || cardCross.status === "skipped"));
+
   const canStep3 = Boolean(
     form.ghanaCardNumber &&
       form.ghanaCardValid &&
       !duplicateDocs &&
+      !cardRejected &&
       (documentsReady || documentsDeferred)
   );
   const canStep4 = Boolean(form.faceScanVideo) || livenessMode === "manual_review";
@@ -296,6 +346,22 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const handleFaceScanComplete = useCallback((url: string) => {
     setForm((prev) => ({ ...prev, faceScanVideo: url }));
   }, []);
+
+  /**
+   * Changing the card number after the reader has seen one is allowed, but it is
+   * a decision, not a typo. Rabi is told, and the member is asked first.
+   */
+  const goToStep3 = useCallback(() => {
+    const typed = normalizeCardNumber(form.ghanaCardNumber);
+    const read = normalizeCardNumber(ocrCardNumber);
+
+    if (read && typed && typed !== read && !cardEditsAcknowledged) {
+      setCardEditPrompt({ from: ocrCardNumber, to: form.ghanaCardNumber ?? "" });
+      return;
+    }
+
+    setStep(3);
+  }, [form.ghanaCardNumber, ocrCardNumber, cardEditsAcknowledged]);
 
   const handleSubmit = async () => {
     /*
@@ -359,6 +425,23 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         locationSource: gpsData ? gpsData.source : form.location ? "manual" : "unknown",
         locationAccuracy: gpsData?.accuracy ?? null,
         locationReview: !gpsData || gpsData.suspicious,
+        /*
+         * One plain sentence for Rabi's queue. Empty when there is nothing to
+         * look at, so the admin screen can trust a non-empty value.
+         */
+        kycReviewReason: cardRejected
+          ? cardCross?.code === "front-back-mismatch"
+            ? "Front/back card number mismatch"
+            : cardCross?.code === "mrz-checksum"
+              ? "MRZ checksum failed"
+              : cardCross?.message ?? "Card rejected"
+          : backOcrLowConfidence
+            ? "Back image OCR confidence below 80%"
+            : cardNeedsReview
+              ? cardCross?.message ?? "Card needs a manual look"
+              : cardEditsAcknowledged
+                ? "Card number was changed after the reader saw a different number."
+                : "",
         ghanaCardOcrResult: form.ghanaCardOcrResult || "",
         documentsDeferred: documentsDeferred,
         status: "pending",
@@ -477,6 +560,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
               onChange={(e) => {
                 const formatted = formatGhanaCardInput(e.target.value);
                 const isValid = validateGhanaCardFormat(formatted);
+                setCardEditsAcknowledged(false);
                 setForm((prev) => ({ ...prev, ghanaCardNumber: formatted, ghanaCardValid: isValid }));
               }}
               placeholder="GHA-123456789-0"
@@ -500,6 +584,15 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             declaredCardNumber={form.ghanaCardNumber || ""}
             hint="Lay the card flat on a table, all four corners inside the frame, no glare."
             onUpload={(url) => update("ghanaCardFront", url)}
+            onOcrText={(text) => {
+              setCardTexts((prev) => ({ ...prev, front: text }));
+              const found = extractCardNumbers(text)[0];
+              if (!found) return;
+              setOcrCardNumber(found);
+              // Prefill only an empty field. A number the member already typed
+              // is their statement, and the prompt below asks about changes.
+              setForm((prev) => (prev.ghanaCardNumber ? prev : { ...prev, ghanaCardNumber: found, ghanaCardValid: true }));
+            }}
             onFailure={() => setUploadFailures((count) => count + 1)}
             onVerdict={(verdict, hash) => {
               setDocVerdicts((prev) => ({ ...prev, front: verdict }));
@@ -515,6 +608,22 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             declaredCardNumber={form.ghanaCardNumber || ""}
             hint="Flip the card over, the barcode side. Keep the whole card in frame."
             onUpload={(url) => update("ghanaCardBack", url)}
+            onOcrText={(text, confidence) => {
+              setCardTexts((prev) => ({ ...prev, back: text }));
+              const lowConfidence = confidence < 80;
+              setBackOcrLowConfidence(lowConfidence);
+              if (lowConfidence) {
+                setDocVerdicts((prev) => ({
+                  ...prev,
+                  back: {
+                    status: "review",
+                    confidence,
+                    message: "The back of the card could not be read with enough confidence. Rabi will check it manually.",
+                    reasons: ["low-ocr-confidence"],
+                  },
+                }));
+              }
+            }}
             onFailure={() => setUploadFailures((count) => count + 1)}
             onVerdict={(verdict, hash) => {
               setDocVerdicts((prev) => ({ ...prev, back: verdict }));
@@ -534,6 +643,72 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
               setDocHashes((prev) => ({ ...prev, selfie: hash ?? null }));
             }}
           />
+
+          {cardCross && cardCross.status === "rejected" && (
+            <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3">
+              <p className="text-sm font-semibold text-red-200">{cardCross.message}</p>
+              <p className="mt-1 text-xs text-red-200/80">
+                Take a new photo of both sides of the same card. Rabi cannot approve a card whose two sides disagree.
+              </p>
+            </div>
+          )}
+
+          {cardCross && cardCross.status === "review" && (
+            <div className="rounded-xl border border-amber-500/35 bg-amber-500/[0.08] p-3">
+              <p className="text-xs leading-relaxed text-amber-100">{cardCross.message}</p>
+            </div>
+          )}
+
+          {cardCross && cardCross.status === "verified" && (
+            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.08] p-3 text-xs text-emerald-200">
+              {cardCross.message}
+            </p>
+          )}
+
+          {cardEditPrompt && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="card-edit-title"
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 p-4"
+            >
+              <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#04140C] p-5 shadow-2xl">
+                <h4 id="card-edit-title" className="text-base font-bold text-white">
+                  Change the card number?
+                </h4>
+                <p className="mt-2 text-sm leading-relaxed text-gray-300">
+                  You are changing the card number from{" "}
+                  <span className="font-mono text-white">{cardEditPrompt.from}</span> to{" "}
+                  <span className="font-mono text-white">{cardEditPrompt.to}</span>. This will require manual review
+                  by Rabi. Are you sure?
+                </p>
+                <div className="mt-4 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForm((prev) => ({ ...prev, ghanaCardNumber: cardEditPrompt.from, ghanaCardValid: true }));
+                      setCardEditPrompt(null);
+                      setCardEditsAcknowledged(true);
+                    }}
+                    className="w-full rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/15"
+                  >
+                    Keep the number on the card
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCardEditPrompt(null);
+                      setCardEditsAcknowledged(true);
+                      setStep(3);
+                    }}
+                    className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-[#020C06] hover:brightness-110"
+                  >
+                    Use my number, review it
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {duplicateDocs && (
             <p className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
@@ -599,7 +774,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             <Button variant="secondary" onClick={() => setStep(1)} className="flex-1">
               Back
             </Button>
-            <Button onClick={() => setStep(3)} disabled={!canStep3} className="flex-1">
+            <Button onClick={goToStep3} disabled={!canStep3} className="flex-1">
               Continue
             </Button>
           </div>
@@ -778,7 +953,15 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
               </div>
             )}
 
+            {gpsAttempts > 0 && gpsAttempts < 3 && gpsStatus !== "success" && (
+              <p className="mt-4 text-xs text-gray-400">Attempt {gpsAttempts} of 3</p>
+            )}
+
+            {showManualArea ? (
             <div className="mt-6 text-left">
+              <p className="mb-2 text-sm text-amber-100">
+                We couldn&apos;t detect your location. Please type your area below.
+              </p>
               <label
                 htmlFor="signup-area"
                 className="block text-xs font-semibold uppercase tracking-widest text-gray-300 mb-2"
@@ -794,9 +977,10 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                 className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-gray-400 focus:border-primary focus:outline-none"
               />
               <p className="mt-2 text-xs text-gray-400">
-                Used when your phone cannot share a location. Rabi reads this herself.
+                Rabi reads this herself, so spell it the way a neighbour would say it.
               </p>
             </div>
+            ) : null}
           </div>
 
           <div className="flex gap-3">

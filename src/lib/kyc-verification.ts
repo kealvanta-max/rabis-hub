@@ -19,6 +19,8 @@ export interface DocVerdict {
 }
 
 /** `"GHA-123456789-0"` → `"GHA1234567890"`. Used for comparisons only. */
+import { digitsOf, parseTd1 } from "@/lib/mrz";
+
 export function normalizeCardNumber(input: string | null | undefined): string {
   return (input ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
@@ -337,6 +339,104 @@ export function isDuplicateImage(a?: string | null, b?: string | null): boolean 
     }
   }
   return distance <= 5;
+}
+
+/* ------------------------------------------------------------------ */
+/* Front and back of the same card                                     */
+/* ------------------------------------------------------------------ */
+
+export interface CardCrossCheck {
+  status: "verified" | "review" | "rejected" | "skipped";
+  /** Machine code for the admin record. */
+  code: string;
+  /** One sentence a member can read. */
+  message: string;
+  frontNumber: string;
+  mrzNumber: string;
+  mrzFound: boolean;
+}
+
+/**
+ * Compares the number printed on the front with the number in the machine
+ * readable zone on the back, and validates the ICAO 9303 check digits.
+ *
+ * This is the check an image edit cannot pass. The two numbers come from
+ * different printing processes on different sides of the card, and the MRZ
+ * carries its own checksum. A screenshot of a card, a copy with a swapped
+ * portrait, or two cards photographed together all fail it.
+ *
+ * Where it is not certain, it says so. A phone that could not read the strip is
+ * a "review", not a rejection, because punishing a member for a bad camera is
+ * how a signup flow dies.
+ */
+export function crossVerifyCard({
+  frontText,
+  backText,
+}: {
+  frontText: string;
+  backText: string;
+}): CardCrossCheck {
+  const frontNumber = extractCardNumbers(frontText)[0] ?? "";
+  const mrz = parseTd1(backText);
+
+  if (!mrz) {
+    return {
+      status: "review",
+      code: "mrz-unreadable",
+      message: "We could not read the strip on the back of the card. Rabi will check it by hand.",
+      frontNumber,
+      mrzNumber: "",
+      mrzFound: false,
+    };
+  }
+
+  const frontDigits = digitsOf(frontNumber).slice(0, 9);
+  const mrzDigits = digitsOf(mrz.documentNumber).slice(0, 9);
+
+  // A failed check digit means the machine-readable line is not authentic enough
+  // to approve. OCR uncertainty is handled separately as a manual review when
+  // the MRZ cannot be parsed at all.
+  if (!mrz.documentNumberValid || !mrz.dateOfBirthValid || !mrz.dateOfExpiryValid || !mrz.compositeValid) {
+    return {
+      status: "rejected",
+      code: "mrz-checksum",
+      message: "This card appears to be invalid or tampered with.",
+      frontNumber,
+      mrzNumber: mrz.documentNumber,
+      mrzFound: true,
+    };
+  }
+
+  if (frontDigits.length >= 9 && mrzDigits.length >= 9 && frontDigits !== mrzDigits) {
+    return {
+      status: "rejected",
+      code: "front-back-mismatch",
+      message: "The card number on the front and back do not match. Please upload a valid Ghana Card.",
+      frontNumber,
+      mrzNumber: mrz.documentNumber,
+      mrzFound: true,
+    };
+  }
+
+  if (!mrz.compositeValid) {
+    return {
+      status: "review",
+      code: "mrz-composite-uncertain",
+      message: "We could not confirm the strip on your card. Rabi will check it by hand.",
+      frontNumber,
+      mrzNumber: mrz.documentNumber,
+      mrzFound: true,
+    };
+  }
+
+  return {
+    status: "verified",
+    code: "front-back-match",
+    message: "The number on the front and the strip on the back agree.",
+    frontNumber,
+    mrzNumber: mrz.documentNumber,
+    mrzFound: true,
+  };
 }
 
 export const VERDICT_COPY: Record<DocVerdictStatus, string> = {
