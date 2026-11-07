@@ -51,11 +51,19 @@ export async function GET() {
       db.collection("testimonials").where("status", "==", "approved").limit(20).get(),
     ]);
 
-    const rawPlans = plansSnapshot.exists ? plansSnapshot.get("plans") : null;
-    const customPlans = Array.isArray(rawPlans) ? (rawPlans as unknown[]) : [];
+    const rawPlans: unknown = plansSnapshot.exists ? plansSnapshot.get("plans") : null;
+    const customPlans: unknown[] = Array.isArray(rawPlans) ? rawPlans : [];
 
-    const testimonials = testimonialsSnapshot.docs
-      .map((document) => {
+    /*
+     * The document shape is stated here rather than inferred. The Admin SDK's
+     * generics differ between installs, and inferring them made CI fail on a
+     * parameter that was fine locally. An explicit shape cannot drift.
+     */
+    type DocumentLike = { id: string; data: () => Record<string, unknown> };
+    const documents = testimonialsSnapshot.docs as unknown as DocumentLike[];
+
+    const testimonials = documents
+      .map((document: DocumentLike) => {
         const data = document.data() as {
           userId?: unknown;
           userName?: unknown;
@@ -76,7 +84,7 @@ export async function GET() {
         };
       })
       .filter((entry) => entry.review.length > 0)
-      .sort((a, b) => b.createdAt - a.createdAt)
+      .sort((a: PublicTestimonial, b: PublicTestimonial) => b.createdAt - a.createdAt)
       .slice(0, 10);
 
     return NextResponse.json({ testimonials, customPlans }, { headers: CACHE_HEADERS });
