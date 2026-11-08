@@ -43,6 +43,52 @@ export interface MemberLike {
   name: string;
   email: string;
   status: string;
+  /** Present when the automated KYC pass could not clear the application. */
+  kycReviewStatus?: string;
+  /** Set when the pin was typed or missing. */
+  locationReview?: boolean;
+}
+
+/**
+ * The filter set shown above the member list.
+ *
+ * `needs-review` exists because "pending" is not the same question as "the
+ * machine could not decide". A pending member whose photos passed the visual
+ * check looks identical in the list to one the AI held, and the second is the
+ * one Rabi should open first.
+ */
+export type MemberFilter = "all" | "pending" | "approved" | "rejected" | "needs-review" | "no-screening";
+
+export const MEMBER_FILTERS: { id: MemberFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "pending", label: "Pending" },
+  { id: "needs-review", label: "Needs review" },
+  { id: "approved", label: "Approved" },
+  { id: "rejected", label: "Rejected" },
+];
+
+/** True when the automated pass did not clear the application. */
+export function needsReview(member: MemberLike): boolean {
+  if (member.status !== "pending") return false;
+  return (
+    member.kycReviewStatus === "manual_review_required" ||
+    member.kycReviewStatus === "verification_unavailable" ||
+    member.locationReview === true
+  );
+}
+
+export function matchesFilter(member: MemberLike, filter: string): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "needs-review":
+      return needsReview(member);
+    case "no-screening":
+      // Submitted before screening existed: no record to trust, so look by eye.
+      return member.status === "pending" && !member.kycReviewStatus;
+    default:
+      return member.status === filter;
+  }
 }
 
 export function filterMembers<T extends MemberLike>(
@@ -52,7 +98,7 @@ export function filterMembers<T extends MemberLike>(
   const term = search.trim().toLowerCase();
 
   return members.filter((member) => {
-    if (status !== "all" && member.status !== status) return false;
+    if (!matchesFilter(member, status)) return false;
     if (!term) return true;
     return (
       member.name?.toLowerCase().includes(term) || member.email?.toLowerCase().includes(term)

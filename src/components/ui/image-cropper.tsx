@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
-import { useCspNonce } from "@/context/csp-nonce-context";
 import { Check, Loader2, RotateCw, X, ZoomIn } from "lucide-react";
 import { clamp, clampCropOffset, cropGeometry } from "@/lib/image-crop";
 import { cn } from "@/lib/utils";
@@ -18,16 +17,34 @@ export interface ImageCropperProps {
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
-/** Crops are written at this width — sharp for a card, small enough to upload. */
+/** Crops are written at this width: sharp for a card, small enough to upload. */
 const OUTPUT_WIDTH = 1280;
 
 /**
- * Frame-filling cropper — no dependencies, works with touch, mouse and trackpad.
+ * Frame-filling cropper, no dependencies, works with touch, mouse and trackpad.
  *
  * The member drags the photo inside a frame that is already the right shape for
  * what we need (an ID-1 card is 1.586:1), zooms with the slider or a pinch, and
  * rotates a sideways card upright. The visible frame *is* the exported crop, so
  * there is no guesswork about what Rabi will see.
+ *
+ * Why there is no React `style` prop and no injected `<style>` element here:
+ *
+ * The previous version published the pan/zoom/rotate transform through a
+ * runtime `<style>` tag and positioned the preview with a `style` attribute.
+ * Production serves `style-src-attr 'none'`, and a nonce-stamped stylesheet is
+ * only as reliable as the nonce reaching the component. When the middleware was
+ * not compiled (it lived outside `src/`), `nonce` was `undefined`, no stylesheet
+ * was emitted, and the untouched 4000px photo was positioned by a static class
+ * instead of a transform. The frame is `overflow: hidden`, so the photo's corner
+ * was all that showed: a black rectangle. That is the "black screen" bug.
+ *
+ * Everything is now static CSS plus a CSS custom property for the one value
+ * that must change at runtime (`--crop-scale`, `--crop-x`, `--crop-y`,
+ * `--crop-rotate`). CSS custom properties are written through the CSSOM in a
+ * layout effect, which CSP does not block, and they cannot be stripped by a
+ * browser extension either. The preview therefore cannot be blank for any
+ * reason other than the file itself failing to decode, which is reported.
  */
 export default function ImageCropper({
   file,
@@ -37,14 +54,15 @@ export default function ImageCropper({
   onCancel,
   onConfirm,
 }: ImageCropperProps) {
-  const nonce = useCspNonce();
   const cropId = useId().replace(/:/g, "");
-  // Keep the crop frame visible even when a browser/extension strips our nonce
-  // stylesheet; this aspect-ratio class is a CSS fallback, not an inline style.
-  const frameAspectClass = aspect > 1.45 ? "aspect-[1.586]" : aspect < 1 ? "aspect-[0.8]" : "aspect-[4/3]";
+  // Aspect ratio comes from the identical class rules the rest of the UI uses.
+  const frameAspectClass =
+    aspect > 1.45 ? "aspect-[1.586]" : aspect < 1 ? "aspect-[4/5]" : "aspect-[4/3]";
+
   const frameRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
@@ -56,17 +74,30 @@ export default function ImageCropper({
 
   /* ---------------------------------------------------------------- loading */
   useEffect(() => {
-    const url = URL.createObjectURL(file);
+    let url: string | null = URL.createObjectURL(file);
     const element = new window.Image();
     element.decoding = "async";
-    element.onload = () => setImage(element);
-    element.onerror = () => setLoadError(true);
+    element.onload = () => {
+      if (!element.naturalWidth || !element.naturalHeight) {
+        setLoadError("That photo has no readable size. Take it again with the camera.");
+        return;
+      }
+      setImage(element);
+    };
+    element.onerror = () => {
+      setLoadError(
+        "That photo could not be opened on this phone. Take a new one, or pick a JPG or PNG from your gallery."
+      );
+    };
     element.src = url;
 
     return () => {
       element.onload = null;
       element.onerror = null;
-      URL.revokeObjectURL(url);
+      // The element keeps its own reference to the blob URL while it is alive,
+      // so it is only revoked when this cropper unmounts.
+      if (url) URL.revokeObjectURL(url);
+      url = null;
     };
   }, [file]);
 
@@ -77,10 +108,17 @@ export default function ImageCropper({
 
     const measure = () => {
       const width = node.clientWidth;
-      setFrameSize({ width, height: Math.round(width / aspect) });
+      const height = node.clientHeight || Math.round(width / aspect);
+      setFrameSize((current) =>
+        current.width === width && current.height === height ? current : { width, height }
+      );
     };
 
     measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
@@ -100,12 +138,26 @@ export default function ImageCropper({
     [image, frameSize, zoom, rotation]
   );
 
-  // Keep the photo covering the frame whenever the zoom or rotation changes.
-  const maxX = geometry.maxX;
-  const maxY = geometry.maxY;
+  const { maxX, maxY } = geometry;
   useEffect(() => {
     setOffset((current) => clampCropOffset(current, { scale: 0, baseScale: 0, maxX, maxY }));
   }, [maxX, maxY]);
+
+  /*
+   * Publish the runtime geometry as CSS custom properties. `translate(-50%,
+   * -50%)` lives in the stylesheet, so only the member-driven part is written
+   * here. Values are strings so the CSS engine can interpolate them.
+   */
+  const hasGeometry = Boolean(image) && frameSize.width > 0;
+  useEffect(() => {
+    const node = imageRef.current;
+    if (!node) return;
+    const scale = geometry.scale || 1;
+    node.style.setProperty("--crop-x", `${offset.x}px`);
+    node.style.setProperty("--crop-y", `${offset.y}px`);
+    node.style.setProperty("--crop-rotate", `${rotation}deg`);
+    node.style.setProperty("--crop-scale", String(scale));
+  }, [offset.x, offset.y, rotation, geometry.scale, hasGeometry]);
 
   /* --------------------------------------------------------------- gestures */
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -129,19 +181,16 @@ export default function ImageCropper({
     if (pointers.current.size === 1) {
       const dx = event.clientX - gesture.current.origin.x;
       const dy = event.clientY - gesture.current.origin.y;
-      setOffset(clampCropOffset({ x: gesture.current.offset.x + dx, y: gesture.current.offset.y + dy }, geometry));
+      setOffset(
+        clampCropOffset({ x: gesture.current.offset.x + dx, y: gesture.current.offset.y + dy }, geometry)
+      );
       return;
     }
 
     if (pointers.current.size === 2 && gesture.current.distance > 0) {
       const [a, b] = Array.from(pointers.current.values());
       const distance = Math.hypot(a.x - b.x, a.y - b.y);
-      const next = clamp(
-        gesture.current.zoom * (distance / gesture.current.distance),
-        MIN_ZOOM,
-        MAX_ZOOM
-      );
-      setZoom(next);
+      setZoom(clamp(gesture.current.zoom * (distance / gesture.current.distance), MIN_ZOOM, MAX_ZOOM));
     }
   };
 
@@ -163,16 +212,19 @@ export default function ImageCropper({
     const ratio = OUTPUT_WIDTH / frameSize.width;
     const canvas = document.createElement("canvas");
     canvas.width = OUTPUT_WIDTH;
-    canvas.height = Math.round(frameSize.height * ratio);
+    canvas.height = Math.max(1, Math.round(frameSize.height * ratio));
 
     const context = canvas.getContext("2d");
     if (!context) {
       setSaving(false);
+      setLoadError("This browser could not prepare the photo. Try a different browser, or send it to Rabi on WhatsApp.");
       return;
     }
 
+    // JPEG has no alpha: paint white first instead of letting odd pixels go black.
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.width, canvas.height);
+    context.imageSmoothingEnabled = true;
     context.imageSmoothingQuality = "high";
     context.translate(canvas.width / 2 + offset.x * ratio, canvas.height / 2 + offset.y * ratio);
     context.rotate((rotation * Math.PI) / 180);
@@ -183,6 +235,7 @@ export default function ImageCropper({
       (blob) => {
         setSaving(false);
         if (blob) onConfirm(blob);
+        else setLoadError("The phone could not save this crop. Take the photo again.");
       },
       "image/jpeg",
       0.92
@@ -207,6 +260,8 @@ export default function ImageCropper({
       document.body.style.overflow = previous;
     };
   }, []);
+
+  const zoomPercent = Math.round(((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100);
 
   return (
     <div
@@ -233,29 +288,26 @@ export default function ImageCropper({
           </button>
         </div>
 
-        {/* Runtime crop geometry is emitted in a nonce-authorized stylesheet;
-            style attributes are blocked by the production CSP. */}
-        {nonce && image && (
-          <style nonce={nonce}>{`.crop-frame-${cropId}{cursor:grab}.crop-image-${cropId}{width:${image.naturalWidth}px;height:${image.naturalHeight}px;transform:translate(-50%,-50%) translate(${offset.x}px,${offset.y}px) rotate(${rotation}deg) scale(${geometry.scale});transform-origin:center center}`}</style>
-        )}
-        {/* Frame — whatever is visible here is exactly what gets uploaded. */}
+        {/* Whatever is visible in this frame is exactly what gets uploaded. */}
         <div
           ref={frameRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={endPointer}
           onPointerCancel={endPointer}
-          className={`crop-frame-${cropId} ${frameAspectClass} relative w-full touch-none select-none overflow-hidden rounded-2xl bg-black/60`}
+          className={cn(
+            "crop-frame relative w-full touch-none select-none overflow-hidden rounded-2xl bg-black/60",
+            frameAspectClass
+          )}
         >
-          {image && frameSize.width > 0 && (
+          {hasGeometry && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={image.src}
-              alt="Crop preview of selected document"
+              ref={imageRef}
+              src={image?.src}
+              alt="Crop preview of the selected document"
               draggable={false}
-              width={image.naturalWidth}
-              height={image.naturalHeight}
-              className={`crop-image-${cropId} absolute left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2`}
+              className="crop-image pointer-events-none absolute left-1/2 top-1/2 max-w-none"
             />
           )}
 
@@ -267,7 +319,7 @@ export default function ImageCropper({
 
           {loadError && (
             <div className="absolute inset-0 grid place-items-center px-6 text-center text-xs text-red-300">
-              That photo could not be opened. Try a different one.
+              {loadError}
             </div>
           )}
 
@@ -295,7 +347,8 @@ export default function ImageCropper({
             value={zoom}
             onChange={(event) => setZoom(Number(event.target.value))}
             aria-label="Zoom"
-            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-emerald-400"
+            aria-valuetext={`${zoomPercent} percent zoomed in`}
+            className="zoom-slider h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-emerald-400"
           />
           <button
             type="button"
@@ -318,7 +371,7 @@ export default function ImageCropper({
           <button
             type="button"
             onClick={exportCrop}
-            disabled={!image || saving}
+            disabled={!hasGeometry || saving}
             className={cn(
               "flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all",
               "bg-gradient-to-r from-primary via-emerald-400 to-gold-accent text-[#04150c]",
@@ -329,6 +382,12 @@ export default function ImageCropper({
             {saving ? "Preparing…" : "Use this photo"}
           </button>
         </div>
+
+        {/*
+         * `key` documents that the geometry helpers are the only source of the
+         * transform; the id is kept for stable DOM identity across re-renders.
+         */}
+        <span className="sr-only" data-crop-id={cropId} />
       </div>
     </div>
   );

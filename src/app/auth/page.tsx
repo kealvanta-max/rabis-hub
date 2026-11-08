@@ -192,11 +192,20 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     error: gpsError,
     failureCode: gpsFailure,
     attempts: gpsAttempts,
+    attemptsRemaining,
+    attemptLimit,
+    attemptNumber,
+    manualEntryUnlocked,
     requestLocation,
   } = useGeolocation();
 
-  // Manual entry is revealed only after three consecutive completed location failures.
-  const showManualArea = gpsAttempts >= 3;
+  /*
+   * Manual entry is a fraud surface: it is the only part of the location step a
+   * member can invent. It stays hidden until the phone has genuinely failed
+   * three consecutive detections, and the counter is shown so the member can
+   * see the rule being applied instead of hunting for a box that never appears.
+   */
+  const showManualArea = manualEntryUnlocked && gpsStatus !== "success";
   const [step, setStep] = useState(1);
   /*
    * Storage can fail for reasons that are nobody's fault on this phone: a
@@ -343,6 +352,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           locationSource: gpsData ? gpsData.source : form.location ? "manual" : "unknown",
           locationAccuracy: gpsData?.accuracy ?? null,
           locationReview: !gpsData || gpsData.suspicious,
+          /*
+           * The server cannot see the phone, so it cannot know whether manual
+           * entry was actually earned. These two fields let it enforce the same
+           * rule on the trusted side: a "manual" location is only accepted when
+           * the member reports the three failed detections that unlocked it.
+           */
+          locationAttempts: gpsAttempts,
+          locationFailureCode: gpsFailure,
           termsAccepted: true,
         }),
       });
@@ -420,7 +437,12 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             error={form.phone.length > 3 && !phoneValid ? "Enter a valid Ghana number (e.g. 050 470 1032)." : undefined}
             required
           />
-          <Input label="Location (Area)" value={form.location} onChange={(e) => update("location", e.target.value)} placeholder="e.g. Madina, Accra" />
+          {/*
+            Location is collected on step 4 only, and only through the device's
+            location service (with a gated manual fallback after three real
+            failures). A free-text "Location" box here is what let anyone type a
+            fake area before GPS was ever attempted, so it is gone.
+          */}
           <Input
             label="Password (min. 6 characters)"
             type="password"
@@ -657,7 +679,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         </div>
       )}
 
-      {/* STEP 4 — Location. Helpful, never a gate. */}
+      {/* STEP 4 — Location. Never a gate, but never a free text box either. */}
       {step === 4 && (
         <div className="space-y-5">
           <div className="text-center py-6">
@@ -669,13 +691,18 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             </div>
             <h3 className="text-lg font-bold text-white mb-2">Enable Your Location</h3>
             <p className="text-sm text-gray-300 mb-6">
-              A GPS pin helps Rabi review your location. Manual area entry appears only after three location attempts fail in a row.
+              {showManualArea
+                ? "Location could not be read from this phone. You can type your area below."
+                : "A GPS pin is how Rabi confirms you are in Ghana. Typing an area only unlocks after three failed attempts."}
             </p>
 
+            {/* No detection has been asked for yet. */}
             {gpsStatus === "idle" && (
               <div className="space-y-3">
                 <Button onClick={requestLocation} className="w-full">Detect My Location</Button>
-                <p className="text-xs text-gray-400">If detection fails three times in a row, you can enter your area manually.</p>
+                <p className="text-xs text-gray-400">
+                  This asks your phone for a GPS pin. It never types an address for you.
+                </p>
               </div>
             )}
 
@@ -686,6 +713,9 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
                 <p className="text-sm text-gray-300">Finding you. Indoors this can take up to 20 seconds.</p>
+                <p className="text-xs font-semibold text-primary">
+                  Attempt {attemptNumber} of {attemptLimit}
+                </p>
               </div>
             )}
 
@@ -734,22 +764,52 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                     Tap the lock icon next to the address bar, set Location to Allow, then try again.
                   </p>
                 )}
-                <Button variant="secondary" onClick={requestLocation} className="w-full mt-4">
-                  Try Again
+                <p className="mt-3 text-xs font-semibold text-amber-200">
+                  Attempt {gpsAttempts} of {attemptLimit} used
+                  {attemptsRemaining > 0
+                    ? `, ${attemptsRemaining} ${attemptsRemaining === 1 ? "attempt" : "attempts"} left before you can type your area.`
+                    : "."}
+                </p>
+                <Button variant="secondary" onClick={requestLocation} className="w-full mt-3">
+                  {attemptsRemaining > 0 ? `Try Again (Attempt ${attemptNumber + 1} of ${attemptLimit})` : "Try Again"}
                 </Button>
               </div>
             )}
 
-            {(gpsStatus === "detecting" || (gpsAttempts > 0 && gpsAttempts < 3 && gpsStatus !== "success")) && (
-              <p className="mt-4 text-xs text-gray-400">
-                Attempt {Math.min(gpsAttempts + (gpsStatus === "detecting" ? 1 : 0), 3)} of 3
+            {/* The attempt meter is always visible, so nobody wonders when the box appears. */}
+            <div className="mt-5" aria-hidden={gpsStatus === "success" ? true : undefined}>
+              <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-400">
+                <span>Location attempts</span>
+                <span>{Math.min(gpsAttempts, attemptLimit)} of {attemptLimit}</span>
+              </div>
+              <div className="mt-1.5 flex gap-1.5">
+                {Array.from({ length: attemptLimit }).map((_, index) => (
+                  <span
+                    key={index}
+                    className={`h-1 flex-1 rounded-full transition-colors ${
+                      gpsStatus === "success"
+                        ? "bg-emerald-400"
+                        : index < gpsAttempts
+                          ? "bg-amber-400"
+                          : "bg-white/10"
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-gray-400" role="status" aria-live="polite">
+                {gpsStatus === "success"
+                  ? "Location confirmed by this device."
+                  : showManualArea
+                    ? "Manual entry is unlocked."
+                    : `Typing your area unlocks after ${attemptLimit} failed attempts.`}
               </p>
-            )}
+            </div>
+          </div>
 
-            {showManualArea ? (
-            <div className="mt-6 text-left">
-              <p className="mb-2 text-sm text-amber-100">
-                We couldn&apos;t detect your location. Please type your area below.
+          {showManualArea ? (
+            <div className="glass-soft rounded-2xl p-4 text-left">
+              <p className="mb-3 text-sm text-amber-100">
+                We could not detect your location. Please type your area below.
               </p>
               <label
                 htmlFor="signup-area"
@@ -766,11 +826,10 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                 className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-gray-400 focus:border-primary focus:outline-none"
               />
               <p className="mt-2 text-xs text-gray-400">
-                Rabi reads this herself, so spell it the way a neighbour would say it.
+                Rabi reads this herself, so spell it the way a neighbour would say it. It is recorded as typed by you, not as a GPS pin.
               </p>
             </div>
-            ) : null}
-          </div>
+          ) : null}
 
           <div className="flex gap-3">
             <Button variant="secondary" onClick={() => setStep(3)} className="flex-1">Back</Button>

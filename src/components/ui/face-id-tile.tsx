@@ -1,7 +1,9 @@
 "use client";
 
+import { useRef } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCssVars } from "@/lib/css-vars";
 
 export type FaceIdTilePhase = "idle" | "scanning" | "success";
 
@@ -14,12 +16,6 @@ interface FaceIdTileProps {
   label?: string;
   className?: string;
 }
-
-const GLOW: Record<FaceIdTilePhase, string> = {
-  idle: "radial-gradient(circle, rgba(16,185,129,0.34), transparent 70%)",
-  scanning: "radial-gradient(circle, rgba(34,211,238,0.52), transparent 70%)",
-  success: "radial-gradient(circle, rgba(52,211,153,0.58), transparent 70%)",
-};
 
 const PILL: Record<FaceIdTilePhase, string> = {
   idle: "bg-white/10 text-white/70",
@@ -45,18 +41,24 @@ export default function FaceIdTile({
   className,
 }: FaceIdTileProps) {
   const interactive = phase === "idle" && typeof onActivate === "function";
+  const tileRef = useRef<HTMLButtonElement>(null);
+  useCssVars(tileRef, { "--tile-size": `${size}px` }, [size]);
 
   return (
     <div className={cn("flex flex-col items-center gap-3", className)}>
       <button
+        ref={tileRef}
         type="button"
         onClick={onActivate}
         disabled={!interactive}
         aria-label={
           phase === "idle" ? label : phase === "scanning" ? "Scanning" : "Scan complete"
         }
-        style={{ width: size, height: size }}
         className={cn(
+          // Size arrives as custom properties (see CssVarBox for why a style
+          // attribute cannot be used): the policy blocks attributes, not the
+          // CSSOM, so these are written from an effect.
+          "h-[var(--tile-size)] w-[var(--tile-size)]",
           "relative overflow-hidden rounded-3xl border border-white/15 bg-black/45",
           "shadow-[0_24px_70px_-30px_rgba(0,0,0,0.9)] backdrop-blur-2xl",
           interactive && "active:scale-[0.985] transition-transform",
@@ -66,8 +68,15 @@ export default function FaceIdTile({
         {/* Glass core: one blurred radial, tinted by phase. */}
         <span
           aria-hidden="true"
-          className={cn("absolute inset-6 rounded-full blur-2xl", phase === "scanning" && "animate-pulse")}
-          style={{ background: GLOW[phase] }}
+          className={cn(
+            "absolute inset-6 rounded-full blur-2xl",
+            phase === "scanning" && "animate-pulse",
+            // One class per phase instead of a computed gradient string, so the
+            // tint is in the shipped stylesheet and needs no runtime value.
+            phase === "idle" && "face-tile-glow-idle",
+            phase === "scanning" && "face-tile-glow-scanning",
+            phase === "success" && "face-tile-glow-success"
+          )}
         />
 
         {/* Studio highlight, so the glass reads as a surface and not a disc. */}

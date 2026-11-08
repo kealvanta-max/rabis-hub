@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { useCssVars } from "@/lib/css-vars";
 
 interface MemberAvatarProps {
   name: string;
@@ -22,16 +23,21 @@ interface MemberAvatarProps {
  */
 export default function MemberAvatar({ name, src, size = 48, className }: MemberAvatarProps) {
   const [broken, setBroken] = useState(false);
+  // The avatar's size is a number prop, so it cannot be a Tailwind class. It
+  // goes through a custom property rather than a style attribute, which the
+  // production policy blocks (see `src/lib/css-vars.ts`).
+  const frameRef = useRef<HTMLDivElement>(null);
+  useCssVars(frameRef, { "--avatar-size": `${size}px` }, [size]);
   const initial = (name || "?").trim().charAt(0).toUpperCase();
   const showImage = Boolean(src) && !broken;
 
   return (
     <div
+      ref={frameRef}
       className={cn(
-        "relative aspect-square shrink-0 overflow-hidden rounded-xl bg-emerald-500/10 ring-1 ring-inset ring-white/10",
+        "relative aspect-square h-[var(--avatar-size)] w-[var(--avatar-size)] shrink-0 overflow-hidden rounded-xl bg-emerald-500/10 ring-1 ring-inset ring-white/10",
         className
       )}
-      style={{ width: size, height: size }}
     >
       {showImage ? (
         <Image

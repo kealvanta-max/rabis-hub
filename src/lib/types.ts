@@ -1,5 +1,34 @@
 import type { Timestamp } from "firebase/firestore";
 
+/**
+ * One AI screening decision, as persisted for Rabi.
+ *
+ * The raw signals are stored next to the verdict on purpose: a reviewer who
+ * disagrees with "reject" needs to see which question the model answered badly,
+ * and a future policy change can be replayed over old submissions without
+ * asking anyone to re-upload their ID.
+ */
+export interface VisionScreeningRecord {
+  state:
+    | "screened_pass"
+    | "manual_review_required"
+    | "verification_unavailable"
+    | "rejected";
+  provider?: string;
+  model?: string;
+  reasons?: string[];
+  signals?: {
+    subject?: string;
+    card?: string;
+    face_match?: string;
+    reproduction?: string;
+    confidence?: number;
+  };
+  durationMs?: number;
+  attempts?: { provider: string; model?: string; outcome: string }[];
+  at?: Timestamp | string;
+}
+
 export interface UserDoc {
   name: string;
   email: string;
@@ -19,6 +48,19 @@ export interface UserDoc {
   kycReviewStatus?: "manual_review_required" | "verification_unavailable" | "screened_pass" | "rejected" | "approved";
   kycSubmittedAt?: Timestamp;
   kycPolicyVersion?: string;
+  /**
+   * What each screening layer concluded. Written only by the server.
+   *
+   * `vision` is the AI pass over the three photos (Ghana Card front, back and
+   * selfie) and `worker` is the Python service that reads the card text. They
+   * are kept side by side because they answer different questions and either
+   * can be the one that is unavailable.
+   */
+  kycScreeningChecks?: {
+    vision?: VisionScreeningRecord;
+    worker?: Record<string, unknown>;
+    [key: string]: unknown;
+  };
   reviewerUid?: string;
   reviewerEmail?: string;
   reviewedAt?: Timestamp;

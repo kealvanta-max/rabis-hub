@@ -5,6 +5,7 @@ import { UPLOAD_FOLDER } from "@/lib/file-kind";
 import { authenticateRequest } from "@/lib/server-auth";
 import { adminFirestore } from "@/lib/server-firestore";
 import { kycVisionConfigured, screenKycImages, type VisionScreening } from "@/lib/kyc-vision";
+import { rejectionMessage } from "@/lib/kyc-vision-policy";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -113,6 +114,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Signup details or document references are invalid" }, { status: 400 });
   }
 
+  /*
+   * Gate 0: the location rule, enforced on the trusted side.
+   *
+   * The browser hides the manual area box until three detections have failed,
+   * but a browser is not a policy engine. A caller posting straight to this
+   * endpoint could send `locationSource: "manual"` with no attempts at all,
+   * which is the exact bypass the UI was supposed to close. The server now
+   * requires the same evidence the UI requires, and marks anything it cannot
+   * corroborate for review rather than silently accepting a typed address.
+   */
+  const LOCATION_ATTEMPT_LIMIT = 3;
+  const rawAttempts = body.locationAttempts;
+  const locationAttempts =
+    typeof rawAttempts === "number" && Number.isFinite(rawAttempts)
+      ? Math.max(0, Math.min(Math.floor(rawAttempts), 99))
+      : 0;
+  const locationSource = ["gps", "network", "manual", "unknown"].includes(String(body.locationSource))
+    ? (String(body.locationSource) as "gps" | "network" | "manual" | "unknown")
+    : "unknown";
+  const typedLocation = locationSource === "manual" || locationSource === "unknown";
+  if (typedLocation && !location && locationSource === "manual") {
+    return NextResponse.json({ error: "Add your area before continuing." }, { status: 400 });
+  }
+  if (typedLocation && locationAttempts < LOCATION_ATTEMPT_LIMIT) {
+    return NextResponse.json(
+      {
+        error:
+          "We could not confirm that location detection failed three times, so your typed area cannot be accepted. Tap Detect My Location and try again, or contact Rabi.",
+        code: "location-attempts-required",
+        attemptsRequired: LOCATION_ATTEMPT_LIMIT,
+      },
+      { status: 422, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   const db = await adminFirestore();
   if (!db) return NextResponse.json({ error: "Secure signup storage is unavailable" }, { status: 503 });
   const ref = db.collection("users").doc(actor.uid);
@@ -149,38 +185,79 @@ export async function POST(request: Request) {
     }
   }
 
-  if (visionConfigured && !documentsDeferred && digests.front?.base64 && digests.back?.base64 && digests.selfie?.base64 &&
-      [digests.front, digests.back, digests.selfie].every((image) => image.bytes <= 3 * 1024 * 1024)) {
-    visionResult = await screenKycImages([
-      { mime: digests.front.mime, base64: digests.front.base64 },
-      { mime: digests.back.mime, base64: digests.back.base64 },
-      { mime: digests.selfie.mime, base64: digests.selfie.base64 },
-    ]);
-    screeningState = visionResult.state === "rejected" ? "manual_review_required" : visionResult.state;
-    screeningReasons = [...visionResult.reasons];
-    screeningChecks = {
-      vision: {
-        state: visionResult.state,
-        provider: visionResult.provider ?? null,
-        model: visionResult.model ?? null,
-        reasons: visionResult.reasons,
-        signals: visionResult.signals ?? null,
-      },
-    };
-    if (visionResult.state === "rejected") {
-      return NextResponse.json({
-        error: "Screening found a possible issue with these photos. Please retake clear photos; if you believe this is a mistake, contact Rabi for manual review.",
-        code: "kyc-screening-review",
-      }, { status: 422, headers: { "Cache-Control": "no-store" } });
+  /*
+   * Gate 1: the AI screening verdict.
+   *
+   * This is the authoritative check. The upload route already refused an
+   * unusable selfie in real time, but that path can be skipped by a client that
+   * talks to this endpoint directly, so the same question is asked again here
+   * about the files that are actually referenced in the submission.
+   *
+   * Three outcomes, and they are not interchangeable:
+   *
+   *   rejected  -> the application is refused. No Firestore record: nothing for
+   *                Rabi to review, nothing for the member to "wait out".
+   *   pass      -> stored as screened_pass, still pending human approval.
+   *   no answer -> stored as manual_review_required. An AI outage must never
+   *                be the reason a real applicant is blocked, but it must also
+   *                never be recorded as a pass.
+   */
+  if (visionConfigured && !documentsDeferred) {
+    const ready = [digests.front, digests.back, digests.selfie].every(
+      (image) => image?.base64 && image.bytes <= 3 * 1024 * 1024
+    );
+    if (!ready) {
+      screeningState = "verification_unavailable";
+      screeningReasons = ["vision-evidence-unavailable", "manual-review-required"];
+    } else {
+      visionResult = await screenKycImages([
+        { mime: digests.front.mime, base64: digests.front.base64 as string },
+        { mime: digests.back.mime, base64: digests.back.base64 as string },
+        { mime: digests.selfie.mime, base64: digests.selfie.base64 as string },
+      ]);
+
+      screeningChecks = {
+        vision: {
+          state: visionResult.state,
+          provider: visionResult.provider ?? null,
+          model: visionResult.model ?? null,
+          reasons: visionResult.reasons,
+          signals: visionResult.signals ?? null,
+          durationMs: visionResult.durationMs ?? null,
+          attempts: visionResult.attempts ?? [],
+          at: new Date().toISOString(),
+        },
+      };
+
+      if (visionResult.state === "rejected") {
+        console.info("[signup] screening refused an application", {
+          uid: actor.uid,
+          provider: visionResult.provider,
+          reasons: visionResult.reasons,
+        });
+        return NextResponse.json(
+          {
+            error: rejectionMessage(visionResult.reasons),
+            code: "kyc-screening-rejected",
+            reasons: visionResult.reasons,
+            retryable: true,
+          },
+          { status: 422, headers: { "Cache-Control": "no-store" } }
+        );
+      }
+
+      screeningState = visionResult.state;
+      screeningReasons = [...visionResult.reasons];
     }
-  } else if (visionConfigured && !documentsDeferred) {
+  } else if (!documentsDeferred) {
+    // No vision key configured at all: be explicit rather than vague.
     screeningState = "verification_unavailable";
-    screeningReasons = ["vision-evidence-unavailable", "manual-review-required"];
+    screeningReasons = ["vision-provider-not-configured", "manual-review-required"];
   }
 
   const screeningBase = process.env.KYC_SCREENING_URL?.replace(/\/$/, "");
   const screeningSecret = process.env.KYC_SCREENING_SHARED_SECRET;
-  if (!documentsDeferred && (!visionResult || visionResult.state === "screened_pass") && screeningBase && screeningSecret && digests.front && digests.back && digests.selfie) {
+  if (!documentsDeferred && (!visionResult || visionResult.state === "screened_pass" || visionResult.state === "verification_unavailable") && screeningBase && screeningSecret && digests.front && digests.back && digests.selfie) {
     const createdAt = Math.floor(Date.now() / 1000);
     const screeningPayload = {
       submissionId: crypto.randomUUID().replace(/-/g, ""),
@@ -241,8 +318,7 @@ export async function POST(request: Request) {
       screeningState = "verification_unavailable";
       screeningReasons = [...screeningReasons, "screening-service-unavailable", "manual-review-required"].slice(0, 30);
     }
-  } else if (!documentsDeferred && !visionResult && screeningState !== "verification_unavailable") {
-    screeningState = "verification_unavailable";
+  } else if (!documentsDeferred && !visionResult && screeningState === "manual_review_required" && screeningReasons.includes("human-review-required")) {
     screeningReasons = ["screening-service-not-configured", "manual-review-required"];
   }
 
@@ -266,13 +342,12 @@ export async function POST(request: Request) {
         gpsLat: typeof body.gpsLat === "number" && Number.isFinite(body.gpsLat) ? body.gpsLat : 0,
         gpsLng: typeof body.gpsLng === "number" && Number.isFinite(body.gpsLng) ? body.gpsLng : 0,
         gpsAddress: boundedText(body.gpsAddress, 300) ?? "Unknown, pending",
-        locationSource: ["gps", "network", "manual", "unknown"].includes(String(body.locationSource))
-          ? String(body.locationSource)
-          : "unknown",
+        locationSource,
         locationAccuracy: typeof body.locationAccuracy === "number" && Number.isFinite(body.locationAccuracy)
           ? body.locationAccuracy
           : null,
-        locationReview: body.locationReview !== false,
+        locationReview: body.locationReview !== false || typedLocation,
+        locationAttempts,
         status: "pending",
         kycReviewStatus: "manual_review_required",
         kycScreeningState: screeningState,

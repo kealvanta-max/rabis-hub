@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useTranslation } from "@/context/i18n-context";
 
 import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid";
+import { CssVarBox } from "@/components/ui/css-var-box";
 import { 
   ShieldCheck, 
   Users, 
@@ -138,10 +139,10 @@ const SkeletonThree = () => (
     </div>
     <div className="w-full h-12 flex items-end gap-1">
       {[40, 70, 45, 90, 65, 80, 100].map((h, i) => (
-        <div 
-          key={i} 
-          className="flex-1 bg-primary/20 rounded-t-sm group-hover:bg-primary/40 transition-colors"
-          style={{ height: `${h}%` }}
+        <CssVarBox
+          key={i}
+          vars={{ "--bar": `${h}%` }}
+          className="h-[var(--bar)] flex-1 rounded-t-sm bg-primary/20 transition-colors group-hover:bg-primary/40"
         />
       ))}
     </div>

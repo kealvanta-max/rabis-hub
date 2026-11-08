@@ -92,17 +92,54 @@ describe("never a dead end", () => {
 
   it("only offers manual area entry after three failed location attempts", () => {
     const step4 = page.slice(page.indexOf("STEP 4"), page.indexOf("STEP 5"));
-    expect(page).toContain("gpsAttempts >= 3");
+    // The unlock decision comes from the hook, which owns the counter.
+    expect(page).toContain("manualEntryUnlocked");
+    expect(hook).toContain("manualEntryUnlocked = attempts >= LOCATION_ATTEMPT_LIMIT");
+    expect(hook).toContain("LOCATION_ATTEMPT_LIMIT = 3");
     expect(step4).toContain("Attempt ");
-    expect(step4).toContain("of 3");
+    expect(step4).toContain("of {attemptLimit}");
     expect(step4).not.toContain("skipLocation");
     expect(step4).not.toContain("Skip for now");
+  });
+
+  it("cannot be skipped by typing an area on step one", () => {
+    // A free-text location box on the first step was the actual bypass: it made
+    // the GPS step optional for anyone who noticed it.
+    const step1 = page.slice(page.indexOf("STEP 1"), page.indexOf("STEP 2"));
+    expect(step1).not.toContain('label="Location (Area)"');
+    expect(step1).not.toContain('update("location"');
+  });
+
+  it("hides the manual box until the counter allows it", () => {
+    // `showManualArea` gates the input, so the input cannot exist before then.
+    expect(page).toContain('const showManualArea = manualEntryUnlocked && gpsStatus !== "success"');
+    const manualBlock = page.slice(page.indexOf("{showManualArea ? ("));
+    expect(manualBlock.slice(0, 900)).toContain('id="signup-area"');
+  });
+
+  it("counts only completed attempts, never a double tap", () => {
+    expect(hook).toContain("inFlight");
+    expect(hook).toContain("if (inFlight.current) return null");
+  });
+
+  it("enforces the same rule on the server, where a browser cannot lie", () => {
+    const submit = read("src/app/api/signup/submit/route.ts");
+    expect(submit).toContain("locationAttempts");
+    expect(submit).toContain("location-attempts-required");
+    expect(submit).toContain("LOCATION_ATTEMPT_LIMIT");
+    // A typed area with no failed attempts is refused outright.
+    expect(submit).toContain("locationAttempts < LOCATION_ATTEMPT_LIMIT");
   });
 
   it("collects an area when the phone will not share a pin", () => {
     const step4 = page.slice(page.indexOf("STEP 4"), page.indexOf("STEP 5"));
     expect(step4).toContain('id="signup-area"');
     expect(step4).toContain('update("location"');
+  });
+
+  it("shows the member which attempt they are on", () => {
+    expect(page).toContain("Attempt {attemptNumber} of {attemptLimit}");
+    expect(page).toContain("Attempt {gpsAttempts} of {attemptLimit} used");
   });
 
   it("uses amber, not red, for a soft failure", () => {

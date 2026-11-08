@@ -10,6 +10,8 @@ import {
   UPLOAD_FOLDER,
   type FileKind,
 } from "@/lib/file-kind";
+import { kycVisionConfigured, screenSelfie } from "@/lib/kyc-vision";
+import { rejectionMessage, type ScreeningState } from "@/lib/kyc-vision-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +34,41 @@ function clientIp(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for") || "";
   const first = forwarded.split(",")[0]?.trim();
   return first || request.headers.get("x-real-ip") || "unknown";
+}
+
+/**
+ * Remove a rejected file from Cloudinary.
+ *
+ * A refused selfie must not linger in storage: it is either not a person or it
+ * is somebody else's face, and neither belongs in a KYC bucket. Deletion is
+ * best effort, because the response to the member must not depend on it, and a
+ * failed delete leaves an orphan the admin panel can still see.
+ */
+async function destroyCloudinaryAsset(url: string, kind: FileKind) {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  if (!cloudName || !apiKey || !apiSecret) return;
+
+  const match = url.match(/\/upload\/(?:v\d+\/)?(.+)$/);
+  if (!match) return;
+  const publicId = match[1].replace(/\.[a-z0-9]+$/i, "");
+
+  try {
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const params: Record<string, string> = { public_id: publicId, timestamp };
+    const body = new FormData();
+    for (const [key, value] of Object.entries(params)) body.append(key, value);
+    body.append("api_key", apiKey);
+    body.append("signature", sign(params, apiSecret));
+    await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/${kind === "video" ? "video" : "image"}/destroy`, {
+      method: "POST",
+      body,
+      cache: "no-store",
+    });
+  } catch {
+    console.warn("[upload] could not delete a rejected file from storage");
+  }
 }
 
 export async function POST(request: Request) {
@@ -124,9 +161,14 @@ export async function POST(request: Request) {
   }
 
   let file: FormDataEntryValue | null = null;
+  let purpose = "document";
   try {
     const formData = await request.formData();
     file = formData.get("file");
+    const requested = formData.get("purpose");
+    if (typeof requested === "string" && ["selfie", "document", "video"].includes(requested)) {
+      purpose = requested;
+    }
   } catch {
     return NextResponse.json({ error: "Invalid upload" }, { status: 400 });
   }
@@ -151,7 +193,8 @@ export async function POST(request: Request) {
    * it. Android frequently sends an empty type, and HEIC photos are often
    * labelled `image/jpg`; both used to be refused as "not a photo".
    */
-  const head = new Uint8Array(await file.slice(0, 64).arrayBuffer());
+  const buffered = Buffer.from(await file.arrayBuffer());
+  const head = new Uint8Array(buffered.subarray(0, 64));
   const kind: FileKind | null = sniffFileKind(head) ?? kindFromMime(file.type);
 
   if (!kind) {
@@ -202,6 +245,41 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: explainCloudinaryError(reason), code: "cloudinary-rejected" },
         { status: 502 }
+      );
+    }
+
+    /*
+     * A selfie is screened the moment it lands, not at the end of signup.
+     *
+     * The member sees "not a human face" while the upload box is still on screen,
+     * and the file is deleted from Cloudinary so a rejected photo never sits in
+     * storage waiting for a reviewer. If the AI cannot run at all, the upload
+     * still succeeds and the final submission sends the application to Rabi,
+     * because losing a real member to an API outage is not an option.
+     */
+    if (purpose === "selfie" && kind === "image") {
+      const screening = await screenSelfie({ mime: file.type || "image/jpeg", base64: buffered.toString("base64") });
+      if (screening.state === "rejected") {
+        void destroyCloudinaryAsset(data.secure_url, kind);
+        console.info("[upload] selfie refused by screening", { reasons: screening.reasons, provider: screening.provider });
+        return NextResponse.json(
+          {
+            error: rejectionMessage(screening.reasons),
+            code: "kyc-selfie-rejected",
+            screening: "rejected",
+            reasons: screening.reasons,
+          },
+          { status: 422, headers: { "Cache-Control": "no-store" } }
+        );
+      }
+      return NextResponse.json(
+        {
+          secure_url: data.secure_url,
+          screening: screening.state satisfies ScreeningState,
+          reasons: screening.reasons,
+          provider: screening.provider ?? null,
+        },
+        { headers: { "Cache-Control": "no-store" } }
       );
     }
 

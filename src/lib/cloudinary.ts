@@ -26,12 +26,36 @@ import { captureException } from "@/lib/monitoring";
 
 export interface UploadResult {
   secure_url: string;
+  /** What the server's vision screening concluded, for selfies. */
+  screening?: "screened_pass" | "rejected" | "manual_review_required" | "verification_unavailable";
+  reasons?: string[];
+  provider?: string | null;
+}
+
+export type UploadPurpose = "selfie" | "document" | "video";
+
+/**
+ * A refusal from screening, not a broken upload.
+ *
+ * The caller must be able to tell these apart: a broken upload offers the
+ * WhatsApp handover path, while a refused selfie must be retaken. Conflating
+ * them is how a photo of a dog once reached the review queue.
+ */
+export class KycRejectionError extends Error {
+  reasons: string[];
+  constructor(message: string, reasons: string[] = []) {
+    super(message);
+    this.name = "KycRejectionError";
+    this.reasons = reasons;
+  }
 }
 
 interface ServerError {
   error?: string;
   code?: string;
   retryAfter?: number;
+  screening?: UploadResult["screening"];
+  reasons?: string[];
 }
 
 /** Quality and size per attempt. The last one still reads a card number. */
@@ -88,9 +112,10 @@ async function currentToken(): Promise<string | null> {
   }
 }
 
-async function post(file: File, token: string | null): Promise<Response> {
+async function post(file: File, token: string | null, purpose: UploadPurpose): Promise<Response> {
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("purpose", purpose);
 
   const headers: Record<string, string> = { "x-rabis-device": getDeviceId() };
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -103,7 +128,7 @@ async function post(file: File, token: string | null): Promise<Response> {
   });
 }
 
-export async function uploadToCloudinary(file: File): Promise<string> {
+export async function uploadToCloudinary(file: File, purpose: UploadPurpose = "document"): Promise<string> {
   const token = await currentToken();
   const isImage = file.type.startsWith("image/");
 
@@ -125,7 +150,7 @@ export async function uploadToCloudinary(file: File): Promise<string> {
 
     let response: Response;
     try {
-      response = await post(payload, token);
+      response = await post(payload, token, purpose);
     } catch (networkError) {
       /*
        * A dropped request is the common case on mobile data, and the browser gives
@@ -149,6 +174,17 @@ export async function uploadToCloudinary(file: File): Promise<string> {
     if (response.ok && data.secure_url) return data.secure_url;
 
     const message = messageForStatus(response.status, data.error);
+
+    /*
+     * A screening refusal is final and must never be retried as if it were a
+     * network blip: retrying spends another AI call and tells the member
+     * nothing new. It is thrown as its own error type so the UI can say
+     * "retake this photo" instead of "check your connection".
+     */
+    if (response.status === 422 || data.screening === "rejected") {
+      throw new KycRejectionError(message, data.reasons ?? []);
+    }
+
     lastError = new Error(message);
 
     if (isPermanent(response.status, data.code)) throw lastError;

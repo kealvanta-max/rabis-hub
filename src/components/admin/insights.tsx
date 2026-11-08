@@ -14,6 +14,7 @@ import type { Timestamp } from "firebase/firestore";
 import { getPlanLabel } from "@/lib/plans-data";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { CssVarBox } from "@/components/ui/css-var-box";
 
 interface Member {
   id: string;
@@ -125,9 +126,9 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
             {stats.daily.map((day) => (
               <div key={day.label} className="flex flex-1 flex-col items-center gap-2">
                 <div className="relative flex h-full w-full items-end">
-                  <div
-                    className="w-full rounded-t-lg bg-gradient-to-t from-emerald-600/40 to-emerald-400/90 transition-all duration-500"
-                    style={{ height: `${Math.max(6, (day.count / peak) * 100)}%` }}
+                  <CssVarBox
+                    vars={{ "--bar": `${Math.max(6, (day.count / peak) * 100)}%` }}
+                    className="h-[var(--bar)] w-full rounded-t-lg bg-gradient-to-t from-emerald-600/40 to-emerald-400/90 transition-all duration-500"
                     title={`${day.count} application${day.count === 1 ? "" : "s"}`}
                   />
                 </div>
@@ -156,10 +157,9 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
           </div>
 
           <div className="mt-6 flex items-center justify-center">
-            <div className="relative grid h-28 w-28 place-items-center rounded-full"
-              style={{
-                background: `conic-gradient(#34d399 ${stats.approvalRate * 3.6}deg, rgba(255,255,255,0.07) 0deg)`,
-              }}
+            <CssVarBox
+              vars={{ "--ring": `${stats.approvalRate * 3.6}deg` }}
+              className="relative grid h-28 w-28 place-items-center rounded-full approval-ring"
             >
               <div className="grid h-[86px] w-[86px] place-items-center rounded-full bg-[#06130c]">
                 <div className="text-center">
@@ -167,7 +167,7 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
                   <p className="text-[9px] uppercase tracking-widest text-gray-400">approved</p>
                 </div>
               </div>
-            </div>
+            </CssVarBox>
           </div>
         </div>
       </div>
@@ -184,9 +184,9 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
               <div key={plan.id} className="flex items-center gap-3">
                 <span className="w-32 shrink-0 truncate text-xs text-gray-300">{getPlanLabel(plan.id)}</span>
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-300"
-                    style={{ width: `${(plan.count / Math.max(1, stats.topPlans[0].count)) * 100}%` }}
+                  <CssVarBox
+                    vars={{ "--bar": `${(plan.count / Math.max(1, stats.topPlans[0].count)) * 100}%` }}
+                    className="h-full w-[var(--bar)] rounded-full bg-gradient-to-r from-emerald-500 to-teal-300"
                   />
                 </div>
                 <span className="w-6 text-right text-xs font-bold text-white">{plan.count}</span>
@@ -297,7 +297,10 @@ function FunnelBar({ label, value, total, tone }: { label: string; value: number
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-white/5">
-        <div className={cn("h-full rounded-full bg-gradient-to-r", tone)} style={{ width: `${pct}%` }} />
+        <CssVarBox
+          vars={{ "--bar": `${pct}%` }}
+          className={cn("h-full w-[var(--bar)] rounded-full bg-gradient-to-r", tone)}
+        />
       </div>
     </div>
   );

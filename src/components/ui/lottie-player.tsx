@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { cn } from "@/lib/utils";
 
 const Lottie = dynamic(() => import("lottie-react"), { 
   ssr: false,
@@ -20,12 +21,14 @@ interface LottiePlayerProps {
 
 export function LottiePlayer({ animationData, loop = true, autoplay = true, className }: LottiePlayerProps) {
   return (
-    <div className={className}>
-      <Lottie 
-        animationData={animationData} 
-        loop={loop} 
-        autoplay={autoplay} 
-        style={{ width: '100%', height: '100%' }}
+    <div className={cn("h-full w-full", className)}>
+      <Lottie
+        animationData={animationData}
+        loop={loop}
+        autoplay={autoplay}
+        // `style` would be blocked by `style-src-attr 'none'`. The wrapper owns
+        // the box and the animation fills it through shipped classes.
+        className="h-full w-full"
       />
     </div>
   );

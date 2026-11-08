@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BellRing, Plus, Search, UserPlus } from "lucide-react";
+import { BellRing, Plus, Search, ShieldAlert, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/auth-context";
 import { SkeletonPage } from "@/components/ui/skeleton";
@@ -40,7 +40,7 @@ import {
 import type { CustomPlan } from "@/lib/custom-plans";
 import { memberWhatsappLink, planWhatsappLink } from "@/lib/custom-plans";
 import type { UserItem, TestimonialItem } from "@/components/admin/types";
-import { filterMembers } from "@/lib/admin-query";
+import { filterMembers, matchesFilter, needsReview, MEMBER_FILTERS } from "@/lib/admin-query";
 import { track } from "@/lib/analytics";
 
 const UserMapView = dynamic(() => import("@/components/admin/user-map"), { ssr: false });
@@ -402,6 +402,10 @@ export default function AdminPage() {
   };
 
   const pendingMembers = users.filter((u) => u.status === "pending");
+  /** Pending members an automated check could not clear. */
+  const needsReviewCount = pendingMembers.filter(needsReview).length;
+  /** Pending members with no screening record at all (submitted before KYC v2). */
+  const screeningGapCount = pendingMembers.filter((u) => !u.kycReviewStatus).length;
   const pendingSummary = (() => {
     if (pendingMembers.length === 0) return "";
     const names = pendingMembers
@@ -540,6 +544,25 @@ export default function AdminPage() {
                     {stats.pending} {stats.pending === 1 ? "application needs" : "applications need"} review
                   </h2>
                   <p className="mt-1 text-sm text-amber-100/70">{pendingSummary}</p>
+
+                  {/*
+                    Why they are waiting, not just that they are. The KYC pass
+                    produces two very different kinds of pending application, and
+                    Rabi needs to know which she is opening: one the AI held, or
+                    one it could not check at all.
+                  */}
+                  {needsReviewCount > 0 && (
+                    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-amber-100/60">
+                      <span className="inline-flex items-center gap-1 font-semibold text-amber-200">
+                        <ShieldAlert className="h-3 w-3" aria-hidden="true" />
+                        {needsReviewCount} waiting on an automated check
+                      </span>
+                      {screeningGapCount > 0 && (
+                        <span>· {screeningGapCount} with no screening record</span>
+                      )}
+                    </p>
+                  )}
+
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                     <ActionButton
                       variant="primary"
@@ -695,23 +718,28 @@ export default function AdminPage() {
                 </label>
 
                 <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                  {(["all", "pending", "approved", "rejected"] as const).map((option) => {
-                    const active = filter === option;
-                    const count =
-                      option === "all" ? users.length : users.filter((u) => u.status === option).length;
+                  {MEMBER_FILTERS.map((option) => {
+                    const active = filter === option.id;
+                    /*
+                     * "Needs review" is the queue the KYC pipeline fills, and it
+                     * is the reason this row changed: a pending application the
+                     * AI could not clear used to be indistinguishable from one
+                     * that passed, so the fallback path had no way in.
+                     */
+                    const count = users.filter((u) => matchesFilter(u, option.id)).length;
                     return (
                       <button
-                        key={option}
+                        key={option.id}
                         type="button"
                         aria-pressed={active}
-                        onClick={() => setFilter(option)}
-                        className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold capitalize transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60 ${
+                        onClick={() => setFilter(option.id)}
+                        className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60 ${
                           active
                             ? "bg-emerald-500/15 text-emerald-200 ring-1 ring-inset ring-emerald-400/30"
                             : "text-gray-400 ring-1 ring-inset ring-white/10 hover:text-white"
-                        }`}
+                        } ${option.id === "needs-review" && count > 0 && !active ? "text-amber-300" : ""}`}
                       >
-                        {option}
+                        {option.label}
                         <span className={active ? "text-[10px] text-emerald-300/80" : "text-[10px] text-gray-400"}>
                           {count}
                         </span>

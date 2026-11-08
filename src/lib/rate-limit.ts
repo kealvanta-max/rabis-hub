@@ -13,12 +13,19 @@ export interface RateLimitResult {
   /** Epoch milliseconds when the current window resets. */
   resetAt: number;
   backend: "upstash" | "memory";
+  /**
+   * Set when the durable limiter could not be consulted and the answer came
+   * from a single instance's memory. Callers surface this on health checks; it
+   * means the limit is per-instance, not global.
+   */
+  degraded?: boolean;
 }
 
 const memory = new Map<string, { count: number; resetAt: number }>();
 
 function memoryLimit(key: string, limit: number, windowMs: number): RateLimitResult {
   const now = Date.now();
+  sweepMemory(now);
   const entry = memory.get(key);
 
   if (!entry || entry.resetAt <= now) {
@@ -55,6 +62,21 @@ async function upstashPipeline(commands: (string | number)[][]) {
   return (await response.json()) as { result: number }[];
 }
 
+/**
+ * Choose between the durable and the per-instance limiter.
+ *
+ * This used to fail *closed*: with no Upstash credentials in production it
+ * returned `success: false` for every key. That turns a missing optional
+ * dependency into a total outage, and the routes it guards are the ones a
+ * member cannot work around — signup submission, evidence upload, the error
+ * reporter, admin decisions. A member with a completed application would be
+ * told "too many requests" forever, with nothing in the UI to explain it.
+ *
+ * The correct default is to degrade, not to deny: fall back to the in-process
+ * counter, which is still a real limit (per warm instance) and is enough to
+ * blunt a single-source flood. Anything stronger requires a shared store, so
+ * the degraded flag is reported rather than hidden.
+ */
 export async function rateLimit(
   key: string,
   limit = 10,
@@ -64,37 +86,83 @@ export async function rateLimit(
 
   if (!upstashConfigured()) {
     if (process.env.NODE_ENV === "production") {
-      console.error("[rate-limit] durable Upstash limiter is required in production.");
-      return { success: false, remaining: 0, resetAt: Date.now() + windowMs, backend: "memory" };
+      console.warn(
+        "[rate-limit] UPSTASH_REDIS_REST_URL/TOKEN are not set; limiting per instance instead of globally."
+      );
     }
-    return memoryLimit(key, limit, windowMs);
+    const result = memoryLimit(key, limit, windowMs);
+    // Only set the flag when it means something; `degraded: false` on a dev
+    // response is noise for callers that serialise it into a health payload.
+    return process.env.NODE_ENV === "production" ? { ...result, degraded: true } : result;
   }
 
   try {
     const redisKey = `rl:${key}`;
-    const [, , count] = await upstashPipeline([
+    /*
+     * Pipeline replies come back in command order, so the count is index 0.
+     *
+     * This previously destructured `[, , count]`, which is the TTL. The effect
+     * was silent and severe: `used` was the number of seconds left in the
+     * window, so a limit smaller than the window length (signup: 3 per hour)
+     * blocked the very first request, and a limit equal to the window length
+     * (upload: 60 per minute) compared TTL <= limit and allowed unlimited
+     * uploads. Both directions were wrong, and only the memory fallback was
+     * ever covered by a test.
+     */
+    const [count, , ttl] = await upstashPipeline([
       ["INCR", redisKey],
       ["EXPIRE", redisKey, windowSeconds, "NX"],
       ["TTL", redisKey],
     ]);
 
     const used = Number(count?.result ?? 1);
-    const ttl = Math.max(windowSeconds, 1);
+    const ttlSeconds = Number(ttl?.result ?? -1);
+    const secondsLeft = ttlSeconds > 0 ? ttlSeconds : windowSeconds;
 
     return {
       success: used <= limit,
       remaining: Math.max(0, limit - used),
-      resetAt: Date.now() + ttl * 1000,
+      resetAt: Date.now() + secondsLeft * 1000,
       backend: "upstash",
     };
   } catch (error) {
-    // Never take the site down because the limiter is unreachable.
+    // Never take the site down because the limiter is unreachable: degrade to
+    // the in-process counter and say so.
     console.error("[rate-limit] durable Upstash limiter unavailable:", (error as Error).message);
-    if (process.env.NODE_ENV === "production") {
-      return { success: false, remaining: 0, resetAt: Date.now() + windowMs, backend: "memory" };
-    }
-    return memoryLimit(key, limit, windowMs);
+    return { ...memoryLimit(key, limit, windowMs), degraded: true };
   }
+}
+
+/**
+ * Bound the in-memory map so a high-cardinality key (an attacker rotating IPs)
+ * cannot grow it without limit. Expired windows are dropped first, then the
+ * oldest entries, which is enough for a fallback path.
+ */
+const MEMORY_CEILING = 10_000;
+
+function sweepMemory(now: number) {
+  // Collect first, then delete: mutating a Map during iteration is legal but
+  // behaves differently across engines.
+  const expired: string[] = [];
+  memory.forEach((entry, key) => {
+    if (entry.resetAt <= now) expired.push(key);
+  });
+  for (const key of expired) memory.delete(key);
+  if (memory.size <= MEMORY_CEILING) return;
+
+  // Still too big: drop the oldest insertions. Map preserves insertion order,
+  // and a limiter key that has not been touched since it was created is the
+  // safest thing to forget.
+  const excess: string[] = [];
+  const keep = memory.size - MEMORY_CEILING;
+  let seen = 0;
+  memory.forEach((_entry, key) => {
+    if (seen < keep) {
+      excess.push(key);
+      seen += 1;
+    }
+  });
+  for (const key of excess) memory.delete(key);
 }
 
 /** Best-effort client identity for rate limiting behind Vercel's proxy. */

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Camera, Check, Loader2, ShieldAlert, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
-import { uploadToCloudinary } from "@/lib/cloudinary";
+import { KycRejectionError, uploadToCloudinary } from "@/lib/cloudinary";
 import { captureException } from "@/lib/monitoring";
 import { cn } from "@/lib/utils";
 import type { DocVerdict } from "@/lib/kyc-verification";
@@ -95,21 +95,47 @@ export default function ImageUpload({
     setBusy(true);
     setError(null);
     setVerdict(null);
-    setStage("Uploading securely…");
+    setStage(verify === "selfie" ? "Checking that this is a real face…" : "Uploading securely…");
     try {
-      const url = await uploadToCloudinary(file);
+      /*
+       * The selfie is screened by the server while it uploads. A refusal comes
+       * back as a 422 with a sentence a member can act on, and it is shown
+       * here, at the upload box, not five steps later.
+       */
+      const url = await uploadToCloudinary(file, verify === "selfie" ? "selfie" : "document");
       onUpload(url);
       if (verify) {
         const pending: DocVerdict = {
           status: "review",
           confidence: 0,
-          message: "Uploaded. Automated screening is not identity verification; your application stays pending until Rabi reviews it.",
+          message:
+            verify === "selfie"
+              ? "A real face was found. A machine check cannot prove identity or liveness, so Rabi still reviews your application."
+              : "Uploaded. Automated screening is not identity verification; your application stays pending until Rabi reviews it.",
           reasons: ["awaiting-server-screening", "manual-review-required"],
         };
         setVerdict(pending);
         onVerdict?.(pending, null);
       }
     } catch (uploadError) {
+      /*
+       * A screening refusal is not a storage failure. It must not count towards
+       * the WhatsApp handover path, because the photo itself is the problem and
+       * a different photo fixes it.
+       */
+      if (uploadError instanceof KycRejectionError) {
+        const refused: DocVerdict = {
+          status: "rejected",
+          confidence: 0,
+          message: uploadError.message,
+          reasons: uploadError.reasons.length ? uploadError.reasons : ["kyc-screening-rejected"],
+        };
+        setVerdict(refused);
+        setError(uploadError.message);
+        onVerdict?.(refused, null);
+        return;
+      }
+
       console.error("Upload failed:", uploadError);
       const name = uploadError instanceof Error && uploadError.name ? uploadError.name : typeof uploadError;
       captureException(uploadError, { scope: "kyc-upload", mode: verify, name });

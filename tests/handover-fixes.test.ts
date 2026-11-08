@@ -38,11 +38,16 @@ describe("the dog bypass", () => {
     expect(faceDetection).toContain("createImageBitmap(canvas)");
   });
 
-  it("keeps uploaded evidence pending instead of rejecting by browser heuristics", () => {
+  it("never decides from a browser heuristic, and never hides a server refusal", () => {
+    // The browser still does not adjudicate: nothing in the upload component
+    // inspects pixels to decide whether a face exists. But a refusal the server
+    // reports must be shown, not swallowed, so the member is told to retake the
+    // photo instead of being sent to the WhatsApp fallback.
     expect(authPage).toContain("const selfieReady = Boolean(form.passportPhoto)");
     expect(upload).toContain("awaiting-server-screening");
     expect(upload).not.toContain("serverKycCheck");
-    expect(upload).not.toContain('status: "rejected"');
+    expect(upload).toContain("KycRejectionError");
+    expect(upload).toContain('"selfie"');
   });
 });
 
@@ -67,8 +72,12 @@ describe("savings UI is gone", () => {
 
 describe("admin pending queue", () => {
   it("opens the review sheet instead of only switching tabs", () => {
-    const button = adminPage.slice(adminPage.indexOf('aria-label="Pending applications"'));
-    expect(button.slice(0, 1600)).toContain("setSelectedUser(next)");
+    // Locate the banner, then the primary action inside it. A byte offset made
+    // this fail whenever the banner gained a line of helpful copy, which is a
+    // false alarm about a real requirement.
+    const banner = adminPage.slice(adminPage.indexOf('aria-label="Pending applications"'));
+    const primary = banner.slice(0, banner.indexOf("Review next") + 40);
+    expect(primary).toContain("setSelectedUser(next)");
   });
 
   it("still offers the full list", () => {
@@ -155,14 +164,27 @@ describe("server-side identity checks", () => {
     expect(route).toContain("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME");
   });
 
-  it("runs signed server screening at application submission and keeps signup pending", () => {
+  it("runs AI screening at submission, refuses a rejection, and still requires a human", () => {
     const signup = read("src/app/api/signup/submit/route.ts");
-    expect(upload).toContain("uploadToCloudinary(file)");
+    expect(upload).toContain("uploadToCloudinary(");
     expect(upload).not.toContain("serverKycCheck");
+    // The worker path is still there as a second, independent signal.
     expect(signup).toContain("KYC_SCREENING_URL");
     expect(signup).toContain("X-Screening-Signature");
+    // Vision screening is authoritative for an outright refusal...
+    expect(signup).toContain("screenKycImages(");
+    expect(signup).toContain('code: "kyc-screening-rejected"');
+    expect(signup).toContain("422");
+    // ...and an accepted application still waits for Rabi.
     expect(signup).toContain('kycReviewStatus: "manual_review_required"');
     expect(signup).toContain('status: "pending"');
+  });
+
+  it("never records an AI outage as a pass", () => {
+    const signup = read("src/app/api/signup/submit/route.ts");
+    // A provider that cannot answer produces manual review, not screened_pass.
+    expect(signup).toContain("verification_unavailable");
+    expect(signup).not.toContain('screeningState = "screened_pass"');
   });
 
   it("fails closed to manual review when the service is down", () => {
@@ -171,8 +193,13 @@ describe("server-side identity checks", () => {
     expect(read("src/app/api/kyc/verify/route.ts")).toContain('code: "verification-unavailable"');
   });
 
-  it("can prove the credentials from production", () => {
+  it("can prove the vision credentials from production", () => {
     expect(diagnose).toContain("if (!actor.admin)");
-    expect(diagnose).toContain("cloud.ooto-ai.com/api/v1.0/liveness");
+    // It must exercise the real screening path with a synthetic image, so the
+    // answer describes the deployed key rather than the presence of a variable.
+    expect(diagnose).toContain("screenSelfie(");
+    expect(diagnose).toContain("visionProviderNames()");
+    // A grey square must not be reported as a human face.
+    expect(diagnose).toContain('result.signals?.subject === "human_face"');
   });
 });

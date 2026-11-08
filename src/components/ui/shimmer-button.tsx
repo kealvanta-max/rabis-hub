@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { cn } from "@/lib/utils";
+import { useCssVars } from "@/lib/css-vars";
 
 export interface ShimmerButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -25,26 +26,47 @@ const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonProps>(
       children,
       ...props
     },
-    ref,
+    forwardedRef,
   ) => {
+    /*
+     * The theme values arrive as props, so they cannot be Tailwind classes. They
+     * are published as CSS custom properties through the CSSOM instead of a
+     * style attribute: `style-src-attr 'none'` blocks the attribute, which had
+     * left the button with no radius, no background and no shimmer colour in
+     * production. Two refs are needed because the caller also owns one.
+     */
+    const varsRef = React.useRef<HTMLButtonElement | null>(null);
+    useCssVars(varsRef, {
+      "--ripple-color": shimmerColor,
+      "--shimmer-color": shimmerColor,
+      "--radius": borderRadius,
+      "--speed": shimmerDuration,
+      "--cut": shimmerSize,
+      "--bg": background,
+    });
+
+    // A caller may pass either a callback ref or a mutable ref object, and the
+    // two need different handling. `@types/react` models `RefObject` as a
+    // read-only `current`, so the mutable branch is narrowed explicitly.
+    const setRefs = (node: HTMLButtonElement | null) => {
+      varsRef.current = node;
+      if (typeof forwardedRef === "function") {
+        forwardedRef(node);
+        return;
+      }
+      if (forwardedRef) {
+        (forwardedRef as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+      }
+    };
+
     return (
       <button
-        style={
-          {
-            "--ripple-color": shimmerColor,
-            "--shimmer-color": shimmerColor,
-            "--radius": borderRadius,
-            "--speed": shimmerDuration,
-            "--cut": shimmerSize,
-            "--bg": background,
-          } as React.CSSProperties
-        }
         className={cn(
           "group relative z-0 flex cursor-pointer items-center justify-center overflow-hidden whitespace-nowrap border border-white/10 px-6 py-3 text-white [background:var(--bg)] [border-radius:var(--radius)] dark:text-black",
           "transform-gpu transition-transform duration-300 ease-in-out active:scale-95",
           className,
         )}
-        ref={ref}
+        ref={setRefs}
         {...props}
       >
         {/* spark container */}

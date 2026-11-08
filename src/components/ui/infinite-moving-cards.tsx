@@ -67,38 +67,29 @@ export const InfiniteMovingCards = ({
   return (
     <div
       ref={containerRef}
-      // Use style tag for -webkit-mask-image for better Android Chrome compat
+      // The fade-out edges live in the shipped stylesheet (`.scroller`), because
+      // a style attribute is blocked by the production CSP and the marquee ran
+      // edge-to-edge with hard cuts instead of fading.
       className={cn(
         "scroller relative z-20 max-w-7xl overflow-hidden",
         className
       )}
-      style={{
-        // Webkit prefix critical for Android Chrome mask support
-        WebkitMaskImage:
-          "linear-gradient(to right, transparent, white 15%, white 85%, transparent)",
-        maskImage:
-          "linear-gradient(to right, transparent, white 15%, white 85%, transparent)",
-      }}
     >
       <ul
         ref={scrollerRef}
+        // `touch-action: pan-y` prevents the marquee swallowing scroll gestures
+        // on Android; it is now a utility class rather than a style attribute.
         className={cn(
-          "flex min-w-full shrink-0 gap-4 py-4 w-fit flex-nowrap",
+          "flex min-w-full shrink-0 gap-4 py-4 w-fit flex-nowrap touch-pan-y",
           start && "animate-scroll",
-          // ✅ Key fix: only pause on DESKTOP hover (md:), not on mobile touch
+          // Only pause on DESKTOP hover (md:), not on mobile touch.
           pauseOnHover && "md:hover:[animation-play-state:paused]"
         )}
-        // ✅ touch-action: pan-y prevents the marquee from swallowing scroll gestures on Android
-        style={{ touchAction: "pan-y" }}
       >
         {items.map((item, idx) => (
           <li
             key={`${item.name}-${idx}`}
-            className="w-[320px] sm:w-[380px] md:w-[450px] max-w-full relative rounded-2xl border border-b-0 flex-shrink-0 border-[#065F46]/60 px-6 py-6"
-            style={{
-              background:
-                "linear-gradient(180deg, #051A10, #020c06)",
-            }}
+            className="testimonial-card w-[320px] sm:w-[380px] md:w-[450px] max-w-full relative rounded-2xl border border-b-0 flex-shrink-0 border-[#065F46]/60 px-6 py-6"
           >
             <blockquote>
               {/* Decorative quote mark */}
