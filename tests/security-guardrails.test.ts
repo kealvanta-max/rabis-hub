@@ -1,4 +1,5 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -109,7 +110,7 @@ describe("error relay", () => {
 
 describe("transport + browser hardening", () => {
   const config = read("next.config.mjs");
-  const middleware = read("middleware.ts");
+  const middleware = read("src/middleware.ts");
 
   it("ships a per-request nonce CSP without unsafe-inline", () => {
     expect(middleware).toContain("crypto.getRandomValues");
@@ -122,7 +123,8 @@ describe("transport + browser hardening", () => {
   });
 
   it("prevents framing and ships the rest of the header baseline", () => {
-    expect(middleware).toContain('request.nextUrl.pathname.startsWith("/admin") ? "DENY"');
+    expect(middleware).toContain('request.nextUrl.pathname.startsWith("/admin")');
+    expect(middleware).toContain('isAdminArea ? "DENY" : "SAMEORIGIN"');
     expect(middleware).toContain("X-Content-Type-Options");
     expect(middleware).toContain("Referrer-Policy");
     expect(middleware).toContain("Permissions-Policy");
@@ -134,6 +136,38 @@ describe("transport + browser hardening", () => {
 
   it("keeps the framework banner out of responses", () => {
     expect(config).toContain("poweredByHeader: false");
+  });
+
+  it("puts the middleware where Next.js actually compiles it", () => {
+    /*
+     * The expensive bug this pins: `middleware.ts` sat at the repository root
+     * while the app lived in `src/`. Next.js compiles middleware from the root
+     * OR from `src/`, never from a root file that the `src` directory shadows,
+     * and it does so without a warning. The result was an empty
+     * `middleware-manifest.json` in production: no CSP, no nonce, no HSTS, no
+     * frame protection. The cropper's black preview was the visible symptom.
+     */
+    expect(existsSync(join(process.cwd(), "src/middleware.ts"))).toBe(true);
+    expect(existsSync(join(process.cwd(), "middleware.ts"))).toBe(false);
+    // And the build artefact proves it was compiled, when a build has run.
+    const manifestPath = join(process.cwd(), ".next/server/middleware-manifest.json");
+    if (existsSync(manifestPath)) {
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { middleware?: Record<string, unknown> };
+      expect(Object.keys(manifest.middleware ?? {}).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("grants the nonce to style elements but never to style attributes", () => {
+    // Inline style elements must carry the per-request nonce (Next needs it and
+    // so does any component that legitimately ships one), while attributes stay
+    // blocked so a style-injection attack has nowhere to land.
+    expect(middleware).toContain("style-src 'self' 'nonce-${nonce}'");
+    expect(middleware).toContain("style-src-attr 'none'");
+  });
+
+  it("never puts KYC evidence or sessions in a shared cache", () => {
+    expect(middleware).toContain('path.startsWith("/api/")');
+    expect(middleware).toContain("private, no-store");
   });
 });
 

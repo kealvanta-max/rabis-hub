@@ -153,3 +153,27 @@ describe("vendor assets fail soft", () => {
     expect(script).toContain("missing");
   });
 });
+
+describe("upload-time screening covers every image slot", () => {
+  const route = readFileSync(new URL("../src/app/api/upload/route.ts", import.meta.url), "utf8");
+
+  it("screens any image, not just the one labelled selfie", () => {
+    /*
+     * `purpose` is client-declared, so gating on it let a script upload a dog as
+     * `purpose: "document"` and skip screening. The submission route still
+     * screens the real bytes, so this was never a way to become a member — but a
+     * refused photo should not be written to storage at all.
+     */
+    expect(route).toMatch(/if \(kind === "image"\) \{/);
+    expect(route).toContain("purpose === \"selfie\" ? \"selfie\" : \"document\"");
+  });
+
+  it("deletes the stored file when screening refuses it", () => {
+    expect(route).toContain("destroyCloudinaryAsset(data.secure_url, kind)");
+  });
+
+  it("asks a card question for a document slot", () => {
+    // A card photo has no human face, so the subject gate must not run on it.
+    expect(route).toContain('"document"');
+  });
+});

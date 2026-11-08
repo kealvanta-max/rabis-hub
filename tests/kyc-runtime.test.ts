@@ -74,7 +74,7 @@ describe("the KYC runtimes are served by us, not a blocked CDN", () => {
   });
 
   it("keeps the model fallback origins allowed by the nonce CSP", () => {
-    const middleware = read("middleware.ts");
+    const middleware = read("src/middleware.ts");
     expect(middleware).toMatch(/script-src[^\n]*cdn\.jsdelivr\.net/);
     expect(middleware).toContain("tessdata.projectnaptha.com");
   });

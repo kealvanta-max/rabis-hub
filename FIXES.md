@@ -638,6 +638,225 @@ The email and upload routes now return **401 without a token** (verified with cu
 
 ---
 
+## 🔬 The three reported failures, root-caused
+
+This pass started from three complaints: the crop preview is black, manual
+location typing is open to anyone, and a photo of a dog still passes KYC. Each
+had a cause well below where it was visible.
+
+### 1. The black crop preview: the CSP middleware never ran
+
+The cropper positioned its preview image with a small runtime `<style>` element
+that only applied when a per-request CSP nonce reached the component, plus a
+`style` attribute for the transform.
+
+The nonce arrived in production, but the component read `null`, and the
+production policy blocks style attributes outright (`style-src-attr 'none'`).
+With no transform, the untouched 4000 px photo was clipped by the frame's
+`overflow: hidden` and the member saw a corner of her own photograph: a black
+rectangle.
+
+Proven in a headless browser against a production build:
+
+| state | preview `<img>` | result |
+| --- | --- | --- |
+| healthy | `matrix(0.211,…)` over 1600×1000, 338 px visible | photo shown |
+| nonce `<style>` removed | `{x:-605, y:82, w:1600, h:1000}` | flat black frame |
+
+The reason the nonce was missing is the expensive part. `middleware.ts` sat in
+the **repository root** while the application lives in `src/`. Next.js compiles
+middleware from one location or the other, and a root file shadowed by `src/` is
+ignored **without a warning**. A clean build with the root file produced:
+
+```json
+{"version":3,"middleware":{},"functions":{},"sortedMiddleware":[]}
+```
+
+An empty manifest. Production had no CSP, no nonce, no HSTS and no frame
+protection: every security header this project believed it shipped was absent.
+Moving the file to `src/middleware.ts` produced `ƒ Middleware 27.4 kB` and a
+populated manifest.
+
+Fixed by:
+
+- `src/middleware.ts` is now the only middleware, and the root file is deleted.
+- The cropper takes its geometry through CSS custom properties written via the
+  CSSOM, with the base transform in the shipped stylesheet, so the first paint is
+  already correct and nothing depends on a nonce.
+- `tests/security-guardrails` now asserts the middleware's **location** and, when
+  a build has run, that the manifest is non-empty. A silent non-compile can never
+  ship again.
+- `tests/cropper-csp` fails if any UI component reintroduces a `style` attribute.
+
+### 2. The manual location field: the counter was cosmetic
+
+The rule was "hide the area box until three failed detections". The page never
+applied it: STEP 1 carried a free-text `Location (Area)` input, so the whole
+protocol was optional for anyone who scrolled up.
+
+Now:
+
+- The hook owns the counter (`LOCATION_ATTEMPT_LIMIT = 3`), counts **consecutive
+  attempts only**, and exposes `manualEntryUnlocked`. A successful fix resets it,
+  and a double tap cannot consume two attempts.
+- STEP 4 shows `Attempt n of 3` with three pips while detection is running,
+  because a member who cannot see the count assumes the button is broken.
+- The area box does not exist in the DOM until the counter allows it.
+- The server enforces the same rule: a submission whose location source is
+  `manual` and whose `locationAttempts` is below 3 is refused with **422
+  `location-attempts-required`**, before anything is written. A browser cannot
+  lie its way past a counter the server checks.
+
+### 3. The dog: a policy that required every check to agree
+
+The old decision table needed *all* signals to concur before it refused anyone.
+A selfie of a dog has no Ghana Card in it, so "card: uncertain" neutralised
+"subject: not a human", and the application went to Rabi instead of being
+refused.
+
+`src/lib/kyc-vision-policy.ts` replaces that with hard gates. Any one of these
+refuses the application outright:
+
+| signal | value | floor | scope |
+| --- | --- | --- | --- |
+| subject | `non_human_or_no_face` | 0.70 | selfie |
+| reproduction | `screen_or_copy` | any | both |
+| face_match | `not_consistent` | 0.75 | full |
+| card | `not_ghana_card` | 0.75 | full |
+
+The subject floor is deliberately lower: a false rejection costs the member a
+retake, a false acceptance costs money. Everything below the floor, and every
+unanswerable provider, becomes `manual_review_required`. There is no path from an
+AI answer to "approved": the strongest positive state is `screened_pass`, whose
+own reason string says a human still has to look.
+
+`screenshots`, `screen_or_copy` and face mismatch are checked in both scopes.
+Card questions are only asked in the full scope, where there is a card to look at.
+
+### Where the refusal actually happens
+
+Two points, both server-side:
+
+- **Upload time.** A selfie is screened when it is uploaded. A refusal returns
+  **422 `kyc-selfie-rejected`**, and the stored file is deleted, so a rejected
+  photo neither costs storage nor lingers.
+- **Submission time.** Front, back and selfie are screened together. A refusal
+  returns **422 `kyc-screening-rejected`** *before the Firestore document is
+  created*, so a refused applicant leaves no record and has nothing to "wait
+  out".
+
+`src/lib/cloudinary.ts` throws a dedicated `KycRejectionError` for this, because
+the upload helper retries network blips, and a refusal is not a blip.
+
+### Provider chain
+
+Free tiers only, tried in order, first usable answer wins:
+
+1. **Gemini** — `gemini-flash-latest` → `gemini-2.5-flash` → `gemini-2.0-flash`
+2. **Groq** — Llama 4 Scout → Maverick
+3. **OpenRouter** — `openrouter/free`, Gemma, Qwen 2.5 VL
+
+Model IDs are comma-separated fallback lists rather than single names, because
+free model IDs are retired without notice and a 404 is skipped in favour of the
+next entry. Groq has previously dropped every vision model from its free tier,
+which is why it is second and why the chain continues past it.
+
+Answers are validated against an exact contract. An invented enum value, an
+out-of-range confidence, prose-wrapped JSON (accepted) or a prompt injection in
+the model's own output (not accepted) all resolve to "unreadable answer", which
+routes to Rabi. A rejected key, an exhausted quota and a timeout are reported as
+**our** failure, never as the member's.
+
+### What Rabi sees
+
+`kycScreeningChecks.vision` is stored next to the verdict: state, provider,
+model, the individual signals, the reason tokens, duration and how many providers
+were tried. The admin panel renders it in `src/components/admin/screening-panel.tsx`:
+
+- machine tokens are translated into sentences, so "quota ran out" is visible
+  instead of `vision-provider-quota-exhausted`;
+- a pass is labelled "the AI cannot confirm identity", never "approved";
+- an outage says "this is our failure, not the member's";
+- the four individual answers are listed, so a reviewer can locate a bad one;
+- a member with no screening record at all gets an explicit warning.
+
+The member list also gained a **Needs review** filter, because "pending" and "the
+machine could not decide" are different questions and used to look identical.
+
+## 🚨 Two production outages found while verifying
+
+### Every member would have been locked out by the rate limiter
+
+`src/lib/rate-limit.ts` **failed closed**: without Upstash credentials in
+production it returned `success: false` for every key. The routes it guards are
+the ones a member cannot work around: signup submission, evidence upload, the
+error reporter, admin decisions. On a fresh deployment with no Upstash account,
+every parent would see "Too many requests" forever, with nothing to explain it.
+
+A missing optional dependency must degrade, not deny. It now falls back to the
+in-process counter (still a real limit per warm instance), sets `degraded: true`
+so a health check can report it, and logs a warning.
+
+### The durable limiter read the TTL instead of the count
+
+The Upstash pipeline was destructured as `[, , count]`, which is the **TTL**.
+Consequences in both directions:
+
+- `signup:submit` is limited to 3 per hour, so `used` was about 3600: the first
+  submission of every hour was refused.
+- `upload` is limited to 60 per minute, so the comparison was `TTL <= 60`, always
+  true: uploads were never limited at all.
+
+Only the in-memory fallback had a test, which is why this survived. It now reads
+`[count, , ttl]`, and `tests/rate-limit.test.ts` drives both backends with a
+stubbed pipeline in both directions.
+
+## 🎨 Eleven components were silently unstyled in production
+
+`style-src-attr 'none'` is the right policy, but React's `style` prop compiles to
+exactly the attribute it blocks. Measured against the real build:
+
+| how the style is applied | CSP `style-src-attr 'none'` |
+| --- | --- |
+| `<div style="width:77px">` (server-rendered) | **blocked**, computed `784px` |
+| `el.setAttribute("style", …)` (what React does) | **blocked** |
+| `el.style.width = "22px"` (CSSOM) | **allowed** |
+| `el.style.setProperty("--w", …)` (CSSOM) | **allowed** |
+
+So only *server-rendered* styles died; anything framer-motion set after hydration
+survived. On the homepage that was 25 style attributes and 55 console violations,
+with the trust-section bars computing to `0px`.
+
+Every one is fixed at the source, not by relaxing the policy:
+
+- `src/lib/css-vars.ts` publishes values as custom properties through the CSSOM.
+- `src/components/ui/css-var-box.tsx` is the drop-in for a mapped list.
+- Bars, the approval ring, avatars, the Face ID tile, the liveness progress bar,
+  the shimmer button, the nav labels, the testimonial marquee edges and its card
+  gradient all moved to shipped classes.
+- Two unused components were deleted rather than repaired.
+
+Verified after: the trust bars compute `19.2px … 48px` instead of `0px`, and the
+shimmer button has its `100px` radius and background back. A sweep of every
+element carrying a `style` attribute on the homepage now reports **zero** whose
+computed value contradicts the attribute.
+
+One refinement came out of that sweep. The CSSOM-written utilities had no
+fallback, so between the server render and the first effect the bar was not
+"40%" but "no height at all" — invisible rather than wrong. They now ship a
+`var(--bar, 0%)` fallback, so the pre-hydration paint is a zero-height bar
+instead of a missing one, and there is no CSP violation to log.
+
+### What still legitimately emits a style attribute
+
+Framer-motion writes animation frames through React's `style` prop, so the
+console still shows roughly thirty `Refused to apply inline style` lines for
+`opacity`/`transform` values. Those are not breaks: the unit is deliberately
+marked initial and the animation resolves on mount, and it was verified that a
+reveal element goes from `opacity: 0` to `opacity: 1` when scrolled into view,
+in both normal and `prefers-reduced-motion` modes. They are noise, not defects,
+and they cannot be removed without replacing the animation library.
+
 ## 📱 Custom plans, WhatsApp links, savings tracking (handover patch)
 
 > **Superseded:** the Advance Susu section below describes a feature that was later removed on purpose.
@@ -678,6 +897,25 @@ WhatsApp shortcut. No gateway, no card, no change to how money actually moves.
 **Gates:** lint ✅ · `tsc` ✅ · **174 tests** ✅ · build ✅
 
 ---
+
+## ✅ Verification performed
+
+- `npx tsc --noEmit` — clean.
+- `npm run lint` — no warnings or errors.
+- `npm run build` — succeeds; `ƒ Middleware 27.6 kB`; manifest contains
+  `server/src/middleware.js`.
+- `npx vitest run` — **31 files, 421 tests, all passing.**
+- Production build served on a local port: `/auth` returns the full CSP with a
+  fresh nonce, HSTS, and `x-frame-options`.
+- Headless Chrome against that build: CSP applies, no dead style attributes on
+  the pages that were fixed, trust bars render at their real heights.
+- Scratch page with the exact policy proved the four style-injection cases in the
+  table above.
+
+New test files: `kyc-vision-provider`, `kyc-vision-policy`, `cropper-csp`,
+`rate-limit`, `admin-screening`. Existing suites were updated to the new contract
+rather than weakened; where an assertion pinned an implementation detail (a byte
+offset, a literal string) it now asserts the behaviour.
 
 ## ⚠️ The 3 things that must be configured for the live site
 

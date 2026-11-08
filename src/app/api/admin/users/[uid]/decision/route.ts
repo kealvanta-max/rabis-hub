@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type Transaction } from "firebase-admin/firestore";
 import { authenticateRequest } from "@/lib/server-auth";
 import { adminFirestore } from "@/lib/server-firestore";
 import { rateLimit } from "@/lib/rate-limit";
@@ -40,7 +40,16 @@ export async function POST(request: Request, context: { params: { uid: string } 
   const ref = db.collection("users").doc(uid);
 
   try {
-    const result = await db.runTransaction(async (transaction) => {
+    /*
+     * The callback parameter is annotated, not inferred.
+     *
+     * `runTransaction`'s generic comes from `@google-cloud/firestore`, whose
+     * typings have differed between resolved versions: on CI the parameter
+     * resolved to `any` and `noImplicitAny` turned that into a build failure,
+     * while the same commit type-checked locally. Naming the type here makes the
+     * route independent of the SDK's inference, which is the only stable fix.
+     */
+    const result = await db.runTransaction(async (transaction: Transaction) => {
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) throw new Error("member-not-found");
       const member = snapshot.data() ?? {};

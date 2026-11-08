@@ -20,11 +20,20 @@ but "degrades gracefully" is not "works", so paste them all.
 | 5 | **PostHog** (analytics) | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` | posthog.com → Project settings | 1M events/mo | Rabi cannot see what members do |
 | 6 | **Sentry** (errors) | `SENTRY_DSN` | sentry.io → Project → Client Keys | 5k errors/mo | Errors die in the Vercel log |
 | 7 | **Google Search Console** | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | search.google.com → URL prefix → HTML tag | free | Site unverified, indexing unmeasurable |
+| 8 | **Vision KYC** (AI screening) | `GEMINI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` (+ optional `*_VISION_MODEL`, `KYC_VISION_TIMEOUT_MS`) | aistudio.google.com/apikey · console.groq.com/keys · openrouter.ai/keys | all three free tiers | Photos are not screened; every application still reaches Rabi, marked *no AI check was possible* |
+| 9 | **KYC worker** (Python, Render) | `KYC_SCREENING_URL`, `KYC_SCREENING_SHARED_SECRET` | your Render web service URL + a random 32-byte secret | Render free tier sleeps when idle | Card text/MRZ is not read; the AI pass still decides |
 
 Plus `FIREBASE_SERVICE_ACCOUNT_KEY` (console → Service accounts → *Generate new
 private key*): required for `npm run admin:setup`. It is
 the one genuinely dangerous value in this file — server/CLI only, never a
 `NEXT_PUBLIC_` variable, never in a screenshot.
+
+**Rows 8 and 9 are the only ones that may be left empty.** With no AI key and no
+worker, KYC still functions: the application is accepted, stored, and queued for
+Rabi with an explicit "no AI check was possible" note. It is never auto-approved
+either way, because no automated answer is allowed to approve anyone. Set one of
+the three AI keys to get the dog/fake-card refusals. They are tried in order —
+Gemini, Groq, OpenRouter — so each one covers the others' daily quota.
 
 ---
 

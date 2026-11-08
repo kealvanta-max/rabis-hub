@@ -58,9 +58,26 @@ describe("server-owned identity records", () => {
   it("locks KYC decisions, evidence and delivery fields out of direct admin writes", () => {
     const userBlock = rules.slice(rules.indexOf("match /users/"), rules.indexOf("match /settings/"));
     const protectedBlock = userBlock.slice(userBlock.indexOf("affectedKeys().hasAny(["));
-    for (const field of [...KYC_FIELDS, "status", "kycReviewStatus", "evidenceHashes", "reviewerUid", "reviewedAt", "decisionEmailAt"]) {
+    for (const field of [
+      ...KYC_FIELDS,
+      "status",
+      "kycReviewStatus",
+      "kycScreeningChecks",
+      "evidenceHashes",
+      "reviewerUid",
+      "reviewedAt",
+      "decisionEmailAt",
+    ]) {
       expect(protectedBlock).toContain(`'${field}'`);
     }
+  });
+
+  it("keeps the AI verdict out of admin hands", () => {
+    // The screening record is the only evidence of what the model actually
+    // answered. An admin who could edit it could manufacture consent for a
+    // decision, so the rules must list it with the other server-owned fields.
+    const userBlock = rules.slice(rules.indexOf("match /users/"), rules.indexOf("match /settings/"));
+    expect(userBlock).toContain("'kycScreeningChecks'");
   });
 
   it("creates profiles through the authenticated server submission route", () => {

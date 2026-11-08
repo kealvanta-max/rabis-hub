@@ -71,11 +71,12 @@ export default function LiquidGlassNav({
             className={cn(
               "relative flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium",
               "outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/60",
-              "transition-colors duration-200"
+              "transition-colors duration-200",
+              // The active label tint was a style attribute, which the production
+              // CSP blocks: every nav label rendered in default black. Two shipped
+              // classes do the same job with nothing to strip.
+              isHighlighted ? "text-[var(--lg-ink-active)]" : "text-[var(--lg-ink-muted)]"
             )}
-            style={{
-              color: isHighlighted ? "var(--lg-ink-active)" : "var(--lg-ink-muted)",
-            }}
           >
             {isHighlighted && (
               <motion.span

@@ -18,6 +18,7 @@ import Modal from "@/components/ui/modal";
 import BlurUpImage from "@/components/ui/blur-up-image";
 import Badge from "@/components/ui/badge";
 import ActionButton from "@/components/admin/action-button";
+import ScreeningPanel from "@/components/admin/screening-panel";
 import MemberAvatar from "@/components/admin/member-avatar";
 import { formatDate } from "@/lib/utils";
 import type { UserItem } from "@/components/admin/types";
@@ -251,6 +252,10 @@ export default function UserDetailModal({
             </p>
           </div>
         )}
+
+        {/* What the AI concluded, and why. Placed before the reason box so the
+            verdict is read first and the free-text exception second. */}
+        <ScreeningPanel record={user.kycScreeningChecks?.vision} />
 
         {user.kycReviewReason && (
           <div className="rounded-2xl border border-amber-500/30 bg-amber-500/[0.08] p-4" role="status">

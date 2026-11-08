@@ -613,3 +613,127 @@ select optgroup {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ---------------------------------------------------------------- cropper */
+/*
+ * The KYC photo cropper publishes its pan, zoom and rotation as CSS custom
+ * properties written through the CSSOM. This stylesheet is shipped with the
+ * build (not generated per request), so the preview renders even if a browser
+ * extension strips dynamic stylesheets, and `style-src-attr 'none'` stays in
+ * force. Defaults describe "unzoomed, unrotated, centred" so a first paint
+ * before the layout effect runs is already correct.
+ */
+.crop-frame {
+  cursor: grab;
+}
+.crop-frame:active {
+  cursor: grabbing;
+}
+
+.crop-image {
+  --crop-x: 0px;
+  --crop-y: 0px;
+  --crop-rotate: 0deg;
+  --crop-scale: 1;
+  transform: translate(-50%, -50%) translate(var(--crop-x), var(--crop-y))
+    rotate(var(--crop-rotate)) scale(var(--crop-scale));
+  transform-origin: center center;
+  will-change: transform;
+  /* A decode failure must be visible, not an invisible hole on a black frame. */
+  background-color: transparent;
+}
+
+/* Native range input, restyled without any inline styles. */
+.zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.05rem;
+  width: 1.05rem;
+  border-radius: 9999px;
+  background: #34d399;
+  border: 2px solid #04150c;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.25);
+  cursor: pointer;
+}
+.zoom-slider::-moz-range-thumb {
+  height: 1.05rem;
+  width: 1.05rem;
+  border-radius: 9999px;
+  background: #34d399;
+  border: 2px solid #04150c;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.25);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crop-image {
+    will-change: auto;
+  }
+}
+
+/*
+ * Face ID tile tints. These were three gradient strings passed through a `style`
+ * prop, which `style-src-attr 'none'` blocks, so the panel rendered as a flat
+ * dark square in production. One class per phase keeps the paint in the shipped
+ * stylesheet.
+ */
+.face-tile-glow-idle {
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.34), transparent 70%);
+}
+.face-tile-glow-scanning {
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.52), transparent 70%);
+}
+.face-tile-glow-success {
+  background: radial-gradient(circle, rgba(52, 211, 153, 0.58), transparent 70%);
+}
+
+/*
+ * Approval-rate ring. The angle came from a `conic-gradient` string in a style
+ * attribute, which the production policy blocks, so the ring always rendered as
+ * a flat circle. `--ring` is written through the CSSOM by `CssVarBox`.
+ */
+.approval-ring {
+  background: conic-gradient(
+    #34d399 var(--ring, 0deg),
+    rgba(255, 255, 255, 0.07) var(--ring, 0deg)
+  );
+}
+
+/* Carousel card colour washes (were inline gradient strings, blocked by CSP). */
+.card-wash-emerald {
+  background-image: radial-gradient(circle at top right, #10b981, #064e3b);
+}
+.card-wash-blue {
+  background-image: radial-gradient(circle at top right, #3b82f6, #1e3a8a);
+}
+.card-wash-amber {
+  background-image: radial-gradient(circle at top right, #f59e0b, #78350f);
+}
+
+/*
+ * Marquee edges and testimonial card surface.
+ *
+ * Both were inline style attributes. `style-src-attr 'none'` blocks those, so in
+ * production the testimonials scrolled with hard cut edges instead of fading,
+ * and every card lost its dark green gradient and sat on the page background.
+ */
+.scroller {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #fff 15%,
+    #fff 85%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #fff 15%,
+    #fff 85%,
+    transparent
+  );
+}
+
+.testimonial-card {
+  background: linear-gradient(180deg, #051a10, #020c06);
+}

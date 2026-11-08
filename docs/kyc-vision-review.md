@@ -28,6 +28,41 @@ The linked demo source has material integration caveats:
 
 **Recommendation:** do not wire the public Space into signup or transmit applicant biometrics to it. If evaluating it, use synthetic/non-applicant images only. If the vendor confirms a commercial license and a supported deployment/API, evaluate a self-hosted private deployment behind authenticated service-to-service access, strict request limits, no image logging, short retention, and manual review fallback. Even a liveness SDK score is not definitive proof and must be tested on the actual devices, population, lighting, and attack cases expected.
 
+## Decision policy as shipped
+
+`src/lib/kyc-vision-policy.ts` is pure and unit-tested. It turns four model
+signals into one state. A hard gate refuses the application on the server before
+any Firestore write; everything else becomes manual review.
+
+| signal | refusing value | confidence floor | asked in |
+| --- | --- | --- | --- |
+| `subject` | `non_human_or_no_face` | 0.70 | selfie, full |
+| `reproduction` | `screen_or_copy` | any | selfie, full |
+| `face_match` | `not_consistent` | 0.75 | full only |
+| `card` | `not_ghana_card` | 0.75 | full only |
+
+The subject floor is lower than the rest on purpose: wrongly refusing a real
+member costs a retake, wrongly accepting a fraud costs money. Card and face-match
+questions are not asked of a lone selfie, where there is no card to look at and an
+"uncertain" answer must not neutralise a clear "not a human" answer.
+
+States: `rejected` (hard gate), `manual_review_required` (uncertainty),
+`verification_unavailable` (no provider could answer), `screened_pass` (all
+signals clear, **still requires Rabi**).
+
+## Operating the screening queue
+
+- The admin member list has a **Needs review** filter: pending applications whose
+  screening did not clear, plus typed locations.
+- The detail sheet shows state, provider, model, per-signal answers, reason
+  sentences, duration and how many providers were tried.
+- More than one provider tried usually means a stale key or an exhausted free
+  quota; check `/api/kyc/diagnose` while signed in as admin. It sends a synthetic
+  grey square through the real path and refuses to report success if the model
+  claims to see a human face in it.
+- If every provider is down, applications still arrive, marked
+  `verification_unavailable`. They are never blocked and never passed.
+
 ## Sources checked
 
 - FaceOnLive Hugging Face Space and source: [Space](https://huggingface.co/spaces/FaceOnLive/Face-Liveness-Detection-SDK), [Space tree](https://huggingface.co/spaces/FaceOnLive/Face-Liveness-Detection-SDK/tree/main), [app.py](https://huggingface.co/spaces/FaceOnLive/Face-Liveness-Detection-SDK/blob/main/app.py), [Gradio demo](https://huggingface.co/spaces/FaceOnLive/Face-Liveness-Detection-SDK/blob/main/gradio/demo.py), [README/license metadata](https://huggingface.co/spaces/FaceOnLive/Face-Liveness-Detection-SDK/blob/main/README.md), [Dockerfile](https://huggingface.co/spaces/FaceOnLive/Face-Liveness-Detection-SDK/blob/main/Dockerfile).

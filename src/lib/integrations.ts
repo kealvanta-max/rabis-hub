@@ -19,7 +19,8 @@ export type IntegrationCategory =
   | "data"
   | "analytics"
   | "errors"
-  | "seo";
+  | "seo"
+  | "kyc";
 
 export interface IntegrationSpec {
   id: string;
@@ -84,6 +85,35 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     impact:
       "KYC uploads fail closed. Signup still works, but nobody can submit a Ghana Card, so nobody gets approved.",
     source: "Cloudinary dashboard → Dashboard → Product environment credentials",
+  },
+  {
+    id: "vision-kyc",
+    label: "Vision screening (Gemini / Groq / OpenRouter)",
+    category: "kyc",
+    /*
+     * Any one provider is enough: the chain tries Gemini, then Groq, then
+     * OpenRouter, and the first usable answer decides. Three keys are better
+     * than one because free-tier daily quotas are small, but one is functional.
+     *
+     * This is deliberately NOT in `criticalGaps`. Without it an application is
+     * still accepted and queued for Rabi with "no AI check was possible", which
+     * is a worse experience, not a broken one. Blocking the site for a missing
+     * optional key would be a bigger fault than the one it would prevent.
+     */
+    anyOf: [["GEMINI_API_KEY"], ["GROQ_API_KEY"], ["OPENROUTER_API_KEY"]],
+    impact:
+      "Uploaded photos are not screened: a dog photo or a fake card is not refused automatically, every application waits for Rabi with no AI verdict.",
+    source:
+      "aistudio.google.com/apikey · console.groq.com/keys · openrouter.ai/keys (all free tier)",
+  },
+  {
+    id: "kyc-worker",
+    label: "KYC worker (Python, Render)",
+    category: "kyc",
+    required: ["KYC_SCREENING_URL", "KYC_SCREENING_SHARED_SECRET"],
+    impact:
+      "Card text and the MRZ checksum are not read, so a card with mismatched front/back numbers is not caught automatically. The AI pass still runs.",
+    source: "Render dashboard → your web service → URL, plus a random 32-byte shared secret",
   },
   {
     id: "resend",

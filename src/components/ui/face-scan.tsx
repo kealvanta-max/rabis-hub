@@ -17,6 +17,7 @@ import { serverKycCheck } from "@/lib/kyc-server-check";
 import { createFaceLandmarker } from "@/lib/face-detection";
 import FaceIdTile from "@/components/ui/face-id-tile";
 import { cn } from "@/lib/utils";
+import { CssVarBox } from "@/components/ui/css-var-box";
 
 interface FaceScanProps {
   onComplete: (videoUrl: string) => void;
@@ -458,9 +459,9 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
               <Smile className="h-4 w-4" /> Smile at the camera
             </span>
             <div className="h-1.5 w-36 overflow-hidden rounded-full bg-black/50">
-              <div
-                className="h-full bg-emerald-400 transition-all duration-200"
-                style={{ width: `${progress}%` }}
+              <CssVarBox
+                vars={{ "--progress": `${progress}%` }}
+                className="h-full w-[var(--progress)] bg-emerald-400 transition-all duration-200"
               />
             </div>
           </div>
@@ -472,9 +473,9 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
               <ShieldCheck className="h-4 w-4" /> Now blink once
             </span>
             <div className="h-1.5 w-36 overflow-hidden rounded-full bg-black/50">
-              <div
-                className="h-full bg-sky-400 transition-all duration-200"
-                style={{ width: `${progress}%` }}
+              <CssVarBox
+                vars={{ "--progress": `${progress}%` }}
+                className="h-full w-[var(--progress)] bg-sky-400 transition-all duration-200"
               />
             </div>
           </div>
