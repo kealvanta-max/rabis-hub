@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type Transaction } from "firebase-admin/firestore";
 import { UPLOAD_FOLDER } from "@/lib/file-kind";
 import { authenticateRequest } from "@/lib/server-auth";
 import { adminFirestore } from "@/lib/server-firestore";
@@ -323,7 +323,13 @@ export async function POST(request: Request) {
   }
 
   try {
-    await db.runTransaction(async (transaction) => {
+    /*
+     * Annotated for the same reason as the decision route: the SDK's inferred
+     * generic for this callback resolved to `any` on CI and failed
+     * `noImplicitAny` there while passing locally. Naming the type removes the
+     * dependency on inference entirely.
+     */
+    await db.runTransaction(async (transaction: Transaction) => {
       const existing = await transaction.get(ref);
       if (existing.exists) throw new Error("application-exists");
       transaction.create(ref, {
