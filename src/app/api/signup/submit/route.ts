@@ -4,6 +4,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { UPLOAD_FOLDER } from "@/lib/file-kind";
 import { authenticateRequest } from "@/lib/server-auth";
 import { adminFirestore } from "@/lib/server-firestore";
+import { kycVisionConfigured, screenKycImages, type VisionScreening } from "@/lib/kyc-vision";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,9 +36,9 @@ function evidenceUrl(value: unknown, required = false): string | null {
   }
 }
 
-interface EvidenceDigest { sha256: string; mime: string; bytes: number }
+interface EvidenceDigest { sha256: string; mime: string; bytes: number; base64?: string }
 
-async function hashEvidence(url: string, expected: "image" | "video"): Promise<EvidenceDigest> {
+async function hashEvidence(url: string, expected: "image" | "video", includeBase64 = false): Promise<EvidenceDigest> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12_000);
   try {
@@ -49,6 +51,7 @@ async function hashEvidence(url: string, expected: "image" | "video"): Promise<E
     if (declared > maxBytes) throw new Error("evidence-too-large");
     const reader = response.body.getReader();
     const hash = crypto.createHash("sha256");
+    const chunks: Buffer[] = [];
     let bytes = 0;
     while (true) {
       const { done, value } = await reader.read();
@@ -59,9 +62,15 @@ async function hashEvidence(url: string, expected: "image" | "video"): Promise<E
         throw new Error("evidence-too-large");
       }
       hash.update(value);
+      if (includeBase64) chunks.push(Buffer.from(value));
     }
     if (bytes === 0) throw new Error("evidence-empty");
-    return { sha256: hash.digest("hex"), mime: contentType, bytes };
+    return {
+      sha256: hash.digest("hex"),
+      mime: contentType,
+      bytes,
+      ...(includeBase64 ? { base64: Buffer.concat(chunks).toString("base64") } : {}),
+    };
   } finally {
     clearTimeout(timer);
   }
@@ -76,6 +85,8 @@ async function hashEvidence(url: string, expected: "image" | "video"): Promise<E
 export async function POST(request: Request) {
   const actor = await authenticateRequest(request);
   if (!actor) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  const submitLimit = await rateLimit(`signup:submit:${actor.uid}`, 3, 3600);
+  if (!submitLimit.success) return NextResponse.json({ error: "Too many signup screening attempts. Please wait or contact Rabi for help." }, { status: 429, headers: { "Retry-After": String(Math.max(1, Math.ceil((submitLimit.resetAt - Date.now()) / 1000))) } });
 
   let body: Record<string, unknown>;
   try {
@@ -104,18 +115,27 @@ export async function POST(request: Request) {
 
   const db = await adminFirestore();
   if (!db) return NextResponse.json({ error: "Secure signup storage is unavailable" }, { status: 503 });
+  const ref = db.collection("users").doc(actor.uid);
+  try {
+    if ((await ref.get()).exists) return NextResponse.json({ error: "A signup profile already exists for this account." }, { status: 409 });
+  } catch (error) {
+    console.error("[signup] existing-profile check failed", error);
+    return NextResponse.json({ error: "Secure signup storage is unavailable" }, { status: 503 });
+  }
 
   let evidenceHashes: Record<string, string> = {};
   let screeningState: "screened_pass" | "manual_review_required" | "verification_unavailable" = "manual_review_required";
   let screeningReasons = ["human-review-required"];
   let screeningChecks: Record<string, unknown> = {};
   const digests: Record<string, EvidenceDigest> = {};
+  const visionConfigured = kycVisionConfigured();
+  let visionResult: VisionScreening | null = null;
   if (!documentsDeferred) {
     try {
       const [frontDigest, backDigest, selfieDigest] = await Promise.all([
-        hashEvidence(front as string, "image"),
-        hashEvidence(back as string, "image"),
-        hashEvidence(selfie as string, "image"),
+        hashEvidence(front as string, "image", visionConfigured),
+        hashEvidence(back as string, "image", visionConfigured),
+        hashEvidence(selfie as string, "image", visionConfigured),
       ]);
       digests.front = frontDigest;
       digests.back = backDigest;
@@ -129,9 +149,38 @@ export async function POST(request: Request) {
     }
   }
 
+  if (visionConfigured && !documentsDeferred && digests.front?.base64 && digests.back?.base64 && digests.selfie?.base64 &&
+      [digests.front, digests.back, digests.selfie].every((image) => image.bytes <= 3 * 1024 * 1024)) {
+    visionResult = await screenKycImages([
+      { mime: digests.front.mime, base64: digests.front.base64 },
+      { mime: digests.back.mime, base64: digests.back.base64 },
+      { mime: digests.selfie.mime, base64: digests.selfie.base64 },
+    ]);
+    screeningState = visionResult.state === "rejected" ? "manual_review_required" : visionResult.state;
+    screeningReasons = [...visionResult.reasons];
+    screeningChecks = {
+      vision: {
+        state: visionResult.state,
+        provider: visionResult.provider ?? null,
+        model: visionResult.model ?? null,
+        reasons: visionResult.reasons,
+        signals: visionResult.signals ?? null,
+      },
+    };
+    if (visionResult.state === "rejected") {
+      return NextResponse.json({
+        error: "Screening found a possible issue with these photos. Please retake clear photos; if you believe this is a mistake, contact Rabi for manual review.",
+        code: "kyc-screening-review",
+      }, { status: 422, headers: { "Cache-Control": "no-store" } });
+    }
+  } else if (visionConfigured && !documentsDeferred) {
+    screeningState = "verification_unavailable";
+    screeningReasons = ["vision-evidence-unavailable", "manual-review-required"];
+  }
+
   const screeningBase = process.env.KYC_SCREENING_URL?.replace(/\/$/, "");
   const screeningSecret = process.env.KYC_SCREENING_SHARED_SECRET;
-  if (!documentsDeferred && screeningState !== "verification_unavailable" && screeningBase && screeningSecret && digests.front && digests.back && digests.selfie) {
+  if (!documentsDeferred && (!visionResult || visionResult.state === "screened_pass") && screeningBase && screeningSecret && digests.front && digests.back && digests.selfie) {
     const createdAt = Math.floor(Date.now() / 1000);
     const screeningPayload = {
       submissionId: crypto.randomUUID().replace(/-/g, ""),
@@ -172,31 +221,31 @@ export async function POST(request: Request) {
             ["screened_pass", "manual_review_required", "verification_unavailable"].includes(String(result.state))) {
           screeningState = result.state as typeof screeningState;
           const checks = result.checks && typeof result.checks === "object" ? result.checks as Record<string, unknown> : {};
-          screeningChecks = checks;
-          screeningReasons = Object.entries(checks).flatMap(([purpose, item]) => {
+          screeningChecks = { ...screeningChecks, worker: checks };
+          const workerReasons = Object.entries(checks).flatMap(([purpose, item]) => {
             const reasons = item && typeof item === "object" && Array.isArray((item as { reasons?: unknown }).reasons)
               ? (item as { reasons: unknown[] }).reasons.filter((reason): reason is string => typeof reason === "string")
               : [];
             return reasons.map((reason) => `${purpose}:${reason}`);
           }).slice(0, 30);
+          screeningReasons = [...screeningReasons, ...workerReasons].slice(0, 30);
           if (String(screeningState) === "screened_pass") screeningReasons.push("screening-only-human-review-required");
         } else {
           screeningState = "verification_unavailable";
-          screeningReasons = ["screening-service-unavailable", "manual-review-required"];
+          screeningReasons = [...screeningReasons, "screening-service-unavailable", "manual-review-required"].slice(0, 30);
         }
       } finally {
         clearTimeout(timer);
       }
     } catch {
       screeningState = "verification_unavailable";
-      screeningReasons = ["screening-service-unavailable", "manual-review-required"];
+      screeningReasons = [...screeningReasons, "screening-service-unavailable", "manual-review-required"].slice(0, 30);
     }
-  } else if (!documentsDeferred && screeningState !== "verification_unavailable") {
+  } else if (!documentsDeferred && !visionResult && screeningState !== "verification_unavailable") {
     screeningState = "verification_unavailable";
     screeningReasons = ["screening-service-not-configured", "manual-review-required"];
   }
 
-  const ref = db.collection("users").doc(actor.uid);
   try {
     await db.runTransaction(async (transaction) => {
       const existing = await transaction.get(ref);
@@ -229,7 +278,7 @@ export async function POST(request: Request) {
         kycScreeningState: screeningState,
         kycScreeningReasons: screeningReasons,
         kycScreeningChecks: screeningChecks,
-        kycScreeningModelVersion: "cpu-screening-v1",
+        kycScreeningModelVersion: "advisory-screening-v2",
         kycReviewReason: body.documentsDeferred === true
           ? "Documents promised on WhatsApp; human verification required"
           : String(screeningState) === "screened_pass"

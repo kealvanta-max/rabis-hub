@@ -39,6 +39,9 @@ export default function ImageCropper({
 }: ImageCropperProps) {
   const nonce = useCspNonce();
   const cropId = useId().replace(/:/g, "");
+  // Keep the crop frame visible even when a browser/extension strips our nonce
+  // stylesheet; this aspect-ratio class is a CSS fallback, not an inline style.
+  const frameAspectClass = aspect > 1.45 ? "aspect-[1.586]" : aspect < 1 ? "aspect-[0.8]" : "aspect-[4/3]";
   const frameRef = useRef<HTMLDivElement>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -233,7 +236,7 @@ export default function ImageCropper({
         {/* Runtime crop geometry is emitted in a nonce-authorized stylesheet;
             style attributes are blocked by the production CSP. */}
         {nonce && image && (
-          <style nonce={nonce}>{`.crop-frame-${cropId}{aspect-ratio:${aspect};cursor:${image ? "grab" : "default"}}.crop-image-${cropId}{width:${image.naturalWidth}px;height:${image.naturalHeight}px;transform:translate(-50%,-50%) translate(${offset.x}px,${offset.y}px) rotate(${rotation}deg) scale(${geometry.scale});transform-origin:center center}`}</style>
+          <style nonce={nonce}>{`.crop-frame-${cropId}{cursor:grab}.crop-image-${cropId}{width:${image.naturalWidth}px;height:${image.naturalHeight}px;transform:translate(-50%,-50%) translate(${offset.x}px,${offset.y}px) rotate(${rotation}deg) scale(${geometry.scale});transform-origin:center center}`}</style>
         )}
         {/* Frame — whatever is visible here is exactly what gets uploaded. */}
         <div
@@ -242,15 +245,17 @@ export default function ImageCropper({
           onPointerMove={onPointerMove}
           onPointerUp={endPointer}
           onPointerCancel={endPointer}
-          className={`crop-frame-${cropId} relative w-full touch-none select-none overflow-hidden rounded-2xl bg-black/60`}
+          className={`crop-frame-${cropId} ${frameAspectClass} relative w-full touch-none select-none overflow-hidden rounded-2xl bg-black/60`}
         >
           {image && frameSize.width > 0 && (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={image.src}
-              alt=""
+              alt="Crop preview of selected document"
               draggable={false}
-              className={`crop-image-${cropId} absolute left-1/2 top-1/2 max-w-none`}
+              width={image.naturalWidth}
+              height={image.naturalHeight}
+              className={`crop-image-${cropId} absolute left-1/2 top-1/2 max-w-none -translate-x-1/2 -translate-y-1/2`}
             />
           )}
 

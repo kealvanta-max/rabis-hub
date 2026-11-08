@@ -90,10 +90,13 @@ describe("never a dead end", () => {
     expect(page).not.toContain("canStep5");
   });
 
-  it("offers a way past the wait, even while detecting", () => {
+  it("only offers manual area entry after three failed location attempts", () => {
     const step4 = page.slice(page.indexOf("STEP 4"), page.indexOf("STEP 5"));
-    expect(step4).toContain("skipLocation");
-    expect(step4).toContain("Skip for now");
+    expect(page).toContain("gpsAttempts >= 3");
+    expect(step4).toContain("Attempt ");
+    expect(step4).toContain("of 3");
+    expect(step4).not.toContain("skipLocation");
+    expect(step4).not.toContain("Skip for now");
   });
 
   it("collects an area when the phone will not share a pin", () => {

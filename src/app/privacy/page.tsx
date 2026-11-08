@@ -46,14 +46,14 @@ export default function PrivacyPolicyPage() {
                     <li><span className="text-gray-300">Passport-style photo or clear selfie</span>, to confirm you are who you say you are</li>
                   </ul>
                   <p className="text-sm text-gray-400 mt-2">
-                    These images are uploaded securely through Cloudinary, a trusted cloud media service. We do not store them on our own servers.
+                    These images are stored through Cloudinary. Their media URLs may be accessible to anyone who obtains the URL, so treat them as sensitive. When a vision provider is configured, the Ghana Card images and selfie may also be sent to Google Gemini, Groq, or OpenRouter for automated risk screening. The screening may flag a possible face, card-appearance, face-consistency, or copy/screen concern, but it cannot establish identity, liveness, or official Ghana Card authenticity. Uncertain or unavailable checks go to manual review; Rabi reviews every application before approval. Provider processing may occur outside Ghana and is subject to that provider&apos;s terms and retention practices.
                   </p>
                 </div>
 
                 <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
                   <h3 className="text-white font-semibold mb-2">GPS Location</h3>
                   <p className="text-gray-400">
-                    During registration, we ask for your device&apos;s GPS location. This is a <span className="text-primary font-medium">mandatory step</span>. We use it to verify that our members are real people at real addresses. Your coordinates and approximate address are stored with your account. We will never track your movement or location after registration.
+                    During registration, we ask whether your device can share a location pin. If three consecutive detection attempts fail, you can enter your area manually instead. Location helps Rabi review your application; it does not prove that you are a real person. Any coordinates and the supplied or approximate area are stored with your account. We do not track your movement after registration.
                   </p>
                 </div>
 
@@ -97,7 +97,8 @@ export default function PrivacyPolicyPage() {
                 <li><span className="text-gray-300">You</span> can see your own profile, documents, and status on your dashboard</li>
                 <li><span className="text-gray-300">Our admin team</span> can see all member data to manage approvals, plans, and WhatsApp group assignments</li>
                 <li><span className="text-gray-300">Other members</span> can only see your approved testimonials (name, photo, plan, and review text)</li>
-                <li><span className="text-gray-300">Nobody else</span> gets access to your data unless we are required by Ghanaian law to share it</li>
+                <li><span className="text-gray-300">Service providers</span> such as Firebase, Cloudinary, and (when configured) Google Gemini, Groq, or OpenRouter process the data needed to provide storage and screening. Their processing may occur outside Ghana and is governed by their own terms and retention practices.</li>
+                <li>We do not sell or rent your personal information. We disclose it to others only for these services or when required by Ghanaian law.</li>
               </ul>
             </section>
 

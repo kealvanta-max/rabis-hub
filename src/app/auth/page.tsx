@@ -193,20 +193,10 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     failureCode: gpsFailure,
     attempts: gpsAttempts,
     requestLocation,
-    skip: skipLocation,
   } = useGeolocation();
 
-  /*
-   * The typed area used to be the first thing a member saw on the location
-   * step, which made the whole step look like a form to fill in by hand. It now
-   * appears only after the phone has genuinely failed three times, or when the
-   * member chooses it.
-   */
-  const [showManualArea, setShowManualArea] = useState(false);
-
-  useEffect(() => {
-    if (gpsAttempts >= 3) setShowManualArea(true);
-  }, [gpsAttempts]);
+  // Manual entry is revealed only after three consecutive completed location failures.
+  const showManualArea = gpsAttempts >= 3;
   const [step, setStep] = useState(1);
   /*
    * Storage can fail for reasons that are nobody's fault on this phone: a
@@ -458,8 +448,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           <div className="flex items-start gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
             <p className="text-[11px] leading-relaxed text-gray-400">
-              Your card number must match the photo. Images are checked on your device before they are
-              uploaded, then reviewed by Rabi before your account is approved.
+              Your photos are uploaded for review and may be screened by external AI services such as Google Gemini, Groq, or OpenRouter when configured. These checks can be wrong and cannot prove liveness or official Ghana Card authenticity. Rabi reviews every application before approval. See our <a href="/privacy" className="text-primary underline">Privacy Policy</a>.
             </p>
           </div>
 
@@ -680,19 +669,13 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             </div>
             <h3 className="text-lg font-bold text-white mb-2">Enable Your Location</h3>
             <p className="text-sm text-gray-300 mb-6">
-              A GPS pin helps Rabi confirm you are in Ghana. If your phone cannot find you, type your area below and continue.
+              A GPS pin helps Rabi review your location. Manual area entry appears only after three location attempts fail in a row.
             </p>
 
             {gpsStatus === "idle" && (
               <div className="space-y-3">
                 <Button onClick={requestLocation} className="w-full">Detect My Location</Button>
-                <button
-                  type="button"
-                  onClick={skipLocation}
-                  className="text-xs text-gray-300 underline underline-offset-4 hover:text-white"
-                >
-                  Skip, I will type my area
-                </button>
+                <p className="text-xs text-gray-400">If detection fails three times in a row, you can enter your area manually.</p>
               </div>
             )}
 
@@ -703,13 +686,6 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
                 <p className="text-sm text-gray-300">Finding you. Indoors this can take up to 20 seconds.</p>
-                <button
-                  type="button"
-                  onClick={skipLocation}
-                  className="text-xs text-gray-300 underline underline-offset-4 hover:text-white"
-                >
-                  Skip for now
-                </button>
               </div>
             )}
 
@@ -764,8 +740,10 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
               </div>
             )}
 
-            {gpsAttempts > 0 && gpsAttempts < 3 && gpsStatus !== "success" && (
-              <p className="mt-4 text-xs text-gray-400">Attempt {gpsAttempts} of 3</p>
+            {(gpsStatus === "detecting" || (gpsAttempts > 0 && gpsAttempts < 3 && gpsStatus !== "success")) && (
+              <p className="mt-4 text-xs text-gray-400">
+                Attempt {Math.min(gpsAttempts + (gpsStatus === "detecting" ? 1 : 0), 3)} of 3
+              </p>
             )}
 
             {showManualArea ? (
@@ -847,7 +825,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           <label className="flex items-start gap-4 cursor-pointer mt-4 bg-primary/5 p-4 rounded-xl border border-primary/20">
             <input type="checkbox" id="terms" className="mt-1 accent-primary w-5 h-5 flex-shrink-0" required checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} />
             <span className="text-sm text-gray-300 leading-relaxed">
-              I, <strong className="text-primary tracking-wide text-base">{form.firstName || "[Name]"} {form.lastName || ""}</strong>, agree to join Rabi&apos;s Saving Hub. I confirm that I will abide by the strict Susu rules, understand that funds are non-refundable, and will fill out all mandatory forms before any cashout.
+              I, <strong className="text-primary tracking-wide text-base">{form.firstName || "[Name]"} {form.lastName || ""}</strong>, agree to join Rabi&apos;s Saving Hub and abide by the Susu rules. I understand the non-refundable fund policy, and acknowledge that my submitted documents may be processed by screening providers as described in the <a href="/privacy" className="text-primary underline">Privacy Policy</a>.
             </span>
           </label>
 
