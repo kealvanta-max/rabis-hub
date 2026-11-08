@@ -16,8 +16,23 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20.x'
+        # Read from `.nvmrc`, not a literal. This workflow pinned 20.x while
+        # `package.json` declared `engines: { node: "22.x" }` and `.nvmrc` said
+        # 22, and `firebase-admin@14.5.0` requires >= 22. The mismatch was
+        # silent: `npm ci` only warned (EBADENGINE) and the failure surfaced
+        # later as a type error on a Firestore callback whose generic resolved
+        # to `any` under 20 and not under 22. One source of truth prevents the
+        # whole class.
+        node-version-file: '.nvmrc'
         cache: 'npm'
+
+    - name: Report the toolchain
+      # A build that fails should say which Node it used, so a version skew is
+      # diagnosed in one line instead of a bisect.
+      run: |
+        node --version
+        npm --version
+        echo "declared engines: $(node -p "require('./package.json').engines.node")"
 
     - name: Install Dependencies
       run: npm ci
@@ -34,4 +49,20 @@ jobs:
     - name: Build
       # The app builds without Firebase env vars (it falls back to a clear
       # "not configured" state) so CI does not need project secrets.
-      run: npm run build
+      #
+      # The log is kept on failure: a step that exits 1 with no annotation is
+      # otherwise a guessing game from outside the runner, and Next's output
+      # names the route or module that broke.
+      run: |
+        set -o pipefail
+        npm run build 2>&1 | tee /tmp/build.log
+      env:
+        NEXT_TELEMETRY_DISABLED: "1"
+
+    - name: Upload the build log when it fails
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: /tmp/build.log
+        if-no-files-found: ignore
