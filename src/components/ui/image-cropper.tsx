@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import { useCspNonce } from "@/context/csp-nonce-context";
 import { Check, Loader2, RotateCw, X, ZoomIn } from "lucide-react";
 import { clamp, clampCropOffset, cropGeometry } from "@/lib/image-crop";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,8 @@ export default function ImageCropper({
   onCancel,
   onConfirm,
 }: ImageCropperProps) {
+  const nonce = useCspNonce();
+  const cropId = useId().replace(/:/g, "");
   const frameRef = useRef<HTMLDivElement>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -227,6 +230,11 @@ export default function ImageCropper({
           </button>
         </div>
 
+        {/* Runtime crop geometry is emitted in a nonce-authorized stylesheet;
+            style attributes are blocked by the production CSP. */}
+        {nonce && image && (
+          <style nonce={nonce}>{`.crop-frame-${cropId}{aspect-ratio:${aspect};cursor:${image ? "grab" : "default"}}.crop-image-${cropId}{width:${image.naturalWidth}px;height:${image.naturalHeight}px;transform:translate(-50%,-50%) translate(${offset.x}px,${offset.y}px) rotate(${rotation}deg) scale(${geometry.scale});transform-origin:center center}`}</style>
+        )}
         {/* Frame — whatever is visible here is exactly what gets uploaded. */}
         <div
           ref={frameRef}
@@ -234,8 +242,7 @@ export default function ImageCropper({
           onPointerMove={onPointerMove}
           onPointerUp={endPointer}
           onPointerCancel={endPointer}
-          className="relative w-full touch-none select-none overflow-hidden rounded-2xl bg-black/60"
-          style={{ aspectRatio: `${aspect}`, cursor: image ? "grab" : "default" }}
+          className={`crop-frame-${cropId} relative w-full touch-none select-none overflow-hidden rounded-2xl bg-black/60`}
         >
           {image && frameSize.width > 0 && (
             /* eslint-disable-next-line @next/next/no-img-element */
@@ -243,13 +250,7 @@ export default function ImageCropper({
               src={image.src}
               alt=""
               draggable={false}
-              className="absolute left-1/2 top-1/2 max-w-none"
-              style={{
-                width: image.naturalWidth,
-                height: image.naturalHeight,
-                transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${geometry.scale})`,
-                transformOrigin: "center center",
-              }}
+              className={`crop-image-${cropId} absolute left-1/2 top-1/2 max-w-none`}
             />
           )}
 

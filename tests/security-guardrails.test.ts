@@ -109,21 +109,27 @@ describe("error relay", () => {
 
 describe("transport + browser hardening", () => {
   const config = read("next.config.mjs");
+  const middleware = read("middleware.ts");
 
-  it("ships a content security policy", () => {
-    expect(config).toContain("Content-Security-Policy");
-    // Framing is limited to this site and the review preview host, never *.
-    expect(config).toContain("frame-ancestors 'self' https://*.e2b.app");
-    expect(config).not.toContain("frame-ancestors *");
-    expect(config).toContain("object-src 'none'");
-    expect(config).toContain("base-uri 'self'");
+  it("ships a per-request nonce CSP without unsafe-inline", () => {
+    expect(middleware).toContain("crypto.getRandomValues");
+    expect(middleware).toContain("nonce-${nonce}");
+    expect(middleware).toContain('requestHeaders.set("Content-Security-Policy"');
+    expect(middleware).toContain('response.headers.set("Content-Security-Policy"');
+    expect(middleware).not.toContain("unsafe-inline");
+    expect(middleware).toContain("style-src-attr 'none'");
+    expect(config).not.toContain("Content-Security-Policy");
   });
 
-  it("ships the rest of the header baseline", () => {
-    expect(config).toContain("Strict-Transport-Security");
-    expect(config).toContain("X-Content-Type-Options");
-    expect(config).toContain("Referrer-Policy");
-    expect(config).toContain("Permissions-Policy");
+  it("prevents framing and ships the rest of the header baseline", () => {
+    expect(middleware).toContain('request.nextUrl.pathname.startsWith("/admin") ? "DENY"');
+    expect(middleware).toContain("X-Content-Type-Options");
+    expect(middleware).toContain("Referrer-Policy");
+    expect(middleware).toContain("Permissions-Policy");
+    expect(middleware).toContain("Strict-Transport-Security");
+    expect(middleware).toContain("object-src 'none'");
+    expect(middleware).toContain("base-uri 'self'");
+    expect(middleware).not.toContain("https://*.e2b.app");
   });
 
   it("keeps the framework banner out of responses", () => {
@@ -134,20 +140,24 @@ describe("transport + browser hardening", () => {
 describe("firestore rules", () => {
   const rules = read("firestore.rules");
 
-  it("only honours verified owner addresses", () => {
-    expect(rules).toContain("email_verified == true");
+  it("authorizes only server-assigned admin claims", () => {
+    expect(rules).toContain("request.auth.token.admin == true");
+    expect(rules).not.toContain("email_verified == true");
+    expect(rules).not.toContain("email.lower() in");
   });
 
-  it("forces new members to stay pending", () => {
-    expect(rules).toMatch(/request\.resource\.data\.status == 'pending'/);
+  it("denies client-created member records; server route creates pending records", () => {
+    expect(rules).toContain("allow create: if false;");
+    expect(read("src/app/api/signup/submit/route.ts")).toContain('status: "pending"');
   });
 
   it("blocks members from changing their own status", () => {
     expect(rules).toContain("request.resource.data.status == resource.data.status");
   });
 
-  it("validates required profile fields on create", () => {
-    expect(rules).toContain("hasAll(['name', 'email', 'phone', 'plan', 'status'])");
+  it("routes member creation through the trusted server", () => {
+    expect(rules).toContain("allow create: if false;");
+    expect(read("src/app/api/signup/submit/route.ts")).toContain("transaction.create(ref");
   });
 });
 

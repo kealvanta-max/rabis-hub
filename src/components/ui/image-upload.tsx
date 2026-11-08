@@ -4,19 +4,8 @@ import { useRef, useState } from "react";
 import { Camera, Check, Loader2, ShieldAlert, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import { captureException } from "@/lib/monitoring";
-import { recognizeDocument } from "@/lib/ghana-card-ocr";
-import { detectHumanFace, fingerprintImage } from "@/lib/face-detection";
-import { serverKycCheck } from "@/lib/kyc-server-check";
-import { assessDocumentPhoto } from "@/lib/document-photo";
-import {
-  checkCardAspectRatio,
-  evaluateIdBack,
-  evaluateIdFront,
-  evaluateSelfie,
-  checkImageQuality,
-  type DocVerdict,
-} from "@/lib/kyc-verification";
 import { cn } from "@/lib/utils";
+import type { DocVerdict } from "@/lib/kyc-verification";
 import { sniffFileKind } from "@/lib/file-kind";
 import ImageCropper from "@/components/ui/image-cropper";
 import BlurUpImage from "@/components/ui/blur-up-image";
@@ -29,23 +18,11 @@ interface ImageUploadProps {
   onUpload: (url: string) => void;
   /** Document checks to run before the file is uploaded. */
   verify?: VerifyMode;
-  declaredCardNumber?: string;
   hint?: string;
   onVerdict?: (verdict: DocVerdict | null, fingerprint?: string | null) => void;
   /** Told why an upload failed, so the signup flow can offer a way forward. */
   onFailure?: (message: string) => void;
-  /**
-   * The raw text the card reader produced. The signup flow needs both sides of
-   * the card to compare the printed number with the machine readable zone.
-   */
-  onOcrText?: (text: string, confidence: number) => void;
 }
-
-const modeCopy: Record<VerifyMode, string> = {
-  "id-front": "Reading your card…",
-  "id-back": "Checking the back of your card…",
-  selfie: "Looking for your face…",
-};
 
 /** Frame shape the member crops into — ID-1 for the card, portrait for a face. */
 const cropAspect: Record<VerifyMode, number> = {
@@ -71,11 +48,9 @@ export default function ImageUpload({
   value,
   onUpload,
   verify,
-  declaredCardNumber = "",
   hint,
   onVerdict,
   onFailure,
-  onOcrText,
 }: ImageUploadProps) {
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState<string>("");
@@ -115,192 +90,32 @@ export default function ImageUpload({
     setPendingFile(file);
   };
 
-  /** Runs the document checks on the cropped result. */
+  /** Upload KYC evidence without treating browser heuristics as a verdict. */
   const processFile = async (file: File) => {
     setBusy(true);
     setError(null);
     setVerdict(null);
-    setStage("Preparing…");
-
+    setStage("Uploading securely…");
     try {
-      const fingerprint = await fingerprintImage(file).catch(() => ({
-        hash: "",
-        width: 0,
-        height: 0,
-        brightness: 128,
-        contrast: 52,
-      }));
-
-      let nextVerdict: DocVerdict | null = null;
-
-      const quality = checkImageQuality({
-        brightness: fingerprint.brightness,
-        contrast: fingerprint.contrast,
-      });
-
-      if (!quality.ok) {
-        setVerdict({ status: "rejected", confidence: 0, message: quality.reason ?? "Photo rejected.", reasons: ["quality"] });
-        onVerdict?.(
-          { status: "rejected", confidence: 0, message: quality.reason ?? "Photo rejected.", reasons: ["quality"] },
-          fingerprint.hash
-        );
-        setError(quality.reason ?? "Photo rejected.");
-        if (inputRef.current) inputRef.current.value = "";
-        return;
-      }
-
-      let photoReview = false;
-
-      if (verify === "id-front" || verify === "id-back") {
-        setStage("Looking closely…");
-        const photo = await assessDocumentPhoto(file);
-
-        if (!photo.ok) {
-          const rejected: DocVerdict = {
-            status: "rejected",
-            confidence: 0,
-            message:
-              photo.message ??
-              "The card is hard to read. Move to a well lit place, hold the phone steady, and take the photo again.",
-            reasons: photo.reasons,
-          };
-          setVerdict(rejected);
-          onVerdict?.(rejected, fingerprint.hash);
-          setError(rejected.message);
-          if (inputRef.current) inputRef.current.value = "";
-          return;
-        }
-
-        // Usable, but the pixels suggest a photo of a screen. Not proof, so it
-        // becomes a note for Rabi rather than a refusal.
-        photoReview = photo.review;
-      }
-
-      if (verify === "id-front" || verify === "id-back") {
-        setStage("Checking the photo…");
-        const aspect = checkCardAspectRatio(fingerprint.width, fingerprint.height);
-
-        if (!aspect.ok) {
-          nextVerdict = {
-            status: "rejected",
-            confidence: 0,
-            message: aspect.reason ?? "That does not look like a card.",
-            reasons: ["aspect-ratio"],
-          };
-        } else {
-          setStage(modeCopy[verify]);
-          try {
-            const ocr = await recognizeDocument(file);
-            onOcrText?.(ocr.text, ocr.confidence);
-            nextVerdict =
-              verify === "id-front"
-                ? evaluateIdFront(ocr.text, declaredCardNumber, aspect)
-                : evaluateIdBack(ocr.text, declaredCardNumber, aspect);
-
-            if (photoReview && nextVerdict.status === "verified") {
-              nextVerdict = {
-                ...nextVerdict,
-                status: "review",
-                message: "This photo looks like it may be of a screen. Rabi will check it by hand.",
-                reasons: [...nextVerdict.reasons, "possible-screen"],
-              };
-            }
-          } catch {
-            // The reader itself failed (slow network, CDN blocked, exotic format).
-            // Never trap the member: accept the photo for manual admin review.
-            nextVerdict = {
-              status: "review",
-              confidence: 0,
-              message:
-                "We could not read the card automatically on this connection. Rabi will check this photo manually.",
-              reasons: ["ocr-unavailable"],
-            };
-          }
-        }
-      }
-
-      if (verify === "selfie") {
-        setStage(modeCopy.selfie);
-        const face = await detectHumanFace(file);
-        nextVerdict = evaluateSelfie(
-          { faceCount: face.faceCount, areaRatio: face.areaRatio, confidence: face.confidence },
-          face.skipped
-        );
-      }
-
-      if (nextVerdict) {
-        setVerdict(nextVerdict);
-        onVerdict?.(nextVerdict, fingerprint.hash);
-
-        if (nextVerdict.status === "rejected") {
-          setError(nextVerdict.message);
-          if (inputRef.current) inputRef.current.value = "";
-          return;
-        }
-      }
-
-      setStage("Uploading…");
       const url = await uploadToCloudinary(file);
-
-      /*
-       * Second opinion, from a server.
-       *
-       * The local model is fast but it runs on the member's phone, so whether it
-       * loads decides whether a photo of a dog gets through. The server check
-       * does not depend on the device at all. It upgrades a local "review" to
-       * "verified" when the card reads cleanly, and it refuses a file the engine
-       * cannot find a human face or a document in.
-       */
-      if (verify === "selfie" || verify === "id-front") {
-        setStage("Confirming with the server…");
-        const server = await serverKycCheck(verify === "selfie" ? "selfie" : "card", url);
-
-        if (!server.skipped && !server.ok) {
-          const rejected: DocVerdict = {
-            status: "rejected",
-            confidence: 0,
-            message: server.message || "That photo could not be verified. Take it again.",
-            reasons: server.reasons ?? ["server-rejected"],
-          };
-          setVerdict(rejected);
-          onVerdict?.(rejected, fingerprint.hash);
-          setError(rejected.message);
-          if (inputRef.current) inputRef.current.value = "";
-          return;
-        }
-
-        if (!server.skipped && server.ok) {
-          nextVerdict = {
-            status: "verified",
-            confidence: 95,
-            message:
-              verify === "selfie"
-                ? "Live human face confirmed."
-                : server.message || nextVerdict?.message || "Card verified.",
-            reasons: [],
-          };
-        }
-      }
-
       onUpload(url);
-      onVerdict?.(nextVerdict, fingerprint.hash);
+      if (verify) {
+        const pending: DocVerdict = {
+          status: "review",
+          confidence: 0,
+          message: "Uploaded. Automated screening is not identity verification; your application stays pending until Rabi reviews it.",
+          reasons: ["awaiting-server-screening", "manual-review-required"],
+        };
+        setVerdict(pending);
+        onVerdict?.(pending, null);
+      }
     } catch (uploadError) {
       console.error("Upload failed:", uploadError);
-      /*
-       * Show what actually went wrong. A generic "check your connection" hides key
-       * mismatches, size limits and rate limits, which are the real causes. When
-       * the browser hands us an error with no message at all, the error's name is
-       * the only clue there is, so it goes into the sentence and into the report
-       * instead of being thrown away.
-       */
-      const name =
-        uploadError instanceof Error && uploadError.name ? uploadError.name : typeof uploadError;
+      const name = uploadError instanceof Error && uploadError.name ? uploadError.name : typeof uploadError;
       captureException(uploadError, { scope: "kyc-upload", mode: verify, name });
-
-      const reason =
-        uploadError instanceof Error && uploadError.message
-          ? uploadError.message
-          : `Upload failed on this phone. Tell Rabi this code: ${name}.`;
+      const reason = uploadError instanceof Error && uploadError.message
+        ? uploadError.message
+        : `Upload failed on this phone. Tell Rabi this code: ${name}.`;
       setError(reason);
       onFailure?.(reason);
     } finally {

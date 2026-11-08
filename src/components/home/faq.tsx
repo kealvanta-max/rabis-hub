@@ -1,4 +1,5 @@
 import { HelpCircle, ChevronDown } from "lucide-react";
+import { headers } from "next/headers";
 import { FAQS, FAQ_JSON_LD } from "@/lib/site";
 
 /**
@@ -7,9 +8,11 @@ import { FAQS, FAQ_JSON_LD } from "@/lib/site";
  * where crawlers and slow connections can both reach it.
  */
 export default function FaqSection() {
+  const nonce = headers().get("x-nonce") ?? undefined;
   return (
     <section id="faq" aria-labelledby="faq-heading" className="relative px-4 py-20 sm:py-28">
       <script
+        nonce={nonce}
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSON_LD) }}
       />

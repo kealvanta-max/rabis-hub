@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { authenticateRequest } from "@/lib/server-auth";
+import { UPLOAD_FOLDER } from "@/lib/file-kind";
 import { rateLimit } from "@/lib/rate-limit";
 import { checkCard, checkMatch, checkSelfie, checkVideo, ootoConfigured } from "@/lib/ooto";
 
@@ -37,14 +38,27 @@ function trustedUpload(url: string): boolean {
     const cloud = (process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "").trim();
     if (!cloud) return false;
 
-    return parsed.pathname.startsWith(`/${cloud}/`);
+    return parsed.pathname.startsWith(`/${cloud}/`) && parsed.pathname.includes(`/${UPLOAD_FOLDER}/`);
   } catch {
     return false;
   }
 }
 
 export async function POST(request: Request) {
-  const limits = await rateLimit(`kyc:verify:${clientIp(request)}`, 60, 3600);
+  // An unbound anonymous caller must not use this endpoint as an OCR or
+  // provider-quota oracle. Signup before account creation stays manual review.
+  const actor = await authenticateRequest(request).catch(() => null);
+  if (!actor) {
+    return NextResponse.json({
+      ok: false,
+      skipped: true,
+      code: "verification-unavailable",
+      message: "Sign-in is required for server screening. Signup remains pending manual review.",
+      reasons: ["verification-unavailable"],
+    }, { status: 401, headers: { "Cache-Control": "no-store" } });
+  }
+
+  const limits = await rateLimit(`kyc:verify:${actor.uid}`, 60, 3600);
   if (!limits.success) {
     return NextResponse.json(
       { ok: false, skipped: true, error: "Too many checks from this connection. Try again later." },
@@ -53,8 +67,15 @@ export async function POST(request: Request) {
   }
 
   if (!ootoConfigured()) {
-    // No credentials: the caller keeps its on-device result. Never an error.
-    return NextResponse.json({ ok: true, skipped: true, configured: false });
+    // Missing credentials are not an identity verdict. Fail closed to manual review.
+    return NextResponse.json({
+      ok: false,
+      skipped: true,
+      configured: false,
+      code: "verification-unavailable",
+      message: "Automated identity verification is unavailable. This application requires manual review.",
+      reasons: ["verification-unavailable"],
+    }, { status: 503 });
   }
 
   let body: { kind?: unknown; url?: unknown; selfieUrl?: unknown };
@@ -75,10 +96,6 @@ export async function POST(request: Request) {
   if (!url || !trustedUpload(url)) {
     return NextResponse.json({ ok: false, error: "Unknown upload" }, { status: 400 });
   }
-
-  // Signups collect documents before the account exists, so a token is optional
-  // here. When one is present it identifies the member in the log.
-  const actor = await authenticateRequest(request).catch(() => null);
 
   let verdict;
   if (kind === "selfie") verdict = await checkSelfie(url);
@@ -102,8 +119,6 @@ export async function POST(request: Request) {
       check: verdict.check,
       message: verdict.message,
       reasons: verdict.reasons,
-      score: verdict.score,
-      detail: verdict.detail,
       configured: true,
     },
     { headers: { "Cache-Control": "no-store" } }

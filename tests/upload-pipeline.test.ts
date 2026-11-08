@@ -140,7 +140,8 @@ describe("production can be asked which build it is", () => {
 
   it("reports the commit Vercel deployed", () => {
     expect(health).toContain("VERCEL_GIT_COMMIT_SHA");
-    expect(health).toContain("build:");
+    expect(health).toContain("const build =");
+    expect(health).toContain("{ status: gaps.length === 0 ? \"ready\" : \"misconfigured\", build }");
   });
 });
 

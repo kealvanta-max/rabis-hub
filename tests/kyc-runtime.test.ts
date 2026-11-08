@@ -73,9 +73,9 @@ describe("the KYC runtimes are served by us, not a blocked CDN", () => {
     expect(pkg).toContain('"prebuild"');
   });
 
-  it("keeps the fallback origins allowed by our own CSP", () => {
-    // A CSP that blocks the model loader switches KYC off for the whole country.
-    expect(config).toMatch(/script-src[^"]*cdn\.jsdelivr\.net/);
-    expect(config).toContain("tessdata.projectnaptha.com");
+  it("keeps the model fallback origins allowed by the nonce CSP", () => {
+    const middleware = read("middleware.ts");
+    expect(middleware).toMatch(/script-src[^\n]*cdn\.jsdelivr\.net/);
+    expect(middleware).toContain("tessdata.projectnaptha.com");
   });
 });

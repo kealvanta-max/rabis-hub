@@ -46,8 +46,28 @@ export async function POST(request: Request) {
       .replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, "[token]")
       .slice(0, 8000);
 
+  const redactContext = (value: unknown, depth = 0): unknown => {
+    if (depth > 4) return "[depth-limited]";
+    if (typeof value === "string") return scrub(value).slice(0, 500);
+    if (typeof value === "number" || typeof value === "boolean" || value === null) return value;
+    if (Array.isArray(value)) return value.slice(0, 20).map((item) => redactContext(item, depth + 1));
+    if (typeof value === "object") {
+      const result: Record<string, unknown> = {};
+      for (const [key, nested] of Object.entries(value as Record<string, unknown>).slice(0, 40)) {
+        if (/(email|phone|token|secret|password|card|document|gps|location|address|url|cookie|authorization|uid)/i.test(key)) {
+          result[key] = "[redacted]";
+        } else {
+          result[key] = redactContext(nested, depth + 1);
+        }
+      }
+      return result;
+    }
+    return "[unsupported]";
+  };
+
   const message = scrub(String(body.message ?? "Unknown client error"));
   const stack = typeof body.stack === "string" ? scrub(body.stack) : undefined;
+  const safeContext = redactContext(body.context);
 
   // Always log server-side so errors show in Vercel logs even without Sentry.
   console.error("[client-error]", message, stack ?? "");
@@ -66,19 +86,25 @@ export async function POST(request: Request) {
       event_id: eventId,
       timestamp: sentAt,
       platform: "javascript",
-      level: String(body.level ?? "error"),
+      level: ["fatal", "error", "warning", "info", "debug"].includes(String(body.level)) ? String(body.level) : "error",
       logger: "rabis-hub.client",
       environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "production",
       release: process.env.VERCEL_GIT_COMMIT_SHA,
       message: message.slice(0, 1000),
-      transaction: typeof body.url === "string" ? body.url.slice(0, 400) : undefined,
+      transaction: typeof body.url === "string" ? (() => {
+        try {
+          const parsed = new URL(body.url, "https://rabis-saving-hub.vercel.app");
+          return parsed.pathname.slice(0, 200);
+        } catch {
+          return "[invalid-url]";
+        }
+      })() : undefined,
       extra: {
         stack,
         // Free-form context is capped so a stranger cannot park data in Sentry.
-        context:
-          body.context && typeof body.context === "object"
-            ? JSON.stringify(body.context).slice(0, 2000)
-            : undefined,
+        context: safeContext && typeof safeContext === "object"
+          ? JSON.stringify(safeContext).slice(0, 2000)
+          : undefined,
         userAgent: typeof body.userAgent === "string" ? body.userAgent.slice(0, 300) : undefined,
       },
     }),

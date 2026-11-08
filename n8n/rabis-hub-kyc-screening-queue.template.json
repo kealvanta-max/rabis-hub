@@ -1,0 +1,62 @@
+{
+  "name": "Rabis Hub - KYC Screening Queue (UNCONFIGURED TEMPLATE)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rabis-kyc-screening-v1-REPLACE-WITH-RANDOM-SUFFIX",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a1bbf3d4-4a5b-4af8-8a40-7bdfb4210001",
+      "name": "Authenticated KYC Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "REPLACE-WITH-RANDOM-WEBHOOK-ID",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "REPLACE_WITH_NEXTHJS_WEBHOOK_HEADER_AUTH"
+        }
+      },
+      "notesInFlow": true,
+      "notes": "INACTIVE TEMPLATE. Configure a strong Header Auth credential and random production path. This starter does not verify a canonical HMAC, provide durable deduplication, or call the Next.js result route. Do not activate as-is."
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $json.body ?? $json;\nconst now = Math.floor(Date.now() / 1000);\nconst allowed = new Set(['card-front','card-back','selfie','liveness-video']);\nif (!p || typeof p !== 'object' || typeof p.submissionId !== 'string' || typeof p.caseId !== 'string' || typeof p.sessionId !== 'string' || typeof p.idempotencyKey !== 'string' || !Number.isInteger(p.createdAt) || !Number.isInteger(p.expiresAt) || !Array.isArray(p.evidence) || p.evidence.length < 1 || p.evidence.length > 4) throw new Error('invalid request schema');\nif (p.expiresAt < now || p.createdAt > now + 60 || p.expiresAt - p.createdAt > 600) throw new Error('expired request');\nconst seen = new Set();\nfor (const e of p.evidence) { if (!allowed.has(e.purpose) || seen.has(e.purpose) || !/^[0-9a-f]{64}$/i.test(e.sha256 || '') || !Number.isInteger(e.bytes) || e.bytes <= 0 || typeof e.assetId !== 'string' || typeof e.deliveryUrl !== 'string') throw new Error('invalid evidence metadata'); const u = new URL(e.deliveryUrl); if (u.protocol !== 'https:' || u.hostname !== 'res.cloudinary.com') throw new Error('disallowed evidence URL'); seen.add(e.purpose); }\nif (!p.signature || typeof p.signature !== 'string') throw new Error('missing Next.js signature; canonical signature verification must be added before activation');\nreturn [{json: p}];"
+      },
+      "id": "a1bbf3d4-4a5b-4af8-8a40-7bdfb4210002",
+      "name": "Validate Shape and Expiry (NOT HMAC)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "notesInFlow": true,
+      "notes": "Schema checks only. Signature presence is not signature validation. Add canonical HMAC verification using n8n credential-backed secret and a durable idempotency table before wiring downstream."
+    },
+    {
+      "parameters": {
+        "content": "UNCONFIGURED / DO NOT ACTIVATE\n\nThis importable starter intentionally stops before calling any worker or callback. Add a durable Data Store/Redis dedupe and processing state, verify HMAC over canonical payload with credentials, call the configured FastAPI endpoint, validate strict response states, then call a server-authorized Next.js transactional result callback. Route all errors to verification_unavailable; never set member status approved. The repo currently has no private-asset session/result integration, so connecting this workflow now would be unsafe.",
+        "height": 280,
+        "width": 500,
+        "color": 5
+      },
+      "id": "a1bbf3d4-4a5b-4af8-8a40-7bdfb4210003",
+      "name": "Activation Blocker",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [700, 80]
+    }
+  ],
+  "connections": {
+    "Authenticated KYC Request": {
+      "main": [[{"node": "Validate Shape and Expiry (NOT HMAC)", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "a1bbf3d4-4a5b-4af8-8a40-7bdfb4210004",
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

@@ -38,9 +38,11 @@ describe("the dog bypass", () => {
     expect(faceDetection).toContain("createImageBitmap(canvas)");
   });
 
-  it("requires a verified face before the selfie counts as uploaded", () => {
-    expect(authPage).toContain('docVerdicts.selfie?.status === "verified"');
-    expect(authPage).not.toContain('docVerdicts.selfie?.status !== "rejected"');
+  it("keeps uploaded evidence pending instead of rejecting by browser heuristics", () => {
+    expect(authPage).toContain("const selfieReady = Boolean(form.passportPhoto)");
+    expect(upload).toContain("awaiting-server-screening");
+    expect(upload).not.toContain("serverKycCheck");
+    expect(upload).not.toContain('status: "rejected"');
   });
 });
 
@@ -153,17 +155,20 @@ describe("server-side identity checks", () => {
     expect(route).toContain("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME");
   });
 
-  it("blocks the upload when the server says no", () => {
-    expect(upload).toContain("serverKycCheck");
-    expect(upload).toContain('status: "rejected"');
-    expect(faceScan).toContain("serverKycCheck(\"video\"");
-    expect(faceScan).toContain('setStatus("error")');
+  it("runs signed server screening at application submission and keeps signup pending", () => {
+    const signup = read("src/app/api/signup/submit/route.ts");
+    expect(upload).toContain("uploadToCloudinary(file)");
+    expect(upload).not.toContain("serverKycCheck");
+    expect(signup).toContain("KYC_SCREENING_URL");
+    expect(signup).toContain("X-Screening-Signature");
+    expect(signup).toContain('kycReviewStatus: "manual_review_required"');
+    expect(signup).toContain('status: "pending"');
   });
 
-  it("degrades instead of failing when the service is down", () => {
-    // A network failure returns skipped, never a rejection.
-    expect(ooto).toContain("skipped: true");
-    expect(read("src/lib/kyc-server-check.ts")).toContain("return { ok: true, skipped: true }");
+  it("fails closed to manual review when the service is down", () => {
+    expect(ooto).toContain('return unavailable("selfie")');
+    expect(read("src/lib/kyc-server-check.ts")).toContain("ok: false, skipped: true");
+    expect(read("src/app/api/kyc/verify/route.ts")).toContain('code: "verification-unavailable"');
   });
 
   it("can prove the credentials from production", () => {

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
- * Security fences for the deployed database rules.
+ * Security fences for the Firestore rules and trusted server boundary.
  *
  * These assert intent, not behaviour: they run without a Firestore emulator, so
  * they cannot prove the project is running this file. Deploy with
@@ -34,59 +34,41 @@ describe("member privacy", () => {
     expect(rules).not.toMatch(/allow\s+write:\s*if\s+true/);
   });
 
-  it("gates the admin check on a verified address", () => {
-    expect(rules).toContain("request.auth.token.email_verified == true");
+  it("gates admin access on a server-assigned custom claim only", () => {
     expect(rules).toContain("request.auth.token.admin == true");
+    expect(rules).not.toContain("email_verified == true");
+    expect(rules).not.toContain("email.lower() in");
   });
 });
 
-describe("identity document lock", () => {
-  it("only allows KYC fields to change while the application is pending", () => {
-    // The clause that closes the swap: if the stored status is not pending, the
-    // changed keys may not intersect the identity fields at all.
-    expect(rules).toContain("resource.data.status == 'pending'");
-    expect(rules).toContain("affectedKeys().hasAny([");
+describe("server-owned identity records", () => {
+  it("denies applicant-created profiles in Firestore", () => {
+    expect(rules).toContain("allow create: if false;");
   });
 
-  it("lists every identity field in the frozen set", () => {
-    const frozenBlock = rules.slice(rules.indexOf("affectedKeys().hasAny(["));
-    const frozen = frozenBlock.slice(0, frozenBlock.indexOf("])"));
+  it("keeps client updates to ordinary profile fields only", () => {
+    const userBlock = rules.slice(rules.indexOf("match /users/"), rules.indexOf("match /settings/"));
+    const allowlistBlock = userBlock.slice(userBlock.indexOf("affectedKeys().hasOnly(["));
+    const allowlist = allowlistBlock.slice(0, allowlistBlock.indexOf("])"));
+    expect(allowlist).toContain("'name', 'phone', 'location', 'plan', 'plans'");
+    for (const field of KYC_FIELDS) expect(allowlist).not.toContain(`'${field}'`);
+    expect(userBlock).toContain("request.resource.data.status == resource.data.status");
+  });
 
-    for (const field of KYC_FIELDS) {
-      expect(frozen).toContain(`'${field}'`);
+  it("locks KYC decisions, evidence and delivery fields out of direct admin writes", () => {
+    const userBlock = rules.slice(rules.indexOf("match /users/"), rules.indexOf("match /settings/"));
+    const protectedBlock = userBlock.slice(userBlock.indexOf("affectedKeys().hasAny(["));
+    for (const field of [...KYC_FIELDS, "status", "kycReviewStatus", "evidenceHashes", "reviewerUid", "reviewedAt", "decisionEmailAt"]) {
+      expect(protectedBlock).toContain(`'${field}'`);
     }
   });
 
-  it("still freezes the status on a self update", () => {
-    expect(rules).toContain("request.resource.data.status == resource.data.status");
-  });
-
-  it("keeps email out of the writable set, so a member cannot change their identity", () => {
-    const allowListBlock = rules.slice(rules.indexOf("affectedKeys().hasOnly(["));
-    const allowList = allowListBlock.slice(0, allowListBlock.indexOf("])"));
-    expect(allowList).not.toContain("'email'");
-    expect(allowList).not.toContain("'status'");
-    expect(allowList).not.toContain("'contributions'");
-    expect(allowList).not.toContain("'whatsappLink'");
-  });
-});
-
-describe("create time forgery", () => {
-  it("refuses a pre-filled payments list", () => {
-    expect(rules).toContain("!('contributions' in request.resource.data)");
-  });
-
-  it("refuses a pre-filled WhatsApp group link", () => {
-    expect(rules).toContain("request.resource.data.whatsappLink == ''");
-  });
-
-  it("refuses pre-set delivery markers", () => {
-    expect(rules).toContain("!('adminAlertAt' in request.resource.data)");
-    expect(rules).toContain("!('decisionEmailAt' in request.resource.data)");
-  });
-
-  it("forces every new profile to start pending", () => {
-    expect(rules).toMatch(/request\.resource\.data\.status == 'pending'/);
+  it("creates profiles through the authenticated server submission route", () => {
+    const route = readFileSync(new URL("../src/app/api/signup/submit/route.ts", import.meta.url), "utf8");
+    expect(route).toContain("authenticateRequest(request)");
+    expect(route).toContain("transaction.create(ref");
+    expect(route).toContain('kycReviewStatus: "manual_review_required"');
+    expect(route).toContain("evidenceHashes");
   });
 });
 

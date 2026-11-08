@@ -138,7 +138,13 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
         setMessage("Checking that this is a real, live person…");
         const server = await serverKycCheck("video", url);
 
-        if (!server.skipped && !server.ok) {
+        if (server.skipped) {
+          setStatus("error");
+          setMessage(server.message || "The automated liveness check is unavailable. Signup can continue only as a pending manual review.");
+          return;
+        }
+
+        if (!server.ok) {
           setStatus("error");
           setMessage(
             server.message ||

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { criticalGaps, integrationStatus } from "@/lib/integrations";
+import { authenticateRequest } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +9,8 @@ export const dynamic = "force-dynamic";
  * Configuration probe, used by the admin "System status" card and by Rabi after
  * pasting keys into Vercel. Returns presence and shape only — never a value.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const actor = await authenticateRequest(request).catch(() => null);
   const emailProvider = process.env.RESEND_API_KEY
     ? "resend"
     : process.env.EMAIL_PASSWORD
@@ -19,6 +21,16 @@ export async function GET() {
 
   const integrations = integrationStatus();
   const gaps = criticalGaps();
+  const build = (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7) || "local";
+
+  // Public uptime probes need only the outcome and build identifier. Detailed
+  // deployment configuration is exposed only to a server-verified admin claim.
+  if (!actor?.admin) {
+    return NextResponse.json(
+      { status: gaps.length === 0 ? "ready" : "misconfigured", build },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
 
   return NextResponse.json(
     {
@@ -50,7 +62,7 @@ export async function GET() {
        * so the answer is now one request away instead of a screenshot and an
        * argument.
        */
-      build: (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7) || "local",
+      build,
       checkedAt: new Date().toISOString(),
     },
     { headers: { "Cache-Control": "no-store" } }

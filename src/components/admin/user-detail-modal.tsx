@@ -30,7 +30,6 @@ interface UserDetailModalProps {
   onApprove: () => void;
   onReject: () => void;
   onReset: () => void;
-  onDownload: () => void;
   onCopyGps: (value: string) => void;
   /** Sends the decision email again from the server. */
   onResendEmail: () => void;
@@ -99,7 +98,6 @@ export default function UserDetailModal({
   onApprove,
   onReject,
   onReset,
-  onDownload,
   onCopyGps,
   onResendEmail,
   onDelete,
@@ -140,9 +138,6 @@ export default function UserDetailModal({
               {user.createdAt ? ` · joined ${formatDate(user.createdAt, "")}` : ""}
             </p>
           </div>
-          <ActionButton variant="ghost" size="sm" onClick={onDownload} icon={<Download className="h-4 w-4" />}>
-            <span className="sr-only sm:not-sr-only">JSON</span>
-          </ActionButton>
         </div>
 
         {/* Contact — single column on phones so long addresses can never collide */}

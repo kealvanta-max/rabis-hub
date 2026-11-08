@@ -62,6 +62,10 @@ export interface OotoVerdict {
   detail?: Record<string, unknown>;
 }
 
+function unavailable(check: OotoCheck, message = "Automated identity verification is unavailable. This application requires manual review."): OotoVerdict {
+  return { ok: false, skipped: true, check, message, reasons: ["verification-unavailable"] };
+}
+
 export function ootoConfigured(): boolean {
   return Boolean(process.env.OOTO_APP_ID && process.env.OOTO_APP_KEY);
 }
@@ -193,7 +197,7 @@ function messageFor(error: EngineError): { message: string; reasons: string[] } 
  */
 export async function checkSelfie(url: string): Promise<OotoVerdict> {
   if (!ootoConfigured()) {
-    return { ok: true, skipped: true, check: "selfie", message: "", reasons: [] };
+    return unavailable("selfie");
   }
 
   try {
@@ -247,14 +251,14 @@ export async function checkSelfie(url: string): Promise<OotoVerdict> {
     // A network failure is not proof of a bad photo. Skip, and let the on-device
     // check stand, rather than punishing a member for our outage.
     console.warn("[ooto] selfie check unavailable:", (error as Error).message);
-    return { ok: true, skipped: true, check: "selfie", message: "", reasons: [] };
+    return unavailable("selfie");
   }
 }
 
 /** The Ghana Card itself: is it a card, and what does it say. */
 export async function checkCard(url: string): Promise<OotoVerdict> {
   if (!ootoConfigured()) {
-    return { ok: true, skipped: true, check: "card", message: "", reasons: [] };
+    return unavailable("card");
   }
 
   try {
@@ -290,14 +294,14 @@ export async function checkCard(url: string): Promise<OotoVerdict> {
     };
   } catch (error) {
     console.warn("[ooto] card check unavailable:", (error as Error).message);
-    return { ok: true, skipped: true, check: "card", message: "", reasons: [] };
+    return unavailable("card");
   }
 }
 
 /** The liveness clip: is the face in it a live person. */
 export async function checkVideo(url: string): Promise<OotoVerdict> {
   if (!ootoConfigured()) {
-    return { ok: true, skipped: true, check: "video", message: "", reasons: [] };
+    return unavailable("video");
   }
 
   try {
@@ -334,7 +338,7 @@ export async function checkVideo(url: string): Promise<OotoVerdict> {
     };
   } catch (error) {
     console.warn("[ooto] video check unavailable:", (error as Error).message);
-    return { ok: true, skipped: true, check: "video", message: "", reasons: [] };
+    return unavailable("video");
   }
 }
 
@@ -344,7 +348,7 @@ export async function checkVideo(url: string): Promise<OotoVerdict> {
  */
 export async function checkMatch(documentUrl: string, selfieUrl: string): Promise<OotoVerdict> {
   if (!ootoConfigured()) {
-    return { ok: true, skipped: true, check: "match", message: "", reasons: [] };
+    return unavailable("match");
   }
 
   try {
@@ -411,6 +415,6 @@ export async function checkMatch(documentUrl: string, selfieUrl: string): Promis
     };
   } catch (error) {
     console.warn("[ooto] match check unavailable:", (error as Error).message);
-    return { ok: true, skipped: true, check: "match", message: "", reasons: [] };
+    return unavailable("match");
   }
 }

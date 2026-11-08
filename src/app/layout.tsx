@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
+import { CspNonceProvider } from "@/context/csp-nonce-context";
 import localFont from "next/font/local";
 import { AuthProvider } from "@/context/auth-context";
 import {
@@ -108,11 +110,12 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = headers().get("x-nonce") ?? undefined;
   return (
     <html
       lang="en"
@@ -123,6 +126,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className="bg-[#020C06] font-sans antialiased text-gray-100 min-h-screen overflow-x-hidden"
       >
+        <CspNonceProvider nonce={nonce}>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100000] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-[#020C06] focus:font-bold"
@@ -132,6 +136,7 @@ export default function RootLayout({
         {[ORGANIZATION_JSON_LD, WEBSITE_JSON_LD, FINANCIAL_SERVICE_JSON_LD].map((schema) => (
           <script
             key={schema["@type"] as string}
+            nonce={nonce}
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
           />
@@ -149,6 +154,7 @@ export default function RootLayout({
             </AuthProvider>
           </I18nProvider>
         </SmoothScroll>
+        </CspNonceProvider>
       </body>
     </html>
   );
