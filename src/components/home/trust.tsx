@@ -142,7 +142,7 @@ const SkeletonThree = () => (
         <CssVarBox
           key={i}
           vars={{ "--bar": `${h}%` }}
-          className="h-[var(--bar)] flex-1 rounded-t-sm bg-primary/20 transition-colors group-hover:bg-primary/40"
+          className="h-[var(--bar,0%)] flex-1 rounded-t-sm bg-primary/20 transition-colors group-hover:bg-primary/40"
         />
       ))}
     </div>

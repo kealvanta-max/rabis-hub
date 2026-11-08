@@ -837,7 +837,25 @@ Every one is fixed at the source, not by relaxing the policy:
 - Two unused components were deleted rather than repaired.
 
 Verified after: the trust bars compute `19.2px … 48px` instead of `0px`, and the
-shimmer button has its `100px` radius and background back.
+shimmer button has its `100px` radius and background back. A sweep of every
+element carrying a `style` attribute on the homepage now reports **zero** whose
+computed value contradicts the attribute.
+
+One refinement came out of that sweep. The CSSOM-written utilities had no
+fallback, so between the server render and the first effect the bar was not
+"40%" but "no height at all" — invisible rather than wrong. They now ship a
+`var(--bar, 0%)` fallback, so the pre-hydration paint is a zero-height bar
+instead of a missing one, and there is no CSP violation to log.
+
+### What still legitimately emits a style attribute
+
+Framer-motion writes animation frames through React's `style` prop, so the
+console still shows roughly thirty `Refused to apply inline style` lines for
+`opacity`/`transform` values. Those are not breaks: the unit is deliberately
+marked initial and the animation resolves on mount, and it was verified that a
+reveal element goes from `opacity: 0` to `opacity: 1` when scrolled into view,
+in both normal and `prefers-reduced-motion` modes. They are noise, not defects,
+and they cannot be removed without replacing the animation library.
 
 ## 📱 Custom plans, WhatsApp links, savings tracking (handover patch)
 

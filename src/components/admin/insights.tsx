@@ -128,7 +128,7 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
                 <div className="relative flex h-full w-full items-end">
                   <CssVarBox
                     vars={{ "--bar": `${Math.max(6, (day.count / peak) * 100)}%` }}
-                    className="h-[var(--bar)] w-full rounded-t-lg bg-gradient-to-t from-emerald-600/40 to-emerald-400/90 transition-all duration-500"
+                    className="h-[var(--bar,0%)] w-full rounded-t-lg bg-gradient-to-t from-emerald-600/40 to-emerald-400/90 transition-all duration-500"
                     title={`${day.count} application${day.count === 1 ? "" : "s"}`}
                   />
                 </div>
@@ -186,7 +186,7 @@ export default function InsightsPanel({ users, announcements, onOpenUser }: Insi
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
                   <CssVarBox
                     vars={{ "--bar": `${(plan.count / Math.max(1, stats.topPlans[0].count)) * 100}%` }}
-                    className="h-full w-[var(--bar)] rounded-full bg-gradient-to-r from-emerald-500 to-teal-300"
+                    className="h-full w-[var(--bar,0%)] rounded-full bg-gradient-to-r from-emerald-500 to-teal-300"
                   />
                 </div>
                 <span className="w-6 text-right text-xs font-bold text-white">{plan.count}</span>
@@ -299,7 +299,7 @@ function FunnelBar({ label, value, total, tone }: { label: string; value: number
       <div className="h-2 overflow-hidden rounded-full bg-white/5">
         <CssVarBox
           vars={{ "--bar": `${pct}%` }}
-          className={cn("h-full w-[var(--bar)] rounded-full bg-gradient-to-r", tone)}
+          className={cn("h-full w-[var(--bar,0%)] rounded-full bg-gradient-to-r", tone)}
         />
       </div>
     </div>
