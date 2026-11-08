@@ -69,6 +69,28 @@ const REASON_TEXT: Record<string, string> = {
   "vision-provider-unreadable-answer": "The AI replied with something we could not use.",
   "visual-screening-clear-human-review-still-required":
     "The photos passed the visual check. The AI cannot prove identity, so still compare them.",
+
+  /* Deterministic checks: facts about the pixels, not opinions. */
+  "no-human-skin-in-frame": "There is no person in the selfie slot. Nothing in the frame is human skin.",
+  "face-region-flat-no-facial-structure": "The 'face' region is flat and featureless, like a wall or a blank sheet.",
+  "face-region-no-light-and-shadow": "The 'face' region has no light or shadow of features.",
+  "subject-indistinct-from-background": "The subject is the same tone as the wall behind it, like paper taped to a wall.",
+  "card-not-landscape": "The photo in a card slot is portrait, so it is not a card.",
+  "card-not-card-shaped": "That photo is not the shape of a card.",
+  "card-region-too-dark": "The card slot is too dark to be a card on a desk.",
+  "card-no-printed-content": "The card slot is a flat, featureless area with no printing on it.",
+  "card-not-flat-lit-document": "The card slot does not look like a lit document.",
+  "no-machine-readable-zone-found": "The back of the card has no machine-readable strip.",
+  "no-text-found-on-card-back": "Nothing readable was found on the back of the card.",
+  "mrz-issuer-gha-and-icao-checks-passed":
+    "The strip on the back is a Ghana Card strip and its check digits all prove it was read correctly.",
+  "typed-pin-matches-mrz": "The card number the member typed matches the number on the card.",
+  "typed-pin-does-not-match-mrz":
+    "The number the member typed does not match the card in the photos. Check this by hand.",
+  "ocr-engine-unavailable": "The card reader did not load on this server, so the card was not read.",
+  "card-bytes-unavailable": "The card image could not be downloaded to read it.",
+  "selfie-pixels-unavailable": "The selfie pixels could not be retrieved to judge.",
+  "pin-comparison-not-possible": "The card number could not be compared, because the strip was unreadable.",
 };
 
 const REASON_SUBSTRINGS: { match: RegExp; text: string }[] = [
@@ -80,6 +102,11 @@ const REASON_SUBSTRINGS: { match: RegExp; text: string }[] = [
   { match: /credential|401|403|unauthor/i, text: REASON_TEXT["vision-provider-credentials-rejected"] },
   { match: /unreadable|parse/i, text: REASON_TEXT["vision-provider-unreadable-answer"] },
   { match: /unavailable|timeout|abort|not-configured/i, text: REASON_TEXT["vision-provider-unavailable"] },
+  { match: /skin/i, text: REASON_TEXT["no-human-skin-in-frame"] },
+  { match: /face-region/i, text: REASON_TEXT["face-region-flat-no-facial-structure"] },
+  { match: /not-landscape|not-card-shaped/i, text: REASON_TEXT["card-not-landscape"] },
+  { match: /mrz-check-digit-uncertain/i, text: REASON_TEXT["no-text-found-on-card-back"] },
+  { match: /pin-does-not-match/i, text: REASON_TEXT["typed-pin-does-not-match-mrz"] },
 ];
 
 function describeReason(reason: string) {
@@ -214,6 +241,83 @@ export default function ScreeningPanel({ record }: { record?: VisionScreeningRec
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+/**
+ * What the deterministic checks established, in Rabi's language.
+ *
+ * These are separate from the AI verdict on purpose. They are facts about the
+ * bytes — is there a person in the selfie, does the strip on the card carry a
+ * Ghana issuer and valid ICAO check digits, does the card agree with the number
+ * the member typed — and unlike a model's opinion they do not need interpreting.
+ *
+ * Shown first, above the AI panel, because a fact should not be read through an
+ * opinion.
+ */
+export function DeterministicPanel({
+  checks,
+}: {
+  checks?: Record<string, { status?: string; reasons?: string[]; detail?: Record<string, unknown> }> | null;
+}) {
+  if (!checks || Object.keys(checks).length === 0) return null;
+
+  const tone = (status?: string) =>
+    status === "pass"
+      ? "text-emerald-300"
+      : status === "fail"
+      ? "text-red-300"
+      : status === "unavailable"
+      ? "text-gray-400"
+      : "text-amber-300";
+
+  const heading = (status?: string) =>
+    status === "pass" ? "Passed" : status === "fail" ? "Failed" : status === "unavailable" ? "Could not run" : "Unclear";
+
+  const label = (key: string) =>
+    key
+      .replace(/^selfie-/, "Selfie: ")
+      .replace(/^card-geometry-front$/, "Card front shape")
+      .replace(/^card-geometry-back$/, "Card back shape")
+      .replace(/^card-mrz$/, "Card back strip")
+      .replace(/^card-pin$/, "Typed number vs card")
+      .replace(/-/g, " ");
+
+  const anyFail = Object.values(checks).some((check) => check?.status === "fail");
+
+  return (
+    <section
+      aria-label="Deterministic screening"
+      className={cn(
+        "rounded-2xl p-4 ring-1 ring-inset",
+        anyFail ? "bg-red-500/[0.08] ring-red-500/30" : "bg-white/[0.025] ring-white/[0.07]"
+      )}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+        Document checks (no AI)
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-gray-400">
+        These were measured from the uploaded files themselves. They do not depend on any AI provider.
+      </p>
+      <ul className="mt-2.5 space-y-1.5">
+        {Object.entries(checks).map(([key, check]) => (
+          <li key={key} className="text-xs leading-relaxed">
+            <span className="text-gray-300">{label(key)}: </span>
+            <span className={cn("font-medium", tone(check?.status))}>{heading(check?.status)}</span>
+            {(check?.reasons ?? []).length > 0 && (
+              <ul className="mt-0.5 space-y-0.5 pl-3">
+                {(check?.reasons ?? []).map((reason) => (
+                  <li key={reason} className="flex gap-1.5 text-gray-400">
+                    <span aria-hidden="true" className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-current opacity-50" />
+                    <span className="min-w-0">{describeReason(reason)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

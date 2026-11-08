@@ -28,6 +28,48 @@ The linked demo source has material integration caveats:
 
 **Recommendation:** do not wire the public Space into signup or transmit applicant biometrics to it. If evaluating it, use synthetic/non-applicant images only. If the vendor confirms a commercial license and a supported deployment/API, evaluate a self-hosted private deployment behind authenticated service-to-service access, strict request limits, no image logging, short retention, and manual review fallback. Even a liveness SDK score is not definitive proof and must be tested on the actual devices, population, lighting, and attack cases expected.
 
+## Deterministic checks (no AI provider involved)
+
+`src/lib/kyc-deterministic.ts` answers five questions from the uploaded bytes
+themselves. It runs before any model is consulted, so a spoofed image is still
+caught when every provider key is missing, dead, or out of free quota — which is
+exactly the condition under which the previous pipeline accepted everything.
+
+| check | what it measures | refusing value |
+| --- | --- | --- |
+| `selfie-subject` | share of human skin tone in the central 60% × 62% of the frame (YCbCr chroma), then light-and-shadow structure | under 10% skin, or a flat region |
+| `card-geometry-*` | width/height read from the file header | portrait orientation, or not card-shaped |
+| `card surface` | mean and spread of luminance in the card region | dark scene, or a featureless area with no printing |
+| `card-mrz` | ICAO TD1 zone from server-side Tesseract, issuer must be `GHA` | no zone found, or a non-blank back with no zone |
+| `card-pin` | the nine digits in the MRZ against the number the member typed | they disagree |
+
+Two deliberate asymmetries:
+
+- **A crossed check digit is not a refusal.** Four matching ICAO check digits
+  cannot occur by accident, so when all four compute the OCR provably read a
+  genuine TD1. When a zone parses but a digit does not compute, that is most
+  often glare or blur on a real card: it goes to Rabi as `inconclusive` with the
+  crossed checks recorded. Refusing there would reject genuine members for their
+  camera, which is the worst failure this system can produce.
+- **Unreadable is never a pass.** A missing OCR engine, an undownloadable image
+  or an undecodable render records `unavailable` and leaves the application for
+  human review. It is reported separately from a bad photo, so an outage is not
+  mistaken for a person submitting nonsense.
+
+Everything here is measured on the stored file: the 32×32 colour grid is
+rendered by Cloudinary from the asset the application record points at, and the
+OCR runs on the bytes re-downloaded by the submit route, not on anything the
+browser supplies.
+
+### What this still does not prove
+
+A still photo cannot prove liveness, and none of these checks prove a card was
+issued by the NIA. What they establish is that the images are internally
+consistent with a real Ghana Card being in front of the camera: there is a
+person in the selfie, the card is card-shaped, its strip carries a Ghana issuer
+and valid check digits, and the card agrees with the number the member typed.
+Rabi remains the approver on every application.
+
 ## Decision policy as shipped
 
 `src/lib/kyc-vision-policy.ts` is pure and unit-tested. It turns four model

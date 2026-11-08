@@ -18,7 +18,7 @@ import Modal from "@/components/ui/modal";
 import BlurUpImage from "@/components/ui/blur-up-image";
 import Badge from "@/components/ui/badge";
 import ActionButton from "@/components/admin/action-button";
-import ScreeningPanel from "@/components/admin/screening-panel";
+import ScreeningPanel, { DeterministicPanel } from "@/components/admin/screening-panel";
 import MemberAvatar from "@/components/admin/member-avatar";
 import { formatDate } from "@/lib/utils";
 import type { UserItem } from "@/components/admin/types";
@@ -253,8 +253,10 @@ export default function UserDetailModal({
           </div>
         )}
 
-        {/* What the AI concluded, and why. Placed before the reason box so the
-            verdict is read first and the free-text exception second. */}
+        {/* Facts first: shape, strip, and the typed number, measured from the
+            files without any model involved. Then the AI's opinion, which is
+            read in the light of those facts. */}
+        <DeterministicPanel checks={user.kycScreeningChecks?.deterministic} />
         <ScreeningPanel record={user.kycScreeningChecks?.vision} />
 
         {user.kycReviewReason && (

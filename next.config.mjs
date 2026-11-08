@@ -2,11 +2,28 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  // Ship smaller client bundles: only the icons/components actually imported
-  // are pulled in, and application console noise is stripped from production.
+  /*
+   * Server-side OCR needs something webpack cannot see:
+   *
+   *   - tesseract.js loads its own worker script by path at runtime, so it is
+   *     externalized rather than bundled; a bundled copy finds no worker file.
+   *
+   * Without this, a bundled copy of tesseract.js cannot find its worker script,
+   * `readImageText()` returns null in production, and every card quietly falls
+   * back to Rabi — the "nothing is checked" behaviour this change exists to
+   * remove.
+   *
+   * The English model is read from `public/kyc/tesseract/lang`, which
+   * `scripts/vendor-kyc-assets.mjs` already ships, so no tracing entry is needed
+   * (verified: the tracer does not follow the node_modules copy at all).
+   */
   experimental: {
+    // Ship smaller client bundles: only the icons/components actually imported
+    // are pulled in.
     optimizePackageImports: ["lucide-react", "framer-motion", "recharts"],
+    serverComponentsExternalPackages: ["tesseract.js", "tesseract.js-core"],
   },
+  // Application console noise is stripped from production builds.
   compiler:
     process.env.NODE_ENV === "production"
       ? { removeConsole: { exclude: ["error", "warn"] } }

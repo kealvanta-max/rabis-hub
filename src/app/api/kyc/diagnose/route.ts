@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/server-auth";
 import { kycVisionConfigured, screenSelfie, visionProviderNames } from "@/lib/kyc-vision";
 import { ootoConfigured } from "@/lib/ooto";
+import { deterministicEngineStatus, judgeSelfiePhoto, centralFaceBox } from "@/lib/kyc-deterministic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,6 +60,21 @@ export async function GET(request: Request) {
     );
   }
 
+  /*
+   * Prove the deterministic layer too, not just the AI one.
+   *
+   * A grey square must be refused for having no skin in it. If that check does
+   * not fire, the "AI keys are set but a dog photo still passes" situation is
+   * back, and the operator needs to see it here rather than in Rabi's queue.
+   */
+  const engine = await deterministicEngineStatus();
+  const greyGrid = {
+    width: 32,
+    height: 32,
+    values: Array.from({ length: 32 * 32 }, () => [128, 128, 128] as [number, number, number]),
+  };
+  const greySelfie = judgeSelfiePhoto(greyGrid, centralFaceBox());
+
   const result = await screenSelfie({ mime: "image/png", base64: PROBE_PNG.toString("base64") });
 
   /*
@@ -81,6 +97,11 @@ export async function GET(request: Request) {
       configured: true,
       providers,
       ootoConfigured: ootoConfigured(),
+      deterministic: {
+        ocrEngine: engine.ocr ? "ready" : "unavailable",
+        rejectedBlankSquare: greySelfie.status === "fail",
+        reasons: greySelfie.reasons,
+      },
       provider: result.provider ?? null,
       model: result.model ?? null,
       state: result.state,
