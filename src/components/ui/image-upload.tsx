@@ -105,12 +105,22 @@ export default function ImageUpload({
       const url = await uploadToCloudinary(file, verify === "selfie" ? "selfie" : "document");
       onUpload(url);
       if (verify) {
+        /*
+         * Say only what the server actually established.
+         *
+         * This used to read "A real face was found" for every successful upload,
+         * regardless of what the screening returned — so a photo of a document
+         * taped to a wall was reported back as a verified face. The upload route
+         * has already refused anything it could positively identify as wrong by
+         * the time we get here (a 422 throws above), so a `review` verdict means
+         * "nobody objected, Rabi decides", and that is all it means.
+         */
         const pending: DocVerdict = {
           status: "review",
           confidence: 0,
           message:
             verify === "selfie"
-              ? "A real face was found. A machine check cannot prove identity or liveness, so Rabi still reviews your application."
+              ? "Uploaded. We could not find an obvious problem with this photo, but a machine check cannot prove identity or liveness, so Rabi still reviews your application."
               : "Uploaded. Automated screening is not identity verification; your application stays pending until Rabi reviews it.",
           reasons: ["awaiting-server-screening", "manual-review-required"],
         };

@@ -72,6 +72,8 @@ export interface UserDoc {
   kycScreeningChecks?: {
     vision?: VisionScreeningRecord;
     worker?: Record<string, unknown>;
+    /** Measured from the files themselves; no AI involved. */
+    deterministic?: Record<string, { status?: string; reasons?: string[]; detail?: Record<string, unknown> }>;
     [key: string]: unknown;
   };
   reviewerUid?: string;

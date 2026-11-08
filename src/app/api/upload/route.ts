@@ -12,6 +12,13 @@ import {
 } from "@/lib/file-kind";
 import { kycVisionConfigured, screenSelfie } from "@/lib/kyc-vision";
 import { rejectionMessage, type ScreeningState } from "@/lib/kyc-vision-policy";
+import {
+  centralFaceBox,
+  fetchRgbGrid,
+  imageGeometry,
+  judgeCardPhoto,
+  judgeSelfiePhoto,
+} from "@/lib/kyc-deterministic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,6 +76,65 @@ async function destroyCloudinaryAsset(url: string, kind: FileKind) {
   } catch {
     console.warn("[upload] could not delete a rejected file from storage");
   }
+}
+
+/**
+ * Judge one freshly uploaded image without asking a model anything.
+ *
+ * The selfie slot asks "is the middle of this frame a person", using skin chroma
+ * on a 32x32 render of the file Cloudinary just stored. The card slots ask "is
+ * this a flat, landscape card with printing on it" using the header geometry and
+ * the same render.
+ *
+ * A positive detection of something wrong is final. An inability to judge — no
+ * Cloudinary, a render that will not decode — is not, and falls through to the
+ * AI provider exactly as before, so a real member is never blocked by this.
+ *
+ * `bytes` is the uncompressed upload when the caller still has it; the render is
+ * fetched from the delivery URL because that is the file we actually stored.
+ */
+async function judgeUploadedImage(
+  deliveryUrl: string,
+  bytes: Buffer,
+  purpose: string
+): Promise<{ state: "rejected" | "ok"; reasons: string[] }> {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
+  if (!cloudName) return { state: "ok", reasons: [] };
+
+  const grid = await fetchRgbGrid(deliveryUrl, cloudName);
+  if (!grid) return { state: "ok", reasons: [] };
+
+  const box = centralFaceBox();
+
+  if (purpose === "selfie") {
+    const verdict = judgeSelfiePhoto(grid, box);
+    if (verdict.status === "fail") {
+      return { state: "rejected", reasons: verdict.reasons.map((reason) => `selfie:${reason}`) };
+    }
+    return { state: "ok", reasons: [] };
+  }
+
+  const geometry = imageGeometry(bytes) ?? null;
+  const verdict = judgeCardPhoto({ geometry, grid, box });
+  if (verdict.status === "fail") {
+    return { state: "rejected", reasons: verdict.reasons.map((reason) => `card:${reason}`) };
+  }
+  return { state: "ok", reasons: [] };
+}
+
+/** A member-facing sentence for a deterministic refusal. */
+function deterministicMessage(reasons: string[]): string {
+  const joined = reasons.join(" ");
+  if (joined.includes("no-human-skin") || joined.includes("face-region")) {
+    return "That photo does not show a person's face. Take the selfie live, with the camera, facing the lens in good light. Photos of a document, a screen, a wall or an object cannot be used.";
+  }
+  if (joined.includes("card-not-landscape") || joined.includes("card-not-card-shaped")) {
+    return "That does not look like a photograph of a card. Lay your Ghana Card flat, fill the frame with it, and photograph it the wide way round.";
+  }
+  if (joined.includes("card-not-flat") || joined.includes("card-no-printed-content")) {
+    return "We could not see a card in that photo. Fill the frame with the whole card, flat and in focus.";
+  }
+  return "We could not accept that photo. Please take it again with the camera, in good light.";
 }
 
 export async function POST(request: Request) {
@@ -272,6 +338,32 @@ export async function POST(request: Request) {
      * full scope). Either way a refusal deletes the file.
      */
     if (kind === "image") {
+      /*
+       * Deterministic gate first, on the bytes we just received.
+       *
+       * This runs before — and independently of — any AI provider, so a selfie
+       * with no person in it is refused even when every key is missing or the
+       * free quota is spent. That was the hole: the only live check was an LLM
+       * call, so when it did not answer, anything at all was accepted.
+       */
+      const deterministic = await judgeUploadedImage(data.secure_url, buffered, purpose);
+      if (deterministic.state === "rejected") {
+        void destroyCloudinaryAsset(data.secure_url, kind);
+        console.info("[upload] refused by deterministic screening", {
+          purpose,
+          reasons: deterministic.reasons,
+        });
+        return NextResponse.json(
+          {
+            error: deterministicMessage(deterministic.reasons),
+            code: "kyc-screening-rejected",
+            screening: "rejected",
+            reasons: deterministic.reasons,
+          },
+          { status: 422, headers: { "Cache-Control": "no-store" } }
+        );
+      }
+
       const payload = { mime: file.type || "image/jpeg", base64: buffered.toString("base64") };
       const screening = await screenSelfie(
         payload,

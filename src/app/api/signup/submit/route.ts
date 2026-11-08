@@ -6,6 +6,7 @@ import { authenticateRequest } from "@/lib/server-auth";
 import { adminFirestore } from "@/lib/server-firestore";
 import { kycVisionConfigured, screenKycImages, type VisionScreening } from "@/lib/kyc-vision";
 import { rejectionMessage } from "@/lib/kyc-vision-policy";
+import { screenDeterministically } from "@/lib/kyc-deterministic";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -75,6 +76,29 @@ async function hashEvidence(url: string, expected: "image" | "video", includeBas
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * A sentence a member can act on when the deterministic checks refuse them.
+ *
+ * Written separately from the AI copy because the causes are different: an MRZ
+ * checksum is about the physical card, not about lighting.
+ */
+function deterministicRejectionMessage(reasons: string[]): string {
+  const joined = reasons.join(" ");
+  if (joined.includes("no-human-skin") || joined.includes("face-region")) {
+    return "That selfie does not show your face. Take it live, with the camera, facing the lens in good light. Photos of a document, a screen, a wall or an object cannot be used.";
+  }
+  if (joined.includes("mrz-checksum-failed") || joined.includes("no-machine-readable-zone")) {
+    return "We could not confirm the strip on the back of your Ghana Card. Photograph the back of your own card, flat, filling the frame, with no glare over the strip.";
+  }
+  if (joined.includes("typed-pin-does-not-match-mrz")) {
+    return "The card number you typed does not match the card in your photos. Check the number and use your own card.";
+  }
+  if (joined.includes("card-not-landscape") || joined.includes("card-not-card-shaped")) {
+    return "That does not look like a photograph of a card. Lay your Ghana Card flat, fill the frame, and photograph it the wide way round.";
+  }
+  return "We could not accept those photos. Please take them again with the camera, in good light.";
 }
 
 /**
@@ -182,6 +206,50 @@ export async function POST(request: Request) {
       // Screening/evidence transport failure is not a reason to reject signup.
       screeningState = "verification_unavailable";
       screeningReasons = ["evidence-fetch-unavailable", "manual-review-required"];
+    }
+  }
+
+  /*
+   * Gate 0.5: the deterministic verdict.
+   *
+   * Runs before any model is asked anything, on the files actually referenced by
+   * this submission. It is the check that cannot be talked out of a decision: an
+   * MRZ whose ICAO check digits do not compute, a card number that disagrees
+   * with the one the applicant typed, or a selfie containing no skin are all
+   * facts about the bytes, not opinions.
+   *
+   * Only a `rejected` verdict stops the submission here. Anything the checks
+   * could not read falls through to the AI and then to Rabi, so a bad camera is
+   * never treated as fraud.
+   */
+  if (!documentsDeferred && digests.front && digests.back && digests.selfie) {
+    const deterministic = await screenDeterministically({
+      front: { url: front as string, bytes: digests.front.base64 ? Buffer.from(digests.front.base64, "base64") : undefined },
+      back: { url: back as string, bytes: digests.back.base64 ? Buffer.from(digests.back.base64, "base64") : undefined },
+      selfie: { url: selfie as string },
+      typedPin: cardNumber,
+    });
+
+    screeningChecks = { ...screeningChecks, deterministic: deterministic.checks };
+
+    if (deterministic.state === "rejected") {
+      console.info("[signup] deterministic screening refused an application", {
+        uid: actor.uid,
+        reasons: deterministic.reasons,
+      });
+      return NextResponse.json(
+        {
+          error: deterministicRejectionMessage(deterministic.reasons),
+          code: "kyc-screening-rejected",
+          reasons: deterministic.reasons,
+          retryable: true,
+        },
+        { status: 422, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    if (deterministic.state === "manual_review_required" || deterministic.state === "verification_unavailable") {
+      screeningReasons = [...screeningReasons, ...deterministic.reasons].slice(0, 40);
     }
   }
 
