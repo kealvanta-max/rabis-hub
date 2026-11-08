@@ -17,7 +17,6 @@ export function useGeolocation() {
   const [attempts, setAttempts] = useState(0);
 
   const requestLocation = useCallback(async () => {
-    setAttempts((count) => count + 1);
     setStatus("detecting");
     setError(null);
     setFailureCode(null);
@@ -25,6 +24,7 @@ export function useGeolocation() {
     try {
       const result = await detectGps();
       setGpsData(result);
+      setAttempts(0); // Only consecutive failed detections reveal manual entry.
       setStatus("success");
       /*
        * A pin outside Ghana is kept, not hidden. Rabi sees the flag and can ask
@@ -33,8 +33,8 @@ export function useGeolocation() {
       setError(result.suspicious ? result.reason ?? null : null);
       return result;
     } catch (err) {
-      // Count only completed failures, not attempts still in progress.
-      setAttempts((count) => count + 1);
+      // Count only consecutive completed failures, capped at the manual fallback threshold.
+      setAttempts((count) => Math.min(count + 1, 3));
       const code: GpsFailureCode = err instanceof GpsError ? err.code : "unavailable";
       setFailureCode(code);
       setStatus(code === "denied" ? "denied" : "unavailable");
@@ -42,12 +42,6 @@ export function useGeolocation() {
       // Returning null rather than throwing: the form continues either way.
       return null;
     }
-  }, []);
-
-  const skip = useCallback(() => {
-    setStatus("unavailable");
-    setFailureCode(null);
-    setError(describeGpsFailure("unavailable"));
   }, []);
 
   const reset = useCallback(() => {
@@ -66,7 +60,6 @@ export function useGeolocation() {
     /** How many times the member has asked the phone for a fix. */
     attempts,
     requestLocation,
-    skip,
     reset,
     /** True only once a real fix has been read. */
     hasFix: status === "success" && Boolean(gpsData),
