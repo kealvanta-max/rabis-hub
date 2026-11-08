@@ -43,8 +43,14 @@ export interface MemberLike {
   name: string;
   email: string;
   status: string;
-  /** Present when the automated KYC pass could not clear the application. */
+  /**
+   * Always `manual_review_required` on a fresh submission, whatever the AI said:
+   * the decision belongs to a human, so the field records the *process*, not the
+   * outcome. Never use it to tell one pending application from another.
+   */
   kycReviewStatus?: string;
+  /** The actual automated verdict: screened_pass, manual_review_required, … */
+  kycScreeningState?: string;
   /** Set when the pin was typed or missing. */
   locationReview?: boolean;
 }
@@ -67,13 +73,23 @@ export const MEMBER_FILTERS: { id: MemberFilter; label: string }[] = [
   { id: "rejected", label: "Rejected" },
 ];
 
-/** True when the automated pass did not clear the application. */
+/**
+ * True when the automated pass did not clear the application.
+ *
+ * This reads `kycScreeningState`, not `kycReviewStatus`. Every submission is
+ * written with `kycReviewStatus: "manual_review_required"` because approval
+ * always needs a human, so that field is the same for a clean pass and a dog
+ * photo and cannot distinguish them. The screening state is the verdict.
+ *
+ * A member with no screening state at all predates screening; that is the
+ * `no-screening` filter, not this one.
+ */
 export function needsReview(member: MemberLike): boolean {
   if (member.status !== "pending") return false;
+  if (member.locationReview === true) return true;
   return (
-    member.kycReviewStatus === "manual_review_required" ||
-    member.kycReviewStatus === "verification_unavailable" ||
-    member.locationReview === true
+    member.kycScreeningState === "manual_review_required" ||
+    member.kycScreeningState === "verification_unavailable"
   );
 }
 
@@ -84,8 +100,8 @@ export function matchesFilter(member: MemberLike, filter: string): boolean {
     case "needs-review":
       return needsReview(member);
     case "no-screening":
-      // Submitted before screening existed: no record to trust, so look by eye.
-      return member.status === "pending" && !member.kycReviewStatus;
+      // Submitted before screening existed: no verdict to trust, so look by eye.
+      return member.status === "pending" && !member.kycScreeningState;
     default:
       return member.status === filter;
   }

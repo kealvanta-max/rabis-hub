@@ -45,6 +45,10 @@ service cloud.firestore {
           'status', 'ghanaCardNumber', 'ghanaCardValid', 'ghanaCardFront',
           'ghanaCardBack', 'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
           'kycReviewStatus', 'kycReviewReason', 'kycSubmittedAt', 'kycPolicyVersion',
+          // The AI's answers are evidence, not an opinion an admin may edit.
+          // If a reviewer could rewrite them, the audit trail for "why was this
+          // refused or held" would be worth nothing.
+          'kycScreeningChecks', 'kycScreeningModelVersion',
           'evidenceHashes', 'reviewerUid', 'reviewedAt', 'approvalEligibility',
           'gpsLat', 'gpsLng', 'gpsAddress', 'locationSource', 'locationAccuracy', 'locationReview',
           'adminAlertAt', 'adminAlertProvider', 'decisionEmailAt', 'decisionEmailFor',

@@ -17,39 +17,66 @@ const member = (over: Partial<Parameters<typeof needsReview>[0]>) => ({
   name: "Akosua Mensah",
   email: "akosua@example.com",
   status: "pending",
+  // Every real submission carries this, whatever the AI said.
+  kycReviewStatus: "manual_review_required",
   ...over,
 });
 
 describe("which applications reach the review queue", () => {
   it("includes a case the AI held", () => {
-    expect(needsReview(member({ kycReviewStatus: "manual_review_required" }))).toBe(true);
+    expect(needsReview(member({ kycScreeningState: "manual_review_required" }))).toBe(true);
   });
 
   it("includes a case no provider could check", () => {
-    expect(needsReview(member({ kycReviewStatus: "verification_unavailable" }))).toBe(true);
+    expect(needsReview(member({ kycScreeningState: "verification_unavailable" }))).toBe(true);
   });
 
   it("includes a typed location even when the photos passed", () => {
-    expect(needsReview(member({ kycReviewStatus: "screened_pass", locationReview: true }))).toBe(true);
+    expect(needsReview(member({ kycScreeningState: "screened_pass", locationReview: true }))).toBe(true);
   });
 
   it("excludes a clean pending application", () => {
-    expect(needsReview(member({ kycReviewStatus: "screened_pass" }))).toBe(false);
+    expect(needsReview(member({ kycScreeningState: "screened_pass" }))).toBe(false);
   });
 
   it("excludes decided applications regardless of the screening state", () => {
-    expect(needsReview(member({ status: "approved", kycReviewStatus: "manual_review_required" }))).toBe(false);
-    expect(needsReview(member({ status: "rejected", kycReviewStatus: "rejected" }))).toBe(false);
+    expect(needsReview(member({ status: "approved", kycScreeningState: "manual_review_required" }))).toBe(false);
+    expect(needsReview(member({ status: "rejected", kycScreeningState: "rejected" }))).toBe(false);
+  });
+});
+
+describe("the field that distinguishes pending cases", () => {
+  /*
+   * The bug this pins: the first version of `needsReview` read
+   * `kycReviewStatus`, which the submission route writes as
+   * `manual_review_required` on EVERY application, including a clean pass. The
+   * filter would have matched all pending members and been worthless.
+   */
+  it("does not treat the always-set review status as a verdict", () => {
+    const cleanPass = member({ kycReviewStatus: "manual_review_required", kycScreeningState: "screened_pass" });
+    expect(needsReview(cleanPass)).toBe(false);
+  });
+
+  it("would have matched everything if it read the wrong field", () => {
+    const all = [
+      member({ kycScreeningState: "screened_pass" }),
+      member({ kycScreeningState: "manual_review_required" }),
+      member({ kycScreeningState: "verification_unavailable" }),
+    ];
+    // Reading the wrong field: 3 of 3.
+    expect(all.filter((entry) => entry.kycReviewStatus === "manual_review_required")).toHaveLength(3);
+    // Reading the right one: 2 of 3, which is the question Rabi is asking.
+    expect(all.filter(needsReview)).toHaveLength(2);
   });
 });
 
 describe("the filter row", () => {
   const users = [
-    member({ name: "Held", email: "held@example.com", kycReviewStatus: "manual_review_required" }),
-    member({ name: "Clean", email: "clean@example.com", kycReviewStatus: "screened_pass" }),
-    member({ name: "Legacy", email: "legacy@example.com" }),
-    member({ name: "Typed pin", email: "pin@example.com", kycReviewStatus: "screened_pass", locationReview: true }),
-    member({ name: "Approved", email: "yes@example.com", status: "approved", kycReviewStatus: "approved" }),
+    member({ name: "Held", email: "held@example.com", kycScreeningState: "manual_review_required" }),
+    member({ name: "Clean", email: "clean@example.com", kycScreeningState: "screened_pass" }),
+    member({ name: "Legacy", email: "legacy@example.com", kycScreeningState: undefined }),
+    member({ name: "Typed pin", email: "pin@example.com", kycScreeningState: "screened_pass", locationReview: true }),
+    member({ name: "Approved", email: "yes@example.com", status: "approved", kycScreeningState: "screened_pass" }),
   ];
 
   it("offers the queue as a first-class filter", () => {

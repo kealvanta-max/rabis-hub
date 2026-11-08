@@ -46,6 +46,19 @@ export interface UserDoc {
   /** Human-readable KYC exception for Rabi's pending queue. */
   kycReviewReason?: string;
   kycReviewStatus?: "manual_review_required" | "verification_unavailable" | "screened_pass" | "rejected" | "approved";
+  /**
+   * The automated verdict, kept separate from `kycReviewStatus`.
+   *
+   * `kycReviewStatus` answers "where is this in the process" and is
+   * `manual_review_required` for every fresh submission, clean or not, because
+   * approval always needs Rabi. This answers "what did the machine actually
+   * decide", which is the only way to tell a clean pass from a held case.
+   */
+  kycScreeningState?: "screened_pass" | "manual_review_required" | "verification_unavailable" | "rejected";
+  /** Human-readable reason tokens, joined for display. */
+  kycScreeningReasons?: string[];
+  /** Version stamp for the policy that produced the verdict. */
+  kycScreeningModelVersion?: string;
   kycSubmittedAt?: Timestamp;
   kycPolicyVersion?: string;
   /**

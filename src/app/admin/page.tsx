@@ -404,8 +404,12 @@ export default function AdminPage() {
   const pendingMembers = users.filter((u) => u.status === "pending");
   /** Pending members an automated check could not clear. */
   const needsReviewCount = pendingMembers.filter(needsReview).length;
-  /** Pending members with no screening record at all (submitted before KYC v2). */
-  const screeningGapCount = pendingMembers.filter((u) => !u.kycReviewStatus).length;
+  /**
+   * Pending members with no automated verdict at all — submitted before
+   * screening existed, or with storage refusing the photos. `kycReviewStatus`
+   * cannot answer this: it is `manual_review_required` on every submission.
+   */
+  const screeningGapCount = pendingMembers.filter((u) => !u.kycScreeningState).length;
   const pendingSummary = (() => {
     if (pendingMembers.length === 0) return "";
     const names = pendingMembers

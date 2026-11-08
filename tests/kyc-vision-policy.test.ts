@@ -120,3 +120,79 @@ describe("selfie-only screening asks about the selfie and nothing else", () => {
     expect(decision.state).toBe("rejected");
   });
 });
+
+/**
+ * A single card image, screened on its own the moment it is uploaded.
+ *
+ * The upload route used to screen only files the browser labelled "selfie", so a
+ * dog photo sent as `purpose: "document"` skipped the check and was stored. The
+ * submission gate still screens the real bytes, so it was never a way in — but a
+ * refused image should not reach storage, and storage is what upload writes to.
+ *
+ * The scope exists because a Ghana Card photo legitimately contains no human
+ * face: running the subject gate on one would refuse every honest applicant.
+ */
+describe("document scope", () => {
+  it("refuses an image with no real card in it", () => {
+    const decision = classifyVisionSignals(
+      { subject: "uncertain", card: "not_ghana_card", face_match: "uncertain", reproduction: "photo_of_original", confidence: 0.9 },
+      "document"
+    );
+    expect(decision.state).toBe("rejected");
+    expect(decision.reasons).toContain("not-a-ghana-card");
+  });
+
+  it("refuses a photograph of a screen or a printed copy", () => {
+    const decision = classifyVisionSignals(
+      { subject: "uncertain", card: "looks_like_ghana_card", face_match: "uncertain", reproduction: "screen_or_copy", confidence: 0.88 },
+      "document"
+    );
+    expect(decision.state).toBe("rejected");
+    expect(decision.reasons).toContain("photo-of-a-screen-or-copy");
+  });
+
+  it("never refuses a card for having no human face", () => {
+    // The exact regression this scope prevents: a card image answered as
+    // "non_human_or_no_face" for the ignored subject field must not block.
+    const decision = classifyVisionSignals(
+      { subject: "non_human_or_no_face", card: "looks_like_ghana_card", face_match: "uncertain", reproduction: "photo_of_original", confidence: 0.95 },
+      "document"
+    );
+    expect(decision.state).toBe("screened_pass");
+  });
+
+  it("sends an unreadable card to Rabi rather than refusing it", () => {
+    const decision = classifyVisionSignals(
+      { subject: "uncertain", card: "uncertain", face_match: "uncertain", reproduction: "uncertain", confidence: 0.4 },
+      "document"
+    );
+    expect(decision.state).toBe("manual_review_required");
+    // A low-confidence card answer is a bad photo, not fraud.
+    expect(decision.reasons).toContain("card-appearance-unclear");
+  });
+
+  it("does not ask a card photo about face matching", () => {
+    const decision = classifyVisionSignals(
+      { subject: "uncertain", card: "looks_like_ghana_card", face_match: "not_consistent", reproduction: "photo_of_original", confidence: 0.95 },
+      "document"
+    );
+    // A mismatch is impossible to judge with no selfie present.
+    expect(decision.state).toBe("screened_pass");
+  });
+
+  it("keeps card authenticity in full scope as well", () => {
+    const decision = classifyVisionSignals(
+      { subject: "human_face", card: "not_ghana_card", face_match: "consistent", reproduction: "photo_of_original", confidence: 0.9 },
+      "full"
+    );
+    expect(decision.state).toBe("rejected");
+  });
+
+  it("still never asks a selfie about the card", () => {
+    const decision = classifyVisionSignals(
+      { subject: "human_face", card: "not_ghana_card", face_match: "uncertain", reproduction: "photo_of_original", confidence: 0.9 },
+      "selfie"
+    );
+    expect(decision.state).toBe("screened_pass");
+  });
+});

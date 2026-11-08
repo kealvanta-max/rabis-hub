@@ -61,15 +61,18 @@ const isCertain = (confidence: number, floor = DECISION_CONFIDENCE) =>
 /**
  * What the model was asked to look at.
  *
- * - `full`   all three images: subject, card, face match, reproduction.
- * - `selfie` only the selfie, screened the moment it is uploaded so a member
- *            gets an answer in seconds instead of after filling in five steps.
+ * - `full`     all three images: subject, card, face match, reproduction.
+ * - `selfie`   only the selfie, screened the moment it is uploaded so a member
+ *              gets an answer in seconds instead of after filling in five steps.
+ * - `document` one card image, on its own. A card photo legitimately contains no
+ *              human face, so the subject gate must not run; the question being
+ *              asked is "is this a real, unedited Ghana Card".
  *
- * With `selfie` scope the card and face-match fields are *not* part of the
- * decision. Treating them as "uncertain" would be a bug: nobody asked, so their
- * silence carries no information.
+ * With `selfie` and `document` scope the fields that were not asked about are
+ * *not* part of the decision. Treating them as "uncertain" would be a bug:
+ * nobody asked, so their silence carries no information.
  */
-export type ScreeningScope = "full" | "selfie";
+export type ScreeningScope = "full" | "selfie" | "document";
 
 /**
  * The decision table.
@@ -93,7 +96,7 @@ export function classifyVisionSignals(
    *    model is looking at one image to answer one question, so "uncertain"
    *    is only acceptable when confidence is too low to act on at all.
    */
-  if (signals.subject === "non_human_or_no_face" && subjectCertain) {
+  if (scope !== "document" && signals.subject === "non_human_or_no_face" && subjectCertain) {
     return { state: "rejected", reasons: ["not-a-human-face"] };
   }
 
@@ -119,18 +122,18 @@ export function classifyVisionSignals(
    * 4. The document is clearly not a Ghana Card: a student ID, a bank card, a
    *    blank sheet, a screenshot of a text message.
    */
-  if (full && signals.card === "not_ghana_card" && certain) {
+  if (scope !== "selfie" && signals.card === "not_ghana_card" && certain) {
     return { state: "rejected", reasons: ["not-a-ghana-card"] };
   }
 
   /* ------------------------------------------------- soft signals -> Rabi */
   const review: string[] = [];
-  if (signals.subject === "uncertain") review.push("selfie-subject-unclear");
+  if (scope !== "document" && signals.subject === "uncertain") review.push("selfie-subject-unclear");
+  if (scope !== "selfie" && signals.card === "uncertain") review.push("card-appearance-unclear");
   if (full) {
-    if (signals.card === "uncertain") review.push("card-appearance-unclear");
     if (signals.face_match === "uncertain") review.push("face-match-unclear");
-    if (signals.reproduction === "uncertain") review.push("reproduction-unclear");
   }
+  if (signals.reproduction === "uncertain") review.push("reproduction-unclear");
   if (!certain && review.length === 0) review.push("vision-low-confidence");
 
   if (review.length > 0) {

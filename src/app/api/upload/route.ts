@@ -257,8 +257,26 @@ export async function POST(request: Request) {
      * still succeeds and the final submission sends the application to Rabi,
      * because losing a real member to an API outage is not an option.
      */
-    if (purpose === "selfie" && kind === "image") {
-      const screening = await screenSelfie({ mime: file.type || "image/jpeg", base64: buffered.toString("base64") });
+    /*
+     * Everything that is an image gets screened here, whichever slot it claims.
+     *
+     * `purpose` is a client-declared string, so a script can upload a dog photo
+     * as `purpose: "document"` and skip a selfie-only check. That is not a
+     * bypass of the block — the submission route re-downloads the bytes and
+     * screens all three images itself — but a refused photo should never reach
+     * storage, and storage is what this route writes to.
+     *
+     * The selfie slot asks the cheap selfie question. A document slot asks the
+     * card question, with the "is there a human face" gate withheld because a
+     * card photo legitimately contains no face (see `classifyVisionSignals`,
+     * full scope). Either way a refusal deletes the file.
+     */
+    if (kind === "image") {
+      const payload = { mime: file.type || "image/jpeg", base64: buffered.toString("base64") };
+      const screening = await screenSelfie(
+        payload,
+        purpose === "selfie" ? "selfie" : "document"
+      );
       if (screening.state === "rejected") {
         void destroyCloudinaryAsset(data.secure_url, kind);
         console.info("[upload] selfie refused by screening", { reasons: screening.reasons, provider: screening.provider });
