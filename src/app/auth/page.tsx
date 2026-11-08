@@ -9,12 +9,11 @@ import {
   deleteUser,
   signOut,
 } from "firebase/auth";
-import { doc, setDoc, Timestamp } from "firebase/firestore";
+
 import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 import { useToastContext } from "@/components/layout/toast-provider";
 import { useAuth } from "@/context/auth-context";
 import { useGeolocation } from "@/hooks/use-geolocation";
-import { crossVerifyCard, extractCardNumbers, normalizeCardNumber, type CardCrossCheck } from "@/lib/kyc-verification";
 import { getPlanLabel } from "@/lib/plans-data";
 import { Check, ShieldCheck, TriangleAlert, XCircle } from "lucide-react";
 import { useCustomPlans } from "@/hooks/use-custom-plans";
@@ -24,7 +23,7 @@ import Input from "@/components/ui/input";
 import ErrorBoundary from "@/components/ui/error-boundary";
 import ImageUpload from "@/components/ui/image-upload";
 import PlanPicker from "@/components/ui/plan-picker";
-import { isDuplicateImage, type DocVerdict } from "@/lib/kyc-verification";
+import type { DocVerdict } from "@/lib/kyc-verification";
 /*
  * FaceScan used to be a separate lazy chunk. On a phone that is holding a cached
  * page from a previous deploy, that chunk name no longer exists, the import
@@ -229,18 +228,9 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
    * is the honest witness here: if the field and the card disagree, Rabi has to
    * be told, because that is exactly how a swapped card gets through.
    */
-  const [ocrCardNumber, setOcrCardNumber] = useState("");
-  const [cardEditsAcknowledged, setCardEditsAcknowledged] = useState(false);
-  const [cardEditPrompt, setCardEditPrompt] = useState<{ from: string; to: string } | null>(null);
-  const [cardTexts, setCardTexts] = useState({ front: "", back: "" });
-  const [backOcrLowConfidence, setBackOcrLowConfidence] = useState(false);
-  const [cardCross, setCardCross] = useState<CardCrossCheck | null>(null);
 
   const [docVerdicts, setDocVerdicts] = useState<
     Partial<Record<"front" | "back" | "selfie", DocVerdict | null>>
-  >({});
-  const [docHashes, setDocHashes] = useState<
-    Partial<Record<"front" | "back" | "selfie", string | null>>
   >({});
   const [livenessMode, setLivenessMode] = useState<"video" | "manual_review" | null>(null);
 
@@ -286,60 +276,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     emailValid &&
     passwordValid &&
     phoneValid;
-  // The same photo may not be reused for the card front, the card back and the
-  // selfie — that was the easiest way to fake a KYC record.
-  const duplicateDocs = useMemo(
-    () =>
-      isDuplicateImage(docHashes.front, docHashes.back) ||
-      isDuplicateImage(docHashes.front, docHashes.selfie) ||
-      isDuplicateImage(docHashes.back, docHashes.selfie),
-    [docHashes]
-  );
-
-  const frontReady = Boolean(form.ghanaCardFront) && docVerdicts.front?.status !== "rejected";
-  const backReady = Boolean(form.ghanaCardBack) && docVerdicts.back?.status !== "rejected";
-  /*
-   * A selfie must be PROVEN, not merely "not rejected".
-   *
-   * The old test only refused a photo the detector had explicitly rejected, so a
-   * photo the detector could not run on counted as ready and went to Rabi as a
-   * "manual review". That is the door a dog walked through. Now the face check
-   * has to return a verified human face before this document counts at all.
-   */
-  const selfieReady = Boolean(form.passportPhoto) && docVerdicts.selfie?.status === "verified";
-
+  const frontReady = Boolean(form.ghanaCardFront);
+  const backReady = Boolean(form.ghanaCardBack);
+  // The uploaded image is only evidence for a human reviewer; browser face
+  // detection cannot certify identity or liveness.
+  const selfieReady = Boolean(form.passportPhoto);
   const documentsReady = frontReady && backReady && selfieReady;
   const documentsDeferred = uploadFailures > 0 && sendDocsOnWhatsApp;
-  /*
-   * Both sides of the card, compared.
-   *
-   * The front carries the number in ink, the back carries it in the machine
-   * readable zone with an ICAO 9303 check digit. If they disagree, the card is a
-   * copy, an edit, or two cards in one envelope, and this stops here.
-   */
-  useEffect(() => {
-    if (!cardTexts.front && !cardTexts.back) {
-      setCardCross(null);
-      return;
-    }
-    setCardCross(
-      crossVerifyCard({
-        frontText: cardTexts.front,
-        backText: cardTexts.back,
-      })
-    );
-  }, [cardTexts, form.ghanaCardNumber]);
-
-  const cardRejected = cardCross?.status === "rejected";
-  const cardNeedsReview = Boolean(cardCross && (cardCross.status === "review" || cardCross.status === "skipped"));
-
-  const canStep3 = Boolean(
-    form.ghanaCardNumber &&
-      form.ghanaCardValid &&
-      !duplicateDocs &&
-      !cardRejected &&
-      (documentsReady || documentsDeferred)
-  );
+  const canStep3 = Boolean(form.ghanaCardNumber && form.ghanaCardValid && (documentsReady || documentsDeferred));
   const canStep4 = Boolean(form.faceScanVideo) || livenessMode === "manual_review";
   const mathPassed = mathAns.trim() === (mathObj.a + mathObj.b).toString();
 
@@ -347,21 +291,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     setForm((prev) => ({ ...prev, faceScanVideo: url }));
   }, []);
 
-  /**
-   * Changing the card number after the reader has seen one is allowed, but it is
-   * a decision, not a typo. Rabi is told, and the member is asked first.
-   */
-  const goToStep3 = useCallback(() => {
-    const typed = normalizeCardNumber(form.ghanaCardNumber);
-    const read = normalizeCardNumber(ocrCardNumber);
-
-    if (read && typed && typed !== read && !cardEditsAcknowledged) {
-      setCardEditPrompt({ from: ocrCardNumber, to: form.ghanaCardNumber ?? "" });
-      return;
-    }
-
-    setStep(3);
-  }, [form.ghanaCardNumber, ocrCardNumber, cardEditsAcknowledged]);
+  const goToStep3 = useCallback(() => setStep(3), []);
 
   const handleSubmit = async () => {
     /*
@@ -399,57 +329,37 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     try {
       const cred = await createUserWithEmailAndPassword(auth, form.email.trim(), form.password);
       createdUser = cred.user;
-      await setDoc(doc(db, "users", cred.user.uid), {
-        name: `${form.firstName} ${form.lastName}`,
-        email: form.email,
-        phone: normalizeGhanaPhone(form.phone),
-        location: form.location,
-        plan: form.plan,
-        plans: [form.plan],
-        ghanaCardNumber: form.ghanaCardNumber || "",
-        ghanaCardValid: form.ghanaCardValid || false,
-        ghanaCardFront: form.ghanaCardFront,
-        ghanaCardBack: form.ghanaCardBack,
-        passportPhoto: form.passportPhoto,
-        faceScanVideo: form.faceScanVideo || "",
-        livenessStatus: livenessMode === "manual_review" ? "manual_review" : "video",
-        /*
-         * A member who could not get a fix still gets through. The record says
-         * so plainly instead of carrying a silent zero, and the admin queue is
-         * told to look at the address.
-         */
-        gpsLat: gpsData?.lat ?? 0,
-        gpsLng: gpsData?.lng ?? 0,
-        gpsAddress:
-          gpsData?.address || (form.location ? `${form.location} (typed by the member)` : "Unknown, pending"),
-        locationSource: gpsData ? gpsData.source : form.location ? "manual" : "unknown",
-        locationAccuracy: gpsData?.accuracy ?? null,
-        locationReview: !gpsData || gpsData.suspicious,
-        /*
-         * One plain sentence for Rabi's queue. Empty when there is nothing to
-         * look at, so the admin screen can trust a non-empty value.
-         */
-        kycReviewReason: cardRejected
-          ? cardCross?.code === "front-back-mismatch"
-            ? "Front/back card number mismatch"
-            : cardCross?.code === "mrz-checksum"
-              ? "MRZ checksum failed"
-              : cardCross?.message ?? "Card rejected"
-          : backOcrLowConfidence
-            ? "Back image OCR confidence below 80%"
-            : cardNeedsReview
-              ? cardCross?.message ?? "Card needs a manual look"
-              : cardEditsAcknowledged
-                ? "Card number was changed after the reader saw a different number."
-                : "",
-        ghanaCardOcrResult: form.ghanaCardOcrResult || "",
-        documentsDeferred: documentsDeferred,
-        status: "pending",
-        whatsappLink: "",
-        termsAccepted: true,
-        termsAcceptedAt: Timestamp.now(),
-        createdAt: Timestamp.now(),
+      const secureSubmission = await fetch("/api/signup/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${await cred.user.getIdToken()}`,
+        },
+        body: JSON.stringify({
+          name: `${form.firstName} ${form.lastName}`,
+          email: form.email.trim(),
+          phone: normalizeGhanaPhone(form.phone),
+          location: form.location,
+          plan: form.plan,
+          ghanaCardNumber: form.ghanaCardNumber || "",
+          ghanaCardFront: form.ghanaCardFront || "",
+          ghanaCardBack: form.ghanaCardBack || "",
+          passportPhoto: form.passportPhoto || "",
+          faceScanVideo: form.faceScanVideo || "",
+          documentsDeferred,
+          gpsLat: gpsData?.lat ?? 0,
+          gpsLng: gpsData?.lng ?? 0,
+          gpsAddress: gpsData?.address || (form.location ? `${form.location} (typed by the member)` : "Unknown, pending"),
+          locationSource: gpsData ? gpsData.source : form.location ? "manual" : "unknown",
+          locationAccuracy: gpsData?.accuracy ?? null,
+          locationReview: !gpsData || gpsData.suspicious,
+          termsAccepted: true,
+        }),
       });
+      if (!secureSubmission.ok) {
+        const result = await secureSubmission.json().catch(() => ({}));
+        throw new Error(typeof result.error === "string" ? result.error : "Secure application submission failed");
+      }
 
       /*
        * Tell Rabi somebody applied.
@@ -560,7 +470,6 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
               onChange={(e) => {
                 const formatted = formatGhanaCardInput(e.target.value);
                 const isValid = validateGhanaCardFormat(formatted);
-                setCardEditsAcknowledged(false);
                 setForm((prev) => ({ ...prev, ghanaCardNumber: formatted, ghanaCardValid: isValid }));
               }}
               placeholder="GHA-123456789-0"
@@ -581,22 +490,11 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             label="Ghana Card, Front"
             value={form.ghanaCardFront}
             verify="id-front"
-            declaredCardNumber={form.ghanaCardNumber || ""}
             hint="Lay the card flat on a table, all four corners inside the frame, no glare."
             onUpload={(url) => update("ghanaCardFront", url)}
-            onOcrText={(text) => {
-              setCardTexts((prev) => ({ ...prev, front: text }));
-              const found = extractCardNumbers(text)[0];
-              if (!found) return;
-              setOcrCardNumber(found);
-              // Prefill only an empty field. A number the member already typed
-              // is their statement, and the prompt below asks about changes.
-              setForm((prev) => (prev.ghanaCardNumber ? prev : { ...prev, ghanaCardNumber: found, ghanaCardValid: true }));
-            }}
             onFailure={() => setUploadFailures((count) => count + 1)}
-            onVerdict={(verdict, hash) => {
+            onVerdict={(verdict) => {
               setDocVerdicts((prev) => ({ ...prev, front: verdict }));
-              setDocHashes((prev) => ({ ...prev, front: hash ?? null }));
               if (verdict) update("ghanaCardOcrResult", JSON.stringify(verdict));
             }}
           />
@@ -605,29 +503,11 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             label="Ghana Card, Back"
             value={form.ghanaCardBack}
             verify="id-back"
-            declaredCardNumber={form.ghanaCardNumber || ""}
             hint="Flip the card over, the barcode side. Keep the whole card in frame."
             onUpload={(url) => update("ghanaCardBack", url)}
-            onOcrText={(text, confidence) => {
-              setCardTexts((prev) => ({ ...prev, back: text }));
-              const lowConfidence = confidence < 80;
-              setBackOcrLowConfidence(lowConfidence);
-              if (lowConfidence) {
-                setDocVerdicts((prev) => ({
-                  ...prev,
-                  back: {
-                    status: "review",
-                    confidence,
-                    message: "The back of the card could not be read with enough confidence. Rabi will check it manually.",
-                    reasons: ["low-ocr-confidence"],
-                  },
-                }));
-              }
-            }}
             onFailure={() => setUploadFailures((count) => count + 1)}
-            onVerdict={(verdict, hash) => {
+            onVerdict={(verdict) => {
               setDocVerdicts((prev) => ({ ...prev, back: verdict }));
-              setDocHashes((prev) => ({ ...prev, back: hash ?? null }));
             }}
           />
 
@@ -638,84 +518,14 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             hint="Head and shoulders, good light, only you in the photo."
             onUpload={(url) => update("passportPhoto", url)}
             onFailure={() => setUploadFailures((count) => count + 1)}
-            onVerdict={(verdict, hash) => {
+            onVerdict={(verdict) => {
               setDocVerdicts((prev) => ({ ...prev, selfie: verdict }));
-              setDocHashes((prev) => ({ ...prev, selfie: hash ?? null }));
             }}
           />
 
-          {cardCross && cardCross.status === "rejected" && (
-            <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3">
-              <p className="text-sm font-semibold text-red-200">{cardCross.message}</p>
-              <p className="mt-1 text-xs text-amber-100/90">Your application can continue, but it will be marked Pending Manual Review for Rabi. Do not approve this card automatically.</p>
-              <p className="mt-1 text-xs text-red-200/80">
-                Take a new photo of both sides of the same card. Rabi cannot approve a card whose two sides disagree.
-              </p>
-            </div>
-          )}
 
-          {cardCross && cardCross.status === "review" && (
-            <div className="rounded-xl border border-amber-500/35 bg-amber-500/[0.08] p-3">
-              <p className="text-xs leading-relaxed text-amber-100">{cardCross.message}</p>
-            </div>
-          )}
 
-          {cardCross && cardCross.status === "verified" && (
-            <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.08] p-3 text-xs text-emerald-200">
-              {cardCross.message}
-            </p>
-          )}
 
-          {cardEditPrompt && (
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="card-edit-title"
-              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 p-4"
-            >
-              <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#04140C] p-5 shadow-2xl">
-                <h4 id="card-edit-title" className="text-base font-bold text-white">
-                  Change the card number?
-                </h4>
-                <p className="mt-2 text-sm leading-relaxed text-gray-300">
-                  You are changing the card number from{" "}
-                  <span className="font-mono text-white">{cardEditPrompt.from}</span> to{" "}
-                  <span className="font-mono text-white">{cardEditPrompt.to}</span>. This will require manual review
-                  by Rabi. Are you sure?
-                </p>
-                <div className="mt-4 flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForm((prev) => ({ ...prev, ghanaCardNumber: cardEditPrompt.from, ghanaCardValid: true }));
-                      setCardEditPrompt(null);
-                      setCardEditsAcknowledged(true);
-                    }}
-                    className="w-full rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white hover:bg-white/15"
-                  >
-                    Keep the number on the card
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCardEditPrompt(null);
-                      setCardEditsAcknowledged(true);
-                      setStep(3);
-                    }}
-                    className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-[#020C06] hover:brightness-110"
-                  >
-                    Use my number, review it
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {duplicateDocs && (
-            <p className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
-              The same photo was used for more than one document. Upload a separate photo for each.
-            </p>
-          )}
 
           {uploadFailures > 0 && !documentsReady && (
             <div className="rounded-xl border border-amber-500/35 bg-amber-500/[0.08] p-4">
@@ -786,9 +596,9 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       {step === 3 && (
         <div className="space-y-5">
           <div className="text-center">
-            <h2 className="font-display text-lg text-white">Face verification</h2>
+            <h2 className="font-display text-lg text-white">Optional face scan</h2>
             <p className="mx-auto mt-1 max-w-xs text-xs leading-relaxed text-gray-400">
-              A five-second check that you are a real person. Nothing is posted publicly.
+              This may help Rabi review your application. Browser face checks are not certified liveness or proof of identity; your application stays pending for human review.
             </p>
           </div>
 

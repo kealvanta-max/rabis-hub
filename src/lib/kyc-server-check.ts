@@ -5,10 +5,11 @@
  * and can be starved of memory or interfered with. This asks the server for a
  * second opinion on the file that was actually uploaded.
  *
- * A network failure returns `skipped`, never `ok: false`. Punishing a member for
- * our outage would be worse than the risk of the check not running, and the
- * server-side result is recorded for Rabi either way.
+ * A network failure is not a pass. It returns skipped plus ok=false so the
+ * caller can keep signup available only through an explicit manual-review path.
  */
+
+import { auth } from "@/lib/firebase";
 
 export interface ServerCheck {
   ok: boolean;
@@ -27,13 +28,23 @@ export async function serverKycCheck(
   url: string,
   selfieUrl?: string
 ): Promise<ServerCheck> {
+  const actor = auth.currentUser;
+  if (!actor) {
+    return {
+      ok: false,
+      skipped: true,
+      message: "Automated checks are unavailable before account creation. Rabi will review this application manually.",
+      reasons: ["verification-unavailable"],
+    };
+  }
+  const token = await actor.getIdToken();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
     const response = await fetch("/api/kyc/verify", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ kind, url, ...(selfieUrl ? { selfieUrl } : {}) }),
       signal: controller.signal,
     });
@@ -50,7 +61,8 @@ export async function serverKycCheck(
     }
 
     return {
-      ok: payload.ok !== false,
+      // A skipped check is unknown, not a successful identity verification.
+      ok: payload.ok === true && payload.skipped !== true,
       skipped: payload.skipped === true,
       message: payload.message,
       reasons: payload.reasons,
@@ -59,7 +71,7 @@ export async function serverKycCheck(
       configured: payload.configured,
     };
   } catch {
-    return { ok: true, skipped: true };
+    return { ok: false, skipped: true, message: "Automated identity verification is unavailable. This application requires manual review.", reasons: ["verification-unavailable"] };
   } finally {
     clearTimeout(timer);
   }

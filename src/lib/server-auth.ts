@@ -1,5 +1,4 @@
 import type { EmailActor } from "@/lib/email-policy";
-import { ownerEmails } from "@/lib/email-policy";
 
 /**
  * Server-side identity for API routes.
@@ -75,18 +74,12 @@ export async function authenticateRequest(request: Request): Promise<ServerUser 
 
     const email = account.email ?? null;
     const emailVerified = Boolean(account.emailVerified);
-    const isOwner =
-      emailVerified &&
-      email !== null &&
-      ownerEmails()
-        .map((owner) => owner.toLowerCase())
-        .includes(email.toLowerCase());
 
     return {
       uid: account.localId,
       email,
       emailVerified,
-      admin: claimAdmin || isOwner,
+      admin: claimAdmin,
       token,
     };
   } catch (error) {

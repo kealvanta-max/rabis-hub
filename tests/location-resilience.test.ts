@@ -117,14 +117,18 @@ describe("what the record says afterwards", () => {
     expect(page).toContain('"Unknown, pending"');
   });
 
-  it("lets the member write those fields without a rules failure", () => {
+  it("stores location outcomes through the server and keeps client writes locked", () => {
+    const submit = read("src/app/api/signup/submit/route.ts");
+    expect(submit).toContain("locationSource:");
+    expect(submit).toContain("locationAccuracy:");
+    expect(submit).toContain("locationReview:");
+    const userRules = rules.slice(rules.indexOf("match /users/"), rules.indexOf("match /settings/"));
+    expect(userRules).toContain("allow create: if false;");
+    const applicantWrite = userRules.slice(userRules.indexOf("affectedKeys().hasOnly(["));
+    const allowlist = applicantWrite.slice(0, applicantWrite.indexOf("])") );
     for (const field of ["locationSource", "locationAccuracy", "locationReview"]) {
-      expect(rules, field).toContain(`'${field}'`);
+      expect(allowlist).not.toContain(`'${field}'`);
     }
-    // And they stay frozen once a decision is recorded, with the rest of the
-    // location evidence.
-    const update = rules.slice(rules.indexOf("allow update"), rules.indexOf("allow delete"));
-    expect(update.match(/locationReview/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
   });
 
   it("tells the admin to look", () => {

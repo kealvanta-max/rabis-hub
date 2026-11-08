@@ -124,12 +124,14 @@ export default function AdminPage() {
   }, [user, isAdmin, authLoading, router, fetchData]);
 
   useEffect(() => {
-    if (!isAdmin) return;
-    fetch("/api/health")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => data && setHealth(data))
-      .catch(() => setHealth(null));
-  }, [isAdmin]);
+    if (!isAdmin || !user) return;
+    void user.getIdToken().then((token) =>
+      fetch("/api/health", { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => data && setHealth(data))
+        .catch(() => setHealth(null))
+    ).catch(() => setHealth(null));
+  }, [isAdmin, user]);
 
   const setStatus = async (userId: string, status: "approved" | "rejected" | "pending", reason?: string) => {
     track(status === "approved" ? "admin_approved" : status === "rejected" ? "admin_rejected" : "admin_reset", {
@@ -156,7 +158,33 @@ export default function AdminPage() {
       if (status === "pending" || status === "rejected") {
         updates.whatsappLink = "";
       }
-      await updateDoc(doc(db, "users", userId), updates);
+      if (status === "approved" && !window.confirm(
+        "Manual review required. Confirm that you inspected both card sides, matched the printed number to the MRZ, matched the selfie to the card portrait, and reviewed the liveness evidence. An unchecked or unavailable check must remain pending."
+      )) return;
+
+      const token = await user?.getIdToken();
+      if (!token) throw new Error("Admin session missing");
+      const decisionResponse = await fetch(`/api/admin/users/${encodeURIComponent(userId)}/decision`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          status,
+          reason: reason ?? "",
+          checklist: status === "approved" ? {
+            frontBackInspected: true,
+            numberMatched: true,
+            selfieMatched: true,
+            livenessReviewed: true,
+          } : {},
+        }),
+      });
+      const decisionResult = await decisionResponse.json().catch(() => ({}));
+      if (!decisionResponse.ok) throw new Error(
+        typeof decisionResult.error === "string" ? decisionResult.error : "Secure decision failed"
+      );
+      if (status === "approved" && updates.whatsappLink) {
+        await updateDoc(doc(db, "users", userId), { whatsappLink: updates.whatsappLink });
+      }
       setUsers((prev) =>
         prev.map((u) =>
           u.id === userId ? { ...u, status: status as UserDoc["status"], whatsappLink: updates.whatsappLink || u.whatsappLink } : u
@@ -340,7 +368,7 @@ export default function AdminPage() {
 
   const downloadCSV = () => {
     const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
-    const header = "Name,Email,Phone,Plan,Status,Location,GPS,Date\n";
+    const header = "Name,Email,Phone,Plan,Status,Area,Date\n";
     const rows = filteredUsers.map((u) =>
       [
         u.name,
@@ -348,8 +376,7 @@ export default function AdminPage() {
         u.phone,
         getPlanLabel(u.plan, customPlans),
         u.status,
-        u.gpsAddress || u.location,
-        `${u.gpsLat},${u.gpsLng}`,
+        u.location || "",
         formatDate(u.createdAt, ""),
       ]
         .map(escape)
@@ -364,27 +391,6 @@ export default function AdminPage() {
     setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
-  const downloadAllJSON = () => {
-    const dataStr = JSON.stringify(filteredUsers, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "rabi-users-all-with-images.json";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-  };
-
-  const downloadSingleUserJSON = (u: UserItem) => {
-    const dataStr = JSON.stringify(u, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `rabi-user-${u.name.replace(/\s+/g, "-").toLowerCase()}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-  };
 
   const filteredUsers = filterMembers(users, { status: filter, search });
 
@@ -501,9 +507,6 @@ export default function AdminPage() {
             <div className="flex w-full gap-2 sm:w-auto">
               <ActionButton variant="neutral" size="md" onClick={downloadCSV} className="flex-1 sm:flex-none">
                 Export CSV
-              </ActionButton>
-              <ActionButton variant="ghost" size="md" onClick={downloadAllJSON} className="flex-1 sm:flex-none">
-                Export JSON
               </ActionButton>
             </div>
           </header>
@@ -931,7 +934,6 @@ export default function AdminPage() {
           setStatus(selectedUser.id, "pending");
           setSelectedUser(null);
         }}
-        onDownload={() => selectedUser && downloadSingleUserJSON(selectedUser)}
         onResendEmail={() => {
           if (selectedUser) void sendDecisionAgain(selectedUser);
         }}

@@ -50,6 +50,9 @@ export async function POST(request: Request) {
 
   const requestedUid = typeof body.uid === "string" ? body.uid.trim() : "";
   const force = body.force === true;
+  if (force && !actor.admin) {
+    return NextResponse.json({ ok: false, error: "Only an admin can force a member alert" }, { status: 403 });
+  }
 
   if (requestedUid && requestedUid !== actor.uid && !actor.admin) {
     return NextResponse.json({ ok: false, error: "Admin access required" }, { status: 403 });

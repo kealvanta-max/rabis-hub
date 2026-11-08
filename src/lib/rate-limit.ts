@@ -62,7 +62,13 @@ export async function rateLimit(
 ): Promise<RateLimitResult> {
   const windowMs = windowSeconds * 1000;
 
-  if (!upstashConfigured()) return memoryLimit(key, limit, windowMs);
+  if (!upstashConfigured()) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[rate-limit] durable Upstash limiter is required in production.");
+      return { success: false, remaining: 0, resetAt: Date.now() + windowMs, backend: "memory" };
+    }
+    return memoryLimit(key, limit, windowMs);
+  }
 
   try {
     const redisKey = `rl:${key}`;
@@ -83,7 +89,10 @@ export async function rateLimit(
     };
   } catch (error) {
     // Never take the site down because the limiter is unreachable.
-    console.warn("Upstash rate limit unavailable, using memory fallback:", (error as Error).message);
+    console.error("[rate-limit] durable Upstash limiter unavailable:", (error as Error).message);
+    if (process.env.NODE_ENV === "production") {
+      return { success: false, remaining: 0, resetAt: Date.now() + windowMs, backend: "memory" };
+    }
     return memoryLimit(key, limit, windowMs);
   }
 }

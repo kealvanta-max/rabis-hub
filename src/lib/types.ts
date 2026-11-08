@@ -16,6 +16,15 @@ export interface UserDoc {
   locationReview?: boolean;
   /** Human-readable KYC exception for Rabi's pending queue. */
   kycReviewReason?: string;
+  kycReviewStatus?: "manual_review_required" | "verification_unavailable" | "screened_pass" | "rejected" | "approved";
+  kycSubmittedAt?: Timestamp;
+  kycPolicyVersion?: string;
+  reviewerUid?: string;
+  reviewerEmail?: string;
+  reviewedAt?: Timestamp;
+  reviewChecklist?: Record<string, boolean>;
+  decisionId?: string;
+  evidenceHashes?: Record<string, string>;
   plan: string;
   plans?: string[];
   ghanaCardNumber?: string;

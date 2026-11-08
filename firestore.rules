@@ -6,17 +6,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Admin = the `admin` custom claim (set by scripts/admin-setup.mjs).
-    // Owner addresses are honoured as a fallback, but only for *verified*
-    // addresses, so an unverified account can never inherit owner powers.
+    // Privilege comes only from a server-assigned custom claim. Email addresses
+    // are identity attributes, not authorization credentials.
     function isAdmin() {
-      return signedIn() && (
-        request.auth.token.admin == true ||
-        (
-          request.auth.token.email_verified == true &&
-          request.auth.token.email.lower() in ['rabisavinghub@gmail.com', 'moneyace914@gmail.com']
-        )
-      );
+      return signedIn() && request.auth.token.admin == true;
     }
 
     function isSelf(uid) {
@@ -31,69 +24,32 @@ service cloud.firestore {
       // read another person's card number, address, GPS pin or documents.
       allow read: if isSelf(uid) || isAdmin();
 
-      // A member may create exactly one profile, for their own address, always
-      // pending. Required fields and sane lengths stop junk/oversized documents.
-      allow create: if isSelf(uid)
-        && request.resource.data.email.lower() == request.auth.token.email.lower()
-        && request.resource.data.status == 'pending'
-        && request.resource.data.keys().hasAll(['name', 'email', 'phone', 'plan', 'status'])
-        && request.resource.data.name is string
-        && request.resource.data.name.size() >= 2
-        && request.resource.data.name.size() <= 80
-        && request.resource.data.phone is string
-        && request.resource.data.phone.size() <= 24
-        && request.resource.data.plan is string
-        && request.resource.data.plan.size() <= 40
-        && (!('location' in request.resource.data) || (
-             request.resource.data.location is string
-             && request.resource.data.location.size() <= 120
-           ))
-        && (!('ghanaCardNumber' in request.resource.data) || (
-             request.resource.data.ghanaCardNumber is string
-             && request.resource.data.ghanaCardNumber.size() <= 24
-           ))
-        // Bookkeeping that only Rabi or the server may produce must never
-        // arrive pre-filled. A forged `contributions` list would make a brand
-        // new account look paid up, and a pre-set `adminAlertAt` would hide the
-        // signup from her alert queue, so both are refused outright.
-        && (!('contributions' in request.resource.data)
-            || request.resource.data.contributions.size() == 0)
-        && (!('whatsappLink' in request.resource.data)
-            || request.resource.data.whatsappLink == '')
-        && !('adminAlertAt' in request.resource.data)
-        && !('decisionEmailAt' in request.resource.data);
+      // Applicant creation and KYC evidence submission go through trusted
+      // server routes. The Admin SDK bypasses these rules; a browser cannot
+      // create a profile carrying evidence, decisions, or audit fields.
+      allow create: if false;
 
-      // A member may edit their own contact details, and may upload identity
-      // documents ONLY while the application is still pending.
-      //
-      // This closes the identity swap: previously an approved member could
-      // replace the Ghana Card photos, the selfie and the card number after
-      // approval, so the evidence behind an approval was whatever the account
-      // said it was today. Once a decision is recorded, the identity fields are
-      // frozen. A rejected member who wants to resubmit contacts Rabi on
-      // WhatsApp, she resets the account to pending, and the upload opens again.
-      allow update: if isAdmin() || (
+      // Applicant updates are limited to ordinary contact preferences. KYC
+      // evidence is immutable after the server accepts the submission; only
+      // server routes may change review or decision state.
+      allow update: if (
         isSelf(uid)
         && request.resource.data.status == resource.data.status
+        && resource.data.status == 'pending'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'name', 'phone', 'location', 'plan', 'plans',
-          'ghanaCardNumber', 'ghanaCardValid', 'ghanaCardFront', 'ghanaCardBack',
-          'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
-          'gpsLat', 'gpsLng', 'gpsAddress',
-          'locationSource', 'locationAccuracy', 'locationReview',
-          'kycReviewReason',
-          'termsAccepted', 'termsAcceptedAt'
+          'name', 'phone', 'location', 'plan', 'plans'
         ])
-        && (
-          resource.data.status == 'pending'
-          || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-            'ghanaCardNumber', 'ghanaCardValid',
-            'ghanaCardFront', 'ghanaCardBack',
-            'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
-            'gpsLat', 'gpsLng', 'gpsAddress',
-            'locationSource', 'locationAccuracy', 'locationReview', 'kycReviewReason'
-          ])
-        )
+      ) || (
+        isAdmin()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'status', 'ghanaCardNumber', 'ghanaCardValid', 'ghanaCardFront',
+          'ghanaCardBack', 'passportPhoto', 'faceScanVideo', 'ghanaCardOcrResult',
+          'kycReviewStatus', 'kycReviewReason', 'kycSubmittedAt', 'kycPolicyVersion',
+          'evidenceHashes', 'reviewerUid', 'reviewedAt', 'approvalEligibility',
+          'gpsLat', 'gpsLng', 'gpsAddress', 'locationSource', 'locationAccuracy', 'locationReview',
+          'adminAlertAt', 'adminAlertProvider', 'decisionEmailAt', 'decisionEmailFor',
+          'decisionEmailStatus', 'decisionEmailProvider'
+        ])
       );
 
       allow delete: if isAdmin();
@@ -125,14 +81,14 @@ service cloud.firestore {
     // ---------------------------------------------------------------
     match /testimonials/{testimonialId} {
       allow read: if resource.data.status == 'approved' || isAdmin();
-      allow create: if signedIn()
+      allow create: if isAdmin() || (signedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.rating is int
         && request.resource.data.rating >= 1
         && request.resource.data.rating <= 5
         && request.resource.data.review is string
-        && request.resource.data.review.size() <= 600;
+        && request.resource.data.review.size() <= 600);
       allow update, delete: if isAdmin();
     }
 

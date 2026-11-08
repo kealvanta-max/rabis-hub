@@ -121,8 +121,8 @@ describe("console and manifest", () => {
   });
 
   it("allows the image hosts the app actually uses", () => {
-    const config = read("next.config.mjs");
-    const imgSrc = config.slice(config.indexOf('"img-src'), config.indexOf('",', config.indexOf('"img-src')));
+    const config = read("middleware.ts");
+    const imgSrc = config.slice(config.indexOf("img-src"), config.indexOf("font-src", config.indexOf("img-src")));
     for (const host of ["res.cloudinary.com", "i.pravatar.cc", "lh3.googleusercontent.com", "firebasestorage.googleapis.com"]) {
       expect(imgSrc).toContain(host);
     }
@@ -208,8 +208,8 @@ describe("mobile weight", () => {
 
 describe("console hygiene", () => {
   it("allows the Google script that Firebase auth loads", () => {
-    const config = read("next.config.mjs");
-    const scriptSrc = config.slice(config.indexOf('"script-src'), config.indexOf('",', config.indexOf('"script-src')));
+    const config = read("middleware.ts");
+    const scriptSrc = config.slice(config.indexOf('script-src'), config.indexOf('script-src-attr'));
     expect(scriptSrc).toContain("https://apis.google.com");
   });
 

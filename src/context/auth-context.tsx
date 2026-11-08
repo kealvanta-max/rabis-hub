@@ -28,13 +28,6 @@ const AuthContext = createContext<AuthState>({
   refreshProfile: async () => { },
 });
 
-// Admin emails are primarily handled via Firebase Custom Claims on the backend.
-// The env fallback covers local development before claims have synced.
-const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || "")
-  .split(",")
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserDoc | null>(null);
@@ -84,8 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           if (cancelled) return;
 
-          const userEmail = (firebaseUser.email || "").toLowerCase().trim();
-          setIsAdmin(hasAdminClaim || ADMIN_EMAILS.includes(userEmail));
+          setIsAdmin(hasAdminClaim);
 
           unsubscribeDoc = onSnapshot(
             doc(db, "users", firebaseUser.uid),
