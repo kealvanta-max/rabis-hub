@@ -14,7 +14,7 @@ import { kycVisionConfigured, screenSelfie } from "@/lib/kyc-vision";
 import { rejectionMessage, type ScreeningState } from "@/lib/kyc-vision-policy";
 import {
   centralFaceBox,
-  fetchRgbGrid,
+  decodeToGrid,
   imageGeometry,
   judgeCardPhoto,
   judgeSelfiePhoto,
@@ -94,14 +94,19 @@ async function destroyCloudinaryAsset(url: string, kind: FileKind) {
  * fetched from the delivery URL because that is the file we actually stored.
  */
 async function judgeUploadedImage(
-  deliveryUrl: string,
   bytes: Buffer,
   purpose: string
-): Promise<{ state: "rejected" | "ok"; reasons: string[] }> {
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "";
-  if (!cloudName) return { state: "ok", reasons: [] };
-
-  const grid = await fetchRgbGrid(deliveryUrl, cloudName);
+): Promise<{ state: "rejected" | "ok"; reasons: string[]; note?: string }> {
+  /*
+   * Decoded here from the bytes we already hold.
+   *
+   * This used to ask Cloudinary to render a 32x32 PNG and decode that. It
+   * looked cheaper and it was a silent hole: any failure of that one request
+   * (transformations disabled on the account, a timeout, a 401) made the grid
+   * null, and a null grid returned "ok" — so an unreadable check quietly became
+   * an accepted photo. Decoding in-process removes the failure mode entirely.
+   */
+  const grid = await decodeToGrid(new Uint8Array(bytes));
   if (!grid) return { state: "ok", reasons: [] };
 
   const box = centralFaceBox();
@@ -111,6 +116,19 @@ async function judgeUploadedImage(
     if (verdict.status === "fail") {
       return { state: "rejected", reasons: verdict.reasons.map((reason) => `selfie:${reason}`) };
     }
+    /*
+     * "Inconclusive" is not a refusal and must not read like one to Rabi. It is
+     * a sentence she can act on: the photo got past the colour screen but no
+     * face was proven, so it is her eyes that decide. Without this note the
+     * reason vanished and the face simply appeared in her queue unexplained.
+     */
+    if (verdict.status === "inconclusive") {
+      return {
+        state: "ok",
+        reasons: verdict.reasons.map((reason) => `selfie:${reason}`),
+        note: "automated-screening-could-not-confirm-a-face-please-look-yourself",
+      };
+    }
     return { state: "ok", reasons: [] };
   }
 
@@ -118,6 +136,13 @@ async function judgeUploadedImage(
   const verdict = judgeCardPhoto({ geometry, grid, box });
   if (verdict.status === "fail") {
     return { state: "rejected", reasons: verdict.reasons.map((reason) => `card:${reason}`) };
+  }
+  if (verdict.status === "inconclusive") {
+    return {
+      state: "ok",
+      reasons: verdict.reasons.map((reason) => `card:${reason}`),
+      note: "automated-screening-could-not-confirm-a-card-please-look-yourself",
+    };
   }
   return { state: "ok", reasons: [] };
 }
@@ -346,7 +371,7 @@ export async function POST(request: Request) {
        * free quota is spent. That was the hole: the only live check was an LLM
        * call, so when it did not answer, anything at all was accepted.
        */
-      const deterministic = await judgeUploadedImage(data.secure_url, buffered, purpose);
+      const deterministic = await judgeUploadedImage(buffered, purpose);
       if (deterministic.state === "rejected") {
         void destroyCloudinaryAsset(data.secure_url, kind);
         console.info("[upload] refused by deterministic screening", {
@@ -382,11 +407,20 @@ export async function POST(request: Request) {
           { status: 422, headers: { "Cache-Control": "no-store" } }
         );
       }
+      /*
+       * The deterministic reasons are merged in rather than discarded. When the
+       * screen could not confirm a face, that fact is the single most useful
+       * thing Rabi can be told, and it used to be thrown away the moment the AI
+       * provider returned its own (usually empty) list.
+       */
+      const reasons = [...deterministic.reasons, ...screening.reasons];
+      if (deterministic.note) reasons.push(deterministic.note);
       return NextResponse.json(
         {
           secure_url: data.secure_url,
           screening: screening.state satisfies ScreeningState,
-          reasons: screening.reasons,
+          reasons,
+          deterministic_note: deterministic.note ?? null,
           provider: screening.provider ?? null,
         },
         { headers: { "Cache-Control": "no-store" } }

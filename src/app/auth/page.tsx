@@ -653,6 +653,17 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           >
             <FaceScan
               onComplete={handleFaceScanComplete}
+              onUnverified={(url) => {
+                /*
+                 * The clip is kept so Rabi can look at it, and the member moves on
+                 * with the flow marked manual-review. Signup before an account
+                 * exists cannot pass an authenticated check, so this is the
+                 * normal path rather than an error.
+                 */
+                handleFaceScanComplete(url);
+                setLivenessMode("manual_review");
+                addToast("Clip saved. Rabi will confirm it by hand.", "info");
+              }}
               onManualReview={() => {
                 setLivenessMode("manual_review");
                 update("faceScanVideo", "");

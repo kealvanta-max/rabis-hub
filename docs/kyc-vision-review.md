@@ -37,11 +37,35 @@ exactly the condition under which the previous pipeline accepted everything.
 
 | check | what it measures | refusing value |
 | --- | --- | --- |
-| `selfie-subject` | share of human skin tone in the central 60% × 62% of the frame (YCbCr chroma), then light-and-shadow structure | under 10% skin, or a flat region |
+| `selfie-subject` | share of skin-toned pixels in the central 60% × 62% of the frame, then light-and-shadow structure | under 10% skin-toned pixels, or a flat region. **Above the floor it returns `inconclusive`, not `pass`** — see the limit below |
 | `card-geometry-*` | width/height read from the file header | portrait orientation, or not card-shaped |
 | `card surface` | mean and spread of luminance in the card region | dark scene, or a featureless area with no printing |
 | `card-mrz` | ICAO TD1 zone from server-side Tesseract, issuer must be `GHA` | no zone found, or a non-blank back with no zone |
 | `card-pin` | the nine digits in the MRZ against the number the member typed | they disagree |
+
+### What the selfie screen cannot do
+
+Measured, not assumed: a wooden door (130,102,85), beige paint (199,167,130) and
+tan paint (209,179,139) sit inside the same colour region as real skin, and the
+first version of this check called all three "skin". A member photographed in
+front of a beige wall would have scored 100% and passed; the same heuristic used
+as a hard test in the other direction rejects people for their paintwork.
+
+So the rule is one-directional on purpose:
+
+- **Below the floor is a refusal.** A window, a night photo, a landscape, a page
+  of text and a cream wall all score 0–5%; there is nothing a selfie could
+  honestly be in those images. This is the case in the reported bug, and it is
+  caught with no AI provider, no network and no model.
+- **Above the floor is not a pass.** It means only "skin-coloured pixels are
+  present, this screen does not object". The result is `inconclusive`, the reason
+  is stored, and the face reaches Rabi marked
+  `automated-screening-could-not-confirm-a-face-please-look-yourself`.
+
+Proving a face *is* present needs a face detector, which this codebase does not
+run on the server. Adding one is the honest next step if the queue shows spoofs
+getting past the colour floor; pretending a colour test proves a face is what
+the previous version did, and it was wrong.
 
 Two deliberate asymmetries:
 
