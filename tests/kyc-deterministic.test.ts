@@ -52,9 +52,16 @@ describe("skin tone detection", () => {
 });
 
 describe("selfie screening, on the reported images", () => {
-  it("accepts a real face", () => {
+  it("does not refuse a real face", () => {
+    /*
+     * This used to assert `pass`, which overstated what the check can do: a
+     * colour screen cannot prove a face is present, only that skin-coloured
+     * pixels are. It now returns `inconclusive`, meaning "screening did not
+     * object, a human still decides". The assertion that matters — a real
+     * member is never rejected for their own photo — is unchanged.
+     */
     const verdict = judgeSelfiePhoto(FACE, BOX);
-    expect(verdict.status).toBe("pass");
+    expect(verdict.status).not.toBe("fail");
   });
 
   it("refuses a photo of a room", () => {

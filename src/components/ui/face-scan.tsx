@@ -23,6 +23,12 @@ interface FaceScanProps {
   onComplete: (videoUrl: string) => void;
   /** Called when the member cannot use a camera; an admin reviews manually. */
   onManualReview?: (reason: string) => void;
+  /**
+   * Called when the clip was recorded and stored but could not be checked.
+   * The application continues and Rabi decides; a missing automated check is
+   * not a reason to strand a real member on the camera screen.
+   */
+  onUnverified?: (videoUrl: string, note: string) => void;
 }
 
 type Status =
@@ -66,7 +72,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  *  - there is always a way forward: record a short clip, or ask for manual
  *    review. A blocked camera must never trap someone in the signup flow.
  */
-export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) {
+export default function FaceScan({ onComplete, onManualReview, onUnverified }: FaceScanProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -139,9 +145,23 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
         setMessage("Checking that this is a real, live person…");
         const server = await serverKycCheck("video", url);
 
+        /*
+         * "Skipped" means the server could not judge this clip, not that the clip
+         * was bad — and during signup it is guaranteed, because there is no
+         * account yet for `/api/kyc/verify` to authenticate. Showing that as a
+         * red error stranded members on a screen with no way forward, which is
+         * exactly what the reported screenshot shows.
+         *
+         * An unproven clip is not a refusal. It goes to Rabi flagged for a closer
+         * look, and the member keeps moving.
+         */
         if (server.skipped) {
-          setStatus("error");
-          setMessage(server.message || "The automated liveness check is unavailable. Signup can continue only as a pending manual review.");
+          doneRef.current = true;
+          setStatus("done");
+          setProgress(100);
+          setMessage("Your clip was recorded. Rabi will confirm it by hand.");
+          teardown();
+          onUnverified?.(url, server.message || "Liveness could not be checked automatically.");
           return;
         }
 
@@ -170,7 +190,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
         );
       }
     },
-    [onComplete, teardown]
+    [onComplete, onUnverified, teardown]
   );
 
   const startClipRecording = useCallback(() => {

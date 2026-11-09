@@ -193,9 +193,15 @@ export async function POST(request: Request) {
   if (!documentsDeferred) {
     try {
       const [frontDigest, backDigest, selfieDigest] = await Promise.all([
-        hashEvidence(front as string, "image", visionConfigured),
-        hashEvidence(back as string, "image", visionConfigured),
-        hashEvidence(selfie as string, "image", visionConfigured),
+        /*
+         * Always keep the bytes, not just the hash. The deterministic screener
+         * decodes them locally; when it had to fetch them from Cloudinary there
+         * was a second network hop that could fail, and a failed hop used to
+         * mean "not screened" rather than "not accepted".
+         */
+        hashEvidence(front as string, "image", true),
+        hashEvidence(back as string, "image", true),
+        hashEvidence(selfie as string, "image", true),
       ]);
       digests.front = frontDigest;
       digests.back = backDigest;
@@ -203,9 +209,23 @@ export async function POST(request: Request) {
       if (video) digests.video = await hashEvidence(video, "video");
       evidenceHashes = Object.fromEntries(Object.entries(digests).map(([key, digest]) => [key, digest.sha256]));
     } catch {
-      // Screening/evidence transport failure is not a reason to reject signup.
-      screeningState = "verification_unavailable";
-      screeningReasons = ["evidence-fetch-unavailable", "manual-review-required"];
+      /*
+       * The evidence could not be downloaded at all. Previously this was treated
+       * as "not screened, carry on", which meant a submission whose photos were
+       * unreachable reached Rabi with nothing examined — and a spoofed one looked
+       * identical to a real one. If we cannot see the documents, we cannot
+       * accept a submission that claims to have them.
+       */
+      console.error("[signup] evidence could not be retrieved for screening", { uid: actor.uid });
+      return NextResponse.json(
+        {
+          error:
+            "We could not read the photos you uploaded. Check your connection and submit again, or contact Rabi on WhatsApp.",
+          code: "kyc-evidence-unavailable",
+          retryable: true,
+        },
+        { status: 422, headers: { "Cache-Control": "no-store" } }
+      );
     }
   }
 
@@ -226,7 +246,10 @@ export async function POST(request: Request) {
     const deterministic = await screenDeterministically({
       front: { url: front as string, bytes: digests.front.base64 ? Buffer.from(digests.front.base64, "base64") : undefined },
       back: { url: back as string, bytes: digests.back.base64 ? Buffer.from(digests.back.base64, "base64") : undefined },
-      selfie: { url: selfie as string },
+      selfie: {
+        url: selfie as string,
+        bytes: digests.selfie.base64 ? Buffer.from(digests.selfie.base64, "base64") : undefined,
+      },
       typedPin: cardNumber,
     });
 

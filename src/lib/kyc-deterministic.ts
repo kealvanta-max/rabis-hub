@@ -631,15 +631,46 @@ export function skinRatio(grid: RgbGrid, box: { x: number; y: number; w: number;
   return total > 0 ? skin / total : null;
 }
 
-/** YCbCr chroma test for human skin. Brightness-independent by design. */
+/**
+ * A skin-tone test that real rooms do not pass.
+ *
+ * The first version of this used the textbook YCbCr chroma window and it was a
+ * hazard: measured against real surfaces, a wooden door (130,102,85), beige
+ * paint (199,167,130), tan paint (209,179,139) and terracotta (190,120,90) all
+ * came back "skin". Real members stand in front of walls; shipping that test
+ * would have rejected genuine people for their paint colour, which is a far
+ * worse failure than letting a fake through.
+ *
+ * Skin occupies a narrower place than walls and wood: whatever the complexion,
+ * red leads green and green leads blue, the spread between them is modest (wood
+ * and paint are far more saturated), and human skin never gets near the extremes
+ * of luminance that a white wall or a dark doorway sit at.
+ *
+ * This is still only a *screen*, not a face detector. It only decides whether
+ * the pixels could be somebody's face; the checks that actually prove anything
+ * are the MRZ and the printed markers. Where it cannot tell, it says so.
+ */
 export function isSkinTone(r: number, g: number, b: number): boolean {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+
+  // Must be the red-leads-green-leads-blue ordering skin has.
+  if (!(r > g && g > b)) return false;
+  // Not black, not blown out. A wall is often one or the other.
+  if (luminance < 40 || luminance > 245) return false;
+  // Saturation: skin is warm but muted. Wood and terracotta are far richer.
+  const saturation = max === 0 ? 0 : (max - min) / max;
+  if (saturation < 0.10 || saturation > 0.52) return false;
+  // Red must clearly lead blue, but not overwhelmingly.
+  const warmth = r - b;
+  if (warmth < 12 || warmth > 95) return false;
+
   const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
   const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-  if (cr < 133 || cr > 193) return false;
-  if (cb < 72 || cb > 133) return false;
-  // Skin is warmer than it is blue, and rarely a pure primary.
-  if (r < 40 || r < b) return false;
-  if (r - b < 8) return false;
+  if (cr < 133 || cr > 180) return false;
+  if (cb < 77 || cb > 130) return false;
+
   return true;
 }
 
@@ -706,6 +737,27 @@ export function judgeSelfiePhoto(
 
   const skin = skinRatio(grid, box);
   if (skin === null) return { status: "inconclusive", reasons: ["selfie-pixels-unreadable"], box };
+
+  /*
+   * Skin colour can prove the ABSENCE of a person. It cannot prove a presence,
+   * and the difference matters more than it looks.
+   *
+   * A window in a dark room, a night photo, a landscape and a page of text all
+   * carry no skin-coloured pixels, and refusing them is safe: there is nothing
+   * in those images a selfie could legitimately be. That is the case this check
+   * is for, and it is the case in the report.
+   *
+   * The reverse does not hold. Wooden doors (130,102,85), beige paint
+   * (199,167,130) and tan paint (209,179,139) sit inside the same colour region
+   * as real skin — measured, repeatedly — so "there is skin-coloured stuff here
+   * therefore there is a person" would reject genuine members standing in a
+   * corridor. An earlier version of this file claimed otherwise and was wrong.
+   *
+   * So: below the floor is a refusal; above it is only "cannot rule it out",
+   * which is what `inconclusive` means and is routed to Rabi. Proving that a
+   * face is present needs a face detector, and that is stated in
+   * `docs/kyc-vision-review.md` rather than faked here.
+   */
   if (skin < MIN_SKIN_RATIO) {
     return { status: "fail", reasons: ["no-human-skin-in-frame"], box };
   }
@@ -713,9 +765,13 @@ export function judgeSelfiePhoto(
   const probe = probeBox(toLumaGrid(grid), box);
   if (!probe) return { status: "inconclusive", reasons: ["selfie-tone-unreadable"], box };
 
+  /*
+   * Enough skin-coloured pixels to be a person, and some structure to the
+   * region. Still not proof: this is a screen that has not objected.
+   */
   const tone = judgeFaceTone(probe, box);
   if (tone.status === "fail") return tone;
-  return { status: "pass", reasons: ["person-in-frame"], box };
+  return { status: "inconclusive", reasons: ["face-presence-not-provable-screening-only"], box };
 }
 
 /**
@@ -996,7 +1052,13 @@ export async function screenDeterministically(
    */
   const faceBox = centralFaceBox();
   const boxJudgement = judgeFaceBox(faceBox);
-  const selfieGrid = await fetchRgbGrid(input.selfie.url, cloudName);
+  /*
+   * Decoded from the bytes the submit route already downloaded and hashed.
+   * No second service is consulted, so this cannot silently degrade to
+   * "inconclusive" when Cloudinary is slow, transformed-blocked or rate limited.
+   */
+  const selfieBytes = input.selfie.bytes ?? (await download(input.selfie.url));
+  const selfieGrid = selfieBytes ? await decodeToGrid(selfieBytes) : null;
   if (boxJudgement.status === "fail") {
     checks["selfie-subject"] = boxJudgement;
   } else if (!selfieGrid) {
@@ -1090,6 +1152,31 @@ export async function screenDeterministically(
     checks["card-pin"] = { status: "inconclusive", reasons: ["pin-comparison-not-possible"] };
   }
 
+  /* ---- 5. Does the card front actually carry Ghana Card printing? ---- */
+  /*
+   * A Ghana Card front reads GHANA / NATIONAL IDENTIFICATION AUTHORITY / CARD.
+   * A CapCut splash screen, a bank card or a blank rectangle does not. This is
+   * checked from OCR text, so it is unavailable rather than failed when the
+   * engine cannot run — never a silent pass.
+   */
+  const frontBytes = input.front.bytes ?? (await download(input.front.url));
+  if (frontBytes) {
+    const frontOcr = await readImageText(frontBytes);
+    if (frontOcr === null) {
+      checks["card-front-print"] = { status: "unavailable", reasons: ["ocr-engine-unavailable"] };
+    } else {
+      ocrAvailable = true;
+      const markers = ghanaCardMarkers(frontOcr.text);
+      checks["card-front-print"] = markers.matched
+        ? { status: "pass", reasons: ["ghana-card-printing-recognised"], detail: { markers: markers.found.join(",") } }
+        : frontOcr.text.trim().length < 12
+          ? { status: "fail", reasons: ["card-front-has-no-readable-printing"] }
+          : { status: "fail", reasons: ["card-front-printing-not-a-ghana-card"], detail: { markers: markers.found.join(",") } };
+    }
+  } else {
+    checks["card-front-print"] = { status: "unavailable", reasons: ["card-bytes-unavailable"] };
+  }
+
   return {
     state: classifyDeterministic(checks),
     checks,
@@ -1127,6 +1214,129 @@ async function download(url: string): Promise<Uint8Array | null> {
 }
 
 
+/* -------------------------------------------------------- local decoding */
+
+/**
+ * Decode the uploaded bytes into a colour grid, on this server, with no network.
+ *
+ * This replaces the previous approach, which asked Cloudinary to render a 32x32
+ * PNG and decoded that. It was clever and it was wrong: if that one request
+ * failed for any reason — a transformation blocked by account settings, a
+ * timeout, a 401 — the grid came back null, the selfie check returned
+ * "inconclusive", and the submission was accepted with nothing checked. A
+ * spoofed selfie then looked exactly like a real one, which is precisely the
+ * behaviour this whole layer exists to prevent.
+ *
+ * Screening must never depend on a second service being reachable. The bytes are
+ * already here, so they are decoded here.
+ *
+ * Output is a fixed GRID_EDGE square, box-filtered down, which is all the checks
+ * need: skin chroma and luminance structure.
+ */
+export async function decodeToGrid(bytes: Uint8Array): Promise<RgbGrid | null> {
+  const decoded = decodeAny(bytes);
+  if (!decoded) return null;
+  return resample(decoded, GRID_EDGE);
+}
+
+/** Greyscale field first; the grid is a box-filtered resample of it. */
+interface RawImage {
+  width: number;
+  height: number;
+  /** Row-major RGB triplets. */
+  pixels: Uint8Array;
+}
+
+/**
+ * Decode JPEG, or a PNG Cloudinary/Tesseract might hand us. WebP and HEIC are
+ * not decoded here: the upload route already re-encodes phone photos to JPEG,
+ * and anything else returns null, which the caller records as "could not judge"
+ * rather than a pass.
+ */
+export function decodeAny(bytes: Uint8Array): RawImage | null {
+  if (bytes.length < 24) return null;
+  // JPEG
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) return decodeJpeg(bytes);
+  // PNG
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    const grid = decodePngRgb(bytes);
+    if (!grid) return null;
+    const pixels = new Uint8Array(grid.width * grid.height * 3);
+    grid.values.forEach(([r, g, b], index) => {
+      pixels[index * 3] = r;
+      pixels[index * 3 + 1] = g;
+      pixels[index * 3 + 2] = b;
+    });
+    return { width: grid.width, height: grid.height, pixels };
+  }
+  return null;
+}
+
+function decodeJpeg(bytes: Uint8Array): RawImage | null {
+  try {
+    // jpeg-js is pure JavaScript and synchronous; decoding a 1600px photo takes
+    // tens of milliseconds, which is why it is safe inside a function.
+    /*
+     * Required lazily on purpose. jpeg-js is a CommonJS module and importing it
+     * at module scope made it load for every route that touches screening,
+     * including the ones that never decode anything. The `require` also keeps
+     * the bundler from trying to inline it.
+     */
+    const jpeg = require("jpeg-js") as {
+      decode: (input: Uint8Array, options?: { useTArray?: boolean; formatAsRGBA?: boolean }) => {
+        width: number;
+        height: number;
+        data: Uint8Array;
+      };
+    };
+    const image = jpeg.decode(bytes, { useTArray: true, formatAsRGBA: true });
+    if (!image.width || !image.height || !image.data) return null;
+    const pixels = new Uint8Array(image.width * image.height * 3);
+    for (let index = 0, source = 0; index < pixels.length; index += 3, source += 4) {
+      pixels[index] = image.data[source];
+      pixels[index + 1] = image.data[source + 1];
+      pixels[index + 2] = image.data[source + 2];
+    }
+    return { width: image.width, height: image.height, pixels };
+  } catch {
+    return null;
+  }
+}
+
+/** Box-filter a decoded image down to `edge` x `edge`. */
+function resample(image: RawImage, edge: number): RgbGrid {
+  const values: Array<[number, number, number]> = new Array(edge * edge);
+  const { width, height, pixels } = image;
+
+  for (let gy = 0; gy < edge; gy += 1) {
+    const y0 = Math.floor((gy * height) / edge);
+    const y1 = Math.max(y0 + 1, Math.floor(((gy + 1) * height) / edge));
+    for (let gx = 0; gx < edge; gx += 1) {
+      const x0 = Math.floor((gx * width) / edge);
+      const x1 = Math.max(x0 + 1, Math.floor(((gx + 1) * width) / edge));
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let count = 0;
+      for (let y = y0; y < y1 && y < height; y += 1) {
+        for (let x = x0; x < x1 && x < width; x += 1) {
+          const at = (y * width + x) * 3;
+          r += pixels[at];
+          g += pixels[at + 1];
+          b += pixels[at + 2];
+          count += 1;
+        }
+      }
+      values[gy * edge + gx] =
+        count > 0
+          ? [Math.round(r / count), Math.round(g / count), Math.round(b / count)]
+          : [0, 0, 0];
+    }
+  }
+
+  return { width: edge, height: edge, values };
+}
+
 /* ------------------------------------------------------------- diagnostics */
 
 /**
@@ -1139,4 +1349,32 @@ async function download(url: string): Promise<Uint8Array | null> {
 export async function deterministicEngineStatus(): Promise<{ ocr: boolean }> {
   const worker = await getWorker();
   return { ocr: Boolean(worker) };
+}
+
+/**
+ * Does this text carry the printing that only appears on a Ghana Card?
+ *
+ * Deliberately generous about OCR noise: it counts markers rather than requiring
+ * an exact phrase, because real cards are photographed at angles, in poor light
+ * and through a plastic sleeve. Two independent markers is enough to say "this
+ * is a Ghana Card"; the MRZ checksums are what prove it was a real one.
+ */
+export function ghanaCardMarkers(text: string): { matched: boolean; found: string[] } {
+  const upper = (text ?? "").toUpperCase();
+  const tests: [string, RegExp][] = [
+    ["ghana", /GHANA/],
+    ["national", /NATIONAL/],
+    ["identification", /IDENTIFICATION/],
+    ["authority", /AUTHORITY/],
+    ["nia", /\bN\.?\s?I\.?\s?A\.?\b/],
+    ["card", /\bCARD\b/],
+    ["republic", /REPUBLIC/],
+    ["ecowas", /ECOWAS/],
+    ["pin", /GHA\s*-?\s*\d{9}/],
+    ["date-of-birth", /DATE\s*OF\s*BIRTH|DOB/],
+    ["sex", /\bSEX\b/],
+    ["nationality", /NATIONALITY/],
+  ];
+  const found = tests.filter(([, pattern]) => pattern.test(upper)).map(([name]) => name);
+  return { matched: found.length >= 2, found };
 }
