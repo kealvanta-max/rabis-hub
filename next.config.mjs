@@ -22,6 +22,38 @@ const nextConfig = {
     // are pulled in.
     optimizePackageImports: ["lucide-react", "framer-motion", "recharts"],
     serverComponentsExternalPackages: ["tesseract.js", "tesseract.js-core"],
+
+    /*
+     * The face detector is loaded lazily from `node_modules` at request time, and
+     * nothing in the import graph tells the bundler to ship it. Without these
+     * three lines the deployment builds fine and then finds no model — screening
+     * silently reports "unavailable" and every selfie falls through to manual
+     * review, which is the exact failure this feature exists to end.
+     */
+    outputFileTracingIncludes: {
+      /*
+       * Narrow on purpose: only the two detectors that run, only the Node builds,
+       * no source maps, no other models.
+       *
+       * The first attempt listed whole package directories and came to 194 MB —
+       * every browser bundle, every map, and the age/gender/recognition models
+       * this never loads. That is wasteful everywhere and close enough to the
+       * function limit to be a build failure waiting to happen.
+       */
+      "/api/upload": [
+        "./node_modules/@vladmandic/face-api/model/ssd_mobilenetv1_model.bin",
+        "./node_modules/@vladmandic/face-api/model/ssd_mobilenetv1_model-weights_manifest.json",
+        "./node_modules/@vladmandic/face-api/model/tiny_face_detector_model.bin",
+        "./node_modules/@vladmandic/face-api/model/tiny_face_detector_model-weights_manifest.json",
+        "./node_modules/@vladmandic/face-api/dist/face-api.node-wasm.js",
+        "./node_modules/@tensorflow/tfjs-core/dist/tf-core.node.js",
+        "./node_modules/@tensorflow/tfjs-core/dist/tf-core.node.js.map",
+        "./node_modules/@tensorflow/tfjs-backend-wasm/dist/tf-backend-wasm.node.js",
+        "./node_modules/@tensorflow/tfjs-backend-cpu/dist/tf-backend-cpu.node.js",
+        "./node_modules/@tensorflow/tfjs-converter/dist/tf-converter.node.js",
+        "./public/kyc/face/**",
+      ],
+    },
   },
   // Application console noise is stripped from production builds.
   compiler:
@@ -57,7 +89,23 @@ const nextConfig = {
     config.ignoreWarnings = [
       ...(config.ignoreWarnings || []),
       { module: /@mediapipe\/tasks-vision/ },
+      // TensorFlow.js references optional native bindings this deployment does
+      // not and cannot ship; the warnings are expected and harmless.
+      { module: /@tensorflow/ },
     ];
+    /*
+     * `face-api.node-wasm` asks for the wasm backend by name at runtime. Marking
+     * it external stops webpack trying to statically resolve a package it only
+     * sees inside a `require` behind a try/catch.
+     */
+    config.externals = config.externals || [];
+    if (Array.isArray(config.externals)) {
+      config.externals.push(
+        "@tensorflow/tfjs-core",
+        "@tensorflow/tfjs-backend-wasm",
+        "@tensorflow/tfjs-backend-cpu"
+      );
+    }
     return config;
   },
   async headers() {
