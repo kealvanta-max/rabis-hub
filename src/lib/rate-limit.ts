@@ -23,6 +23,25 @@ export interface RateLimitResult {
 
 const memory = new Map<string, { count: number; resetAt: number }>();
 
+/**
+ * Ask Upstash whether it is reachable before using it in production.
+ *
+ * The fallback below is an in-process counter, and on Vercel that means the
+ * budget resets every time a cold instance starts. A script that posts slowly
+ * enough to keep triggering new instances effectively has no limit at all — and
+ * that is exactly the shape of the free-tier drain this guards against.
+ *
+ * So the decision is not "is it configured" but "did it ever answer". Until it
+ * does, production refuses anonymous KYC uploads outright rather than pretending
+ * a per-instance counter is a global one. Members who are signed in are never
+ * refused: their budget is per-uid and they have an account to lose.
+ */
+let durableVerified: boolean | null = null;
+
+export function durableLimiterVerified(): boolean | null {
+  return durableVerified;
+}
+
 function memoryLimit(key: string, limit: number, windowMs: number): RateLimitResult {
   const now = Date.now();
   sweepMemory(now);
@@ -119,6 +138,12 @@ export async function rateLimit(
     const ttlSeconds = Number(ttl?.result ?? -1);
     const secondsLeft = ttlSeconds > 0 ? ttlSeconds : windowSeconds;
 
+    // It answered with a real count, so it is genuinely enforcing something.
+    if (durableVerified !== true) {
+      durableVerified = true;
+      console.info("[rate-limit] durable Upstash limiter is live; limits are global.");
+    }
+
     return {
       success: used <= limit,
       remaining: Math.max(0, limit - used),
@@ -126,9 +151,13 @@ export async function rateLimit(
       backend: "upstash",
     };
   } catch (error) {
-    // Never take the site down because the limiter is unreachable: degrade to
-    // the in-process counter and say so.
+    /*
+     * Never take general traffic down because the limiter is unreachable: degrade
+     * to the in-process counter and say so. Callers that guard money or quota can
+     * check `degraded` and refuse — see the upload route.
+     */
     console.error("[rate-limit] durable Upstash limiter unavailable:", (error as Error).message);
+    durableVerified = false;
     return { ...memoryLimit(key, limit, windowMs), degraded: true };
   }
 }

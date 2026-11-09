@@ -44,6 +44,29 @@ exactly the condition under which the previous pipeline accepted everything.
 | `card-mrz` | ICAO TD1 zone from server-side Tesseract, issuer must be `GHA` | no zone found, or a non-blank back with no zone |
 | `card-pin` | the nine digits in the MRZ against the number the member typed | they disagree |
 
+### Manufactured cards
+
+The twelve samples the owner supplied are almost all manufactured: a design-site
+watermark, Mr Bean as the cardholder, a repeated `SAMPLE`, the
+`ARABA SMART BIOMETRIC CARD` specimen, and the placeholder number `000000000`.
+
+The last one is the dangerous one. **An all-zero payload has a valid ICAO check
+digit — zero.** So a checksum cannot tell a specimen from a citizen, and the
+specimens in circulation are built so their front and back agree with each other,
+which is all the check digit actually proves.
+
+Two checks close that:
+
+| check | what it looks for | why it is conclusive |
+| --- | --- | --- |
+| `card-template` | design-site watermarks, `SPECIMEN`, a repeated `SAMPLE`, known specimen name/watermark, `MR BEAN` | a real card carries a real person's name |
+| `card-*-placeholder` | a card number with fewer than four distinct digits | nine digits of real entropy is what a genuine number has |
+
+Both are deliberately narrow, and both are tested against real card text as well
+as specimens. A member surnamed Sample is not flagged: the pattern requires the
+word twice with template context. Refusing a citizen is worse than letting a fake
+reach Rabi, so every pattern ships with evidence that real cards survive it.
+
 ### The selfie screen: a detector, not a colour test
 
 A colour test cannot answer "is there a human face here", and the previous

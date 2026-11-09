@@ -194,6 +194,33 @@ function deterministicMessage(reasons: string[]): string {
   return "We could not accept that photo. Please take it again with the camera, in good light.";
 }
 
+/**
+ * Run the AI provider over an already-screened image.
+ *
+ * Separate from POST so the order can be fixed: this runs BEFORE the file is sent
+ * to Cloudinary. See the note at the upload call for why that matters.
+ */
+async function screenWithProviders(
+  buffered: Buffer,
+  mime: string,
+  purpose: string
+): Promise<
+  | { rejected: false; state: ScreeningState; reasons: string[]; provider: string | null }
+  | { rejected: true; reasons: string[]; provider: string | null }
+> {
+  const payload = { mime: mime || "image/jpeg", base64: buffered.toString("base64") };
+  const screening = await screenSelfie(payload, purpose === "selfie" ? "selfie" : "document");
+  if (screening.state === "rejected") {
+    return { rejected: true, reasons: screening.reasons, provider: screening.provider ?? null };
+  }
+  return {
+    rejected: false,
+    state: screening.state,
+    reasons: screening.reasons,
+    provider: screening.provider ?? null,
+  };
+}
+
 export async function POST(request: Request) {
   /*
    * Signup uploads happen BEFORE the account exists: a new member photographs
@@ -235,6 +262,35 @@ export async function POST(request: Request) {
     if (device) budgets.push(await rateLimit(`upload:v2:dev:${device}`, 60, 60));
     // Backstop for a script minting fresh device ids from one tower.
     budgets.push(await rateLimit(`upload:v2:ip:${clientIp(request)}`, 600, 60));
+  }
+
+  /*
+   * A per-instance counter is not a limit.
+   *
+   * On Vercel every cold start gets a fresh memory map, so `degraded: true` means
+   * the number protecting Cloudinary and Firebase can be reset by simply waiting
+   * for a new instance. That is the free-tier drain in slow motion.
+   *
+   * Signed-in members are exempt: their budget is per-uid, abuse costs them their
+   * own account, and refusing them would take down the dashboard for a real
+   * outage at Upstash. Anonymous KYC uploads — the ones a script can trigger
+   * without any account at all — are refused instead, with a clear reason.
+   */
+  const anonymous = !actor;
+  const degraded = budgets.some((entry) => entry.degraded);
+
+  if (anonymous && degraded) {
+    console.error(
+      "[upload] refusing anonymous upload: the shared rate limiter is not reachable, so there is no global budget to spend."
+    );
+    return NextResponse.json(
+      {
+        error:
+          "Photo uploads are paused for a moment while we check our connection. Please try again shortly, or send your documents to Rabi on WhatsApp.",
+        code: "limiter-unavailable",
+      },
+      { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "60" } }
+    );
   }
 
   const exhausted = budgets.find((entry) => !entry.success);
@@ -327,17 +383,80 @@ export async function POST(request: Request) {
     );
   }
 
+  /*
+   * SCREEN FIRST. UPLOAD SECOND.
+   *
+   * This order is the whole point of the route, and it used to be backwards: the
+   * file went to Cloudinary, and only afterwards was it screened, with a delete
+   * fired if the screen refused it.
+   *
+   * That is a free-tier drain. Cloudinary bills the upload when it happens, not
+   * when the file survives. A script posting fake Ghana cards — or a wall, or the
+   * same file a thousand times — spent real storage and transformation quota on
+   * every attempt, and the cleanup call only tidied the bucket afterwards.
+   *
+   * Now a refused image never leaves this function. Only files that survive
+   * screening, under the shared rate limits above, are ever sent to Cloudinary.
+   */
   const timestamp = String(Math.floor(Date.now() / 1000));
   const params: Record<string, string> = { folder: UPLOAD_FOLDER, timestamp };
 
   /*
-   * No upload-time transformation on purpose.
-   *
-   * The device already re-encodes photos to 1600px JPEG before they are sent, so
-   * a transformation here bought nothing, and older Cloudinary accounts can
-   * reject it when strict transformations are switched on. Fewer signed
-   * parameters means fewer ways for a perfectly good credential to fail.
+   * No upload-time transformation on purpose: the device already re-encodes to
+   * 1600px JPEG, and older Cloudinary accounts reject transformations when strict
+   * mode is on.
    */
+
+  let screened: { state: ScreeningState; reasons: string[]; provider: string | null } | null = null;
+
+  if (kind === "image") {
+    /*
+     * Every image is screened here, whichever slot it claims. `purpose` is a
+     * client-declared string, so a script can post a dog photo as
+     * `purpose: "document"`; the bytes decide which check applies, not the label.
+     */
+    const deterministic = await judgeUploadedImage(buffered, purpose);
+    if (deterministic.state === "rejected") {
+      console.info("[upload] refused before storage", { purpose, reasons: deterministic.reasons });
+      return NextResponse.json(
+        {
+          error: deterministicMessage(deterministic.reasons),
+          code: "kyc-screening-rejected",
+          screening: "rejected",
+          reasons: deterministic.reasons,
+        },
+        { status: 422, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    const provider = await screenWithProviders(buffered, file.type, purpose);
+    if (provider.rejected) {
+      console.info("[upload] refused before storage by provider", {
+        purpose,
+        reasons: provider.reasons,
+        provider: provider.provider,
+      });
+      return NextResponse.json(
+        {
+          error: rejectionMessage(provider.reasons),
+          code: "kyc-selfie-rejected",
+          screening: "rejected",
+          reasons: provider.reasons,
+        },
+        { status: 422, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+
+    /*
+     * Deterministic reasons are merged rather than discarded. When the screen
+     * could not confirm a face, that is the most useful thing Rabi can be told,
+     * and it used to be thrown away as soon as the provider returned its own
+     * (usually empty) list.
+     */
+    const reasons = [...deterministic.reasons, ...provider.reasons];
+    if (deterministic.note) reasons.push(deterministic.note);
+    screened = { state: provider.state, reasons, provider: provider.provider };
+  }
 
   const body = new FormData();
   body.append("file", file);
@@ -371,94 +490,19 @@ export async function POST(request: Request) {
       );
     }
 
-    /*
-     * A selfie is screened the moment it lands, not at the end of signup.
-     *
-     * The member sees "not a human face" while the upload box is still on screen,
-     * and the file is deleted from Cloudinary so a rejected photo never sits in
-     * storage waiting for a reviewer. If the AI cannot run at all, the upload
-     * still succeeds and the final submission sends the application to Rabi,
-     * because losing a real member to an API outage is not an option.
-     */
-    /*
-     * Everything that is an image gets screened here, whichever slot it claims.
-     *
-     * `purpose` is a client-declared string, so a script can upload a dog photo
-     * as `purpose: "document"` and skip a selfie-only check. That is not a
-     * bypass of the block — the submission route re-downloads the bytes and
-     * screens all three images itself — but a refused photo should never reach
-     * storage, and storage is what this route writes to.
-     *
-     * The selfie slot asks the cheap selfie question. A document slot asks the
-     * card question, with the "is there a human face" gate withheld because a
-     * card photo legitimately contains no face (see `classifyVisionSignals`,
-     * full scope). Either way a refusal deletes the file.
-     */
-    if (kind === "image") {
-      /*
-       * Deterministic gate first, on the bytes we just received.
-       *
-       * This runs before — and independently of — any AI provider, so a selfie
-       * with no person in it is refused even when every key is missing or the
-       * free quota is spent. That was the hole: the only live check was an LLM
-       * call, so when it did not answer, anything at all was accepted.
-       */
-      const deterministic = await judgeUploadedImage(buffered, purpose);
-      if (deterministic.state === "rejected") {
-        void destroyCloudinaryAsset(data.secure_url, kind);
-        console.info("[upload] refused by deterministic screening", {
-          purpose,
-          reasons: deterministic.reasons,
-        });
-        return NextResponse.json(
-          {
-            error: deterministicMessage(deterministic.reasons),
-            code: "kyc-screening-rejected",
-            screening: "rejected",
-            reasons: deterministic.reasons,
-          },
-          { status: 422, headers: { "Cache-Control": "no-store" } }
-        );
-      }
-
-      const payload = { mime: file.type || "image/jpeg", base64: buffered.toString("base64") };
-      const screening = await screenSelfie(
-        payload,
-        purpose === "selfie" ? "selfie" : "document"
-      );
-      if (screening.state === "rejected") {
-        void destroyCloudinaryAsset(data.secure_url, kind);
-        console.info("[upload] selfie refused by screening", { reasons: screening.reasons, provider: screening.provider });
-        return NextResponse.json(
-          {
-            error: rejectionMessage(screening.reasons),
-            code: "kyc-selfie-rejected",
-            screening: "rejected",
-            reasons: screening.reasons,
-          },
-          { status: 422, headers: { "Cache-Control": "no-store" } }
-        );
-      }
-      /*
-       * The deterministic reasons are merged in rather than discarded. When the
-       * screen could not confirm a face, that fact is the single most useful
-       * thing Rabi can be told, and it used to be thrown away the moment the AI
-       * provider returned its own (usually empty) list.
-       */
-      const reasons = [...deterministic.reasons, ...screening.reasons];
-      if (deterministic.note) reasons.push(deterministic.note);
+    if (screened) {
       return NextResponse.json(
         {
           secure_url: data.secure_url,
-          screening: screening.state satisfies ScreeningState,
-          reasons,
-          deterministic_note: deterministic.note ?? null,
-          provider: screening.provider ?? null,
+          screening: screened.state satisfies ScreeningState,
+          reasons: screened.reasons,
+          provider: screened.provider,
         },
         { headers: { "Cache-Control": "no-store" } }
       );
     }
 
+    /* Videos bypass image screening; the clip is checked by the liveness route. */
     return NextResponse.json({ secure_url: data.secure_url });
   } catch (error) {
     console.error("[upload] Cloudinary request failed:", (error as Error).message);

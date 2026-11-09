@@ -168,8 +168,40 @@ describe("upload-time screening covers every image slot", () => {
     expect(route).toContain("purpose === \"selfie\" ? \"selfie\" : \"document\"");
   });
 
-  it("deletes the stored file when screening refuses it", () => {
-    expect(route).toContain("destroyCloudinaryAsset(data.secure_url, kind)");
+  it("screens BEFORE anything reaches Cloudinary", () => {
+    /*
+     * This used to assert the opposite — that a refused file was uploaded and
+     * then deleted. That order is a free-tier drain: Cloudinary bills the upload
+     * when it happens, so every fake card a script posted cost real quota and the
+     * delete call only tidied up afterwards.
+     *
+     * The assertion is on order, not presence, because "screening happens" was
+     * already true and was not the problem.
+     */
+    /*
+     * Look for the *upload* call specifically. The first `api.cloudinary.com`
+     * string in the file is inside `destroyCloudinaryAsset`, which is a different
+     * concern and sits near the top by design.
+     */
+    const screenAt = route.indexOf("judgeUploadedImage(buffered, purpose)");
+    const uploadAt = route.indexOf("kind === \"video\" ? \"video\" : \"image\"}/upload");
+
+    expect(screenAt).toBeGreaterThan(-1);
+    expect(uploadAt).toBeGreaterThan(-1);
+    expect(screenAt, "screening must run before the upload call").toBeLessThan(uploadAt);
+  });
+
+  it("does not delete-after-upload as its rejection strategy", () => {
+    /*
+     * A residual destroy call on the refusal path would mean a file still reached
+     * storage. It is allowed to exist for orphan cleanup, but not inside the
+     * rejection branches.
+     */
+    const rejectBranch = route.slice(
+      route.indexOf("kyc-screening-rejected"),
+      route.indexOf("const body = new FormData();")
+    );
+    expect(rejectBranch).not.toContain("destroyCloudinaryAsset(");
   });
 
   it("asks a card question for a document slot", () => {

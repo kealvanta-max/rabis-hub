@@ -1226,6 +1226,9 @@ export async function screenDeterministically(
    * checked from OCR text, so it is unavailable rather than failed when the
    * engine cannot run — never a silent pass.
    */
+  /* The MRZ step already downloaded the back when it could; reuse it. */
+  const backBytesForTemplate = input.back.bytes ?? (await download(input.back.url));
+  let lastFrontText = "";
   const frontBytes = input.front.bytes ?? (await download(input.front.url));
   if (frontBytes) {
     const frontOcr = await readImageText(frontBytes);
@@ -1233,6 +1236,7 @@ export async function screenDeterministically(
       checks["card-front-print"] = { status: "unavailable", reasons: ["ocr-engine-unavailable"] };
     } else {
       ocrAvailable = true;
+      lastFrontText = frontOcr.text;
       const markers = ghanaCardMarkers(frontOcr.text);
       checks["card-front-print"] = markers.matched
         ? { status: "pass", reasons: ["ghana-card-printing-recognised"], detail: { markers: markers.found.join(",") } }
@@ -1242,6 +1246,44 @@ export async function screenDeterministically(
     }
   } else {
     checks["card-front-print"] = { status: "unavailable", reasons: ["card-bytes-unavailable"] };
+  }
+
+  /* ---- 6. Is this a manufactured card rather than a photographed one? ---- */
+  /*
+   * A template, a stock photo, or a design mock-up is not a citizen's card, and
+   * the tell is in the text: a watermark for a template site, the word SPECIMEN,
+   * a repeated SAMPLE, or a placeholder number of all zeros.
+   *
+   * Both sides are checked. The specimens in circulation carry their watermark on
+   * whichever side the designer liked, and the back is where the all-zero MRZ
+   * lives.
+   *
+   * When OCR is unavailable this is `unavailable`, never `pass`: a check that
+   * cannot run must not become an alibi for a fraudster.
+   */
+  let backText = "";
+  if (backBytesForTemplate) {
+    const backOcr = await readImageText(backBytesForTemplate);
+    if (backOcr === null) {
+      checks["card-template"] = { status: "unavailable", reasons: ["ocr-engine-unavailable"] };
+    } else {
+      ocrAvailable = true;
+      backText = backOcr.text;
+    }
+  }
+
+  if (!checks["card-template"]) {
+    const template = cardTemplateMarkers(`${lastFrontText} ${backText}`);
+    const placeholder = cardNumberIsPlaceholder(input.typedPin) || cardNumberIsPlaceholder(read?.documentNumber ?? "");
+    const found = [...template.found, ...(placeholder ? ["placeholder-number"] : [])];
+
+    checks["card-template"] = found.length > 0
+      ? {
+          status: "fail",
+          reasons: [placeholder && template.found.length === 0 ? "card-number-is-a-placeholder" : "card-is-a-manufactured-template"],
+          detail: { found: found.join(",") },
+        }
+      : { status: "pass", reasons: ["no-template-markings"] };
   }
 
   return {
@@ -1474,6 +1516,71 @@ export async function deterministicEngineStatus(): Promise<{ ocr: boolean }> {
  * and through a plastic sleeve. Two independent markers is enough to say "this
  * is a Ghana Card"; the MRZ checksums are what prove it was a real one.
  */
+/**
+ * The words that appear on every template card and never on a real one.
+ *
+ * The user supplied twelve card images and they are almost all manufactured: one
+ * carries a watermark for a design site, one shows Mr Bean as the cardholder, one
+ * says `SAMPLE SAMPLE SAMPLE`, one is the famous `ARABA SMART BIOMETRIC CARD`
+ * specimen, and several carry the `000000000` ID that produces an all-zero MRZ.
+ *
+ * These are not typos a member makes. They are the fingerprints of a design
+ * template, a stock photo, or a Photoshop demonstration — and unlike a colour
+ * heuristic, this evidence is genuinely conclusive: a real Ghana Card has a real
+ * person's name on it.
+ *
+ * Deliberately narrow. Matching on "SAMPLE" alone would refuse a member whose
+ * surname happens to be Sample, so each pattern requires template context. The
+ * cost of a miss here is one fake reaching Rabi's queue; the cost of a false
+ * positive is refusing a real citizen, which is worse.
+ */
+const TEMPLATE_MARKERS: [string, RegExp][] = [
+  ["design-watermark", /\b[A-Z]{2,}TEMPL\.?\s?COM\b|MYTEMPL|TEMPLATE\s*COM|READY\s*TEMPLATES?/],
+  ["specimen-word", /\bSPECIMEN\b|\bSAMPLE\s+CARD\b|\bVOID\b/],
+  ["repeated-sample", /\bSAMPLE\b[\s\S]{0,40}?\bSAMPLE\b/],
+  ["placeholder-name", /BIOMETRIC\s*CARD[\s\S]{0,40}?ARABA|\bARABA\b[\s\S]{0,20}?SMART\b/],
+  ["celebrity-cardholder", /\bMR\s+BEAN\b|\bROWAN\s+ATKINSON\b/],
+];
+
+export interface TemplateFinding {
+  templated: boolean;
+  found: string[];
+}
+
+/**
+ * Look for the marks of a manufactured card.
+ *
+ * `text` is OCR output from the whole card — front and back are both worth
+ * checking, because the specimens in circulation carry the tell on either side.
+ */
+export function cardTemplateMarkers(text: string): TemplateFinding {
+  const upper = (text ?? "").toUpperCase().replace(/\s+/g, " ");
+  const found = TEMPLATE_MARKERS.filter(([, pattern]) => pattern.test(upper)).map(([name]) => name);
+  return { templated: found.length > 0, found };
+}
+
+/**
+ * A card number made of one repeated group of zeros.
+ *
+ * Every specimen in the user's set uses `GHA-000000000-0`, which is why their MRZ
+ * lines read `<0000000<<<0012<<…`. The nine-digit body is all zeros and the check
+ * digit is therefore zero too — so an all-zero payload passes an ICAO checksum
+ * **perfectly**, and the checksum proves only that the seven/five/six digits
+ * repeated on both sides of the card agree, which a template guarantees by
+ * design.
+ *
+ * A real Ghana Card number is nine digits of real entropy. Requiring at least
+ * four distinct digits is lenient enough to pass any genuine card and still
+ * rejects every placeholder.
+ */
+export function cardNumberIsPlaceholder(pin: string): boolean {
+  const digits = (pin ?? "").replace(/\D/g, "");
+  if (digits.length < 9) return false;
+  const body = digits.slice(0, 9);
+  const distinct = new Set(body.split("")).size;
+  return distinct < 4;
+}
+
 export function ghanaCardMarkers(text: string): { matched: boolean; found: string[] } {
   const upper = (text ?? "").toUpperCase();
   const tests: [string, RegExp][] = [
