@@ -56,6 +56,16 @@ export interface FaceDetection {
    */
   status: "detected" | "none" | "unavailable";
   detail?: string;
+  /**
+   * Eyes found on the best face, from the 68-point landmark model.
+   *
+   * This is the "is it really a person" refinement the report asked for: a face
+   * box can be matched by a laptop screen playing a video or by a photograph of
+   * a photograph, but a landmark model that places two eye contours on the face
+   * has actually found facial structure. `unavailable` when the model did not
+   * run — never a refusal.
+   */
+  eyes?: "both" | "partial" | "none" | "unavailable";
 }
 
 /**
@@ -68,20 +78,41 @@ export const FACE_CONFIDENCE_FLOOR = 0.42;
 /** Detections we keep for the admin view even when they are not conclusive. */
 const REPORT_FLOOR = 0.15;
 
+interface LandmarkPoint {
+  x: number;
+  y: number;
+}
+
+interface FaceLandmarks {
+  positions: LandmarkPoint[];
+}
+
+interface Detection {
+  score?: number;
+  box: { x: number; y: number; width: number; height: number };
+  landmarks?: FaceLandmarks;
+}
+
 interface FaceApi {
   nets: {
     ssdMobilenetv1: { loadFromDisk: (dir: string) => Promise<void> };
     tinyFaceDetector: { loadFromDisk: (dir: string) => Promise<void> };
+    faceLandmark68Net: { loadFromDisk: (dir: string) => Promise<void> };
   };
   SsdMobilenetv1Options: new (options: { minConfidence: number }) => unknown;
   TinyFaceDetectorOptions: new (options: {
     inputSize: number;
     scoreThreshold: number;
   }) => unknown;
-  detectAllFaces: (
-    tensor: unknown,
-    options: unknown
-  ) => Promise<Array<{ score?: number; box: { x: number; y: number; width: number; height: number } }>>;
+  detectAllFaces: (tensor: unknown, options: unknown) => Promise<Detection[]>;
+  detectSingleFace: (tensor: unknown, options: unknown) => SingleFace;
+}
+
+/** The chainable result `face-api` returns; only the calls used here are typed. */
+interface SingleFace {
+  withFaceLandmarks: () => {
+    run: () => Promise<{ landmarks?: FaceLandmarks } | undefined>;
+  };
 }
 
 interface TfApi {
@@ -147,6 +178,12 @@ async function loadRuntime(modelDir: string): Promise<Runtime> {
 
     await faces.nets.ssdMobilenetv1.loadFromDisk(modelDir);
     await faces.nets.tinyFaceDetector.loadFromDisk(modelDir);
+    /*
+     * The landmark model is optional by design: it refines a face that was
+     * already found, so a missing file must not disable detection entirely.
+     * A failure here is swallowed and reported as "eyes unavailable".
+     */
+    await faces.nets.faceLandmark68Net.loadFromDisk(modelDir).catch(() => undefined);
 
     return { tf, api: faces };
   })().catch((error: unknown) => {
@@ -253,10 +290,19 @@ export async function detectFaces(
       height: box.height / usableHeight,
     }));
 
+    /*
+     * Ask the landmark model where the eyes are, but only on a face that was
+     * already detected. Running it on empty scenery would burn CPU to learn
+     * nothing, and its answer is a refinement, not a detector.
+     */
+    const eyes =
+      best >= REPORT_FLOOR ? await findEyes(api, tensor, usableWidth, usableHeight) : "none";
+
     return {
       human: best >= FACE_CONFIDENCE_FLOOR,
       score: Number(best.toFixed(3)),
       boxes,
+      eyes,
       status: best >= FACE_CONFIDENCE_FLOOR ? "detected" : "none",
     };
   } catch (error) {
@@ -273,6 +319,66 @@ export async function detectFaces(
     } catch {
       // Disposal after a failed kernel can itself throw; nothing to do about it.
     }
+  }
+}
+
+/*
+ * The 68-point landmark layout, from the dlib/face-api model this uses.
+ *
+ * Points 36-41 outline the first eye, 42-47 the second. Only the presence of
+ * those two clusters is used — not their geometry — so a closed eye, a pair of
+ * glasses, or an unusual face shape all still count. The question being asked
+ * is "did the model find eye structure on this face", which distinguishes a
+ * photograph of a person from a photograph of a screen or a mask held over one.
+ */
+const LEFT_EYE = [36, 37, 38, 39, 40, 41];
+const RIGHT_EYE = [42, 43, 44, 45, 46, 47];
+
+/**
+ * Where are the eyes on the best face?
+ *
+ * Returns `unavailable` whenever the model could not run or produced nothing
+ * usable, because that must never be read as "no eyes". Only a model that
+ * genuinely looked and found one cluster instead of two earns `partial`, and
+ * even that is deliberately not a refusal — see `judgeSelfieWithDetection`.
+ */
+async function findEyes(
+  api: FaceApi,
+  tensor: TfTensor,
+  width: number,
+  height: number
+): Promise<"both" | "partial" | "none" | "unavailable"> {
+  try {
+    const face = api
+      .detectSingleFace(tensor, new api.SsdMobilenetv1Options({ minConfidence: REPORT_FLOOR }))
+      .withFaceLandmarks();
+    const result = await face.run();
+    const positions = result?.landmarks?.positions;
+    if (!positions || positions.length < 68) return "unavailable";
+
+    const inside = (indexes: number[]) =>
+      indexes.filter((index) => {
+        const point = positions[index];
+        return (
+          point &&
+          Number.isFinite(point.x) &&
+          Number.isFinite(point.y) &&
+          point.x >= 0 &&
+          point.y >= 0 &&
+          point.x <= width &&
+          point.y <= height
+        );
+      }).length;
+
+    const left = inside(LEFT_EYE);
+    const right = inside(RIGHT_EYE);
+
+    // A cluster counts when at least four of its six points landed in the frame:
+    // one stray point is noise, not an eye.
+    const clusters = (left >= 4 ? 1 : 0) + (right >= 4 ? 1 : 0);
+    return clusters === 2 ? "both" : clusters === 1 ? "partial" : "none";
+  } catch {
+    return "unavailable";
   }
 }
 

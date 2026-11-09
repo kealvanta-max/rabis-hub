@@ -382,6 +382,18 @@ export interface Td1Read {
   /** Which of the four failed, for the admin record. */
   failedChecks: string[];
   nationality: string;
+  /**
+   * The holder's name, split at the `<<` on line 3.
+   *
+   * This is the only identity data a photographed Ghana Card gives up reliably,
+   * and it is what the signup compares against the legal name the member typed.
+   */
+  surname: string;
+  givenNames: string;
+  /** "M" or "F". Empty when the character was unreadable. */
+  sex: string;
+  /** Raw six-digit ICAO date of birth from line 2. */
+  dateOfBirth: string;
 }
 
 const TD1_LINE = /^[A-Z0-9<]{30}$/;
@@ -401,11 +413,26 @@ export function readTd1(text: string): Td1Read | null {
     .map((line) => line.replace(/\s+/g, "").replace(/[^A-Z0-9<]/g, ""))
     .filter((line) => line.length > 0);
 
+  /*
+   * Anchor on the TD1 header, not on position.
+   *
+   * OCR output contains header text above the zone — `REPUBLIC OF GHANA`,
+   * `NATIONAL IDENTIFICATION AUTHORITY` — and a sliding three-line window happily
+   * matched those padded lines with the first real MRZ line. That produced a
+   * "surname" of `0020892793GHA`: the document number read as a family name, and
+   * the identity check then reported a *consistent* match for whoever was typing.
+   *
+   * Line 1 of a TD1 always begins `I<` or `ID` followed by the issuing state, so
+   * that is the anchor. Everything after it must be lines 2 and 3.
+   */
   const padded = lines.map((line) => (line.length < 30 ? line.padEnd(30, "<") : line.slice(0, 30)));
 
-  for (let start = 0; start + 2 < padded.length + 1; start += 1) {
+  const headers = padded
+    .map((line, index) => (line.startsWith("I<") || line.startsWith("ID") ? index : -1))
+    .filter((index) => index !== -1 && index + 2 < padded.length);
+
+  for (const start of headers) {
     const window = [padded[start], padded[start + 1], padded[start + 2]];
-    if (window.length !== 3) continue;
     if (!window.every((line) => TD1_LINE.test(line))) continue;
 
     const [line1, line2, line3] = window;
@@ -429,16 +456,59 @@ export function readTd1(text: string): Td1Read | null {
     const compositeSource = `${line1.slice(5, 30)}${line2.slice(0, 7)}${line2.slice(8, 15)}${line2.slice(18, 29)}`;
     if (!check(line2[29], compositeSource)) failedChecks.push("composite");
 
+    /*
+     * Line 3 is `SURNAME<<GIVEN<NAMES`. The split has to happen before the filler
+     * is stripped, because `<<` separates the two fields while a single `<` is
+     * just a space inside a name.
+     */
+    const nameParts = line3.split("<<");
+    const tidy = (value: string) => value.replace(/</g, " ").replace(/\s+/g, " ").trim();
+
+    /*
+     * A name field must read like a name.
+     *
+     * The check that failed here: a card whose line 3 held only the document
+     * number (`0020892793GHA`) was parsed with that number as the surname, and
+     * the comparison against it then reported *consistent*. Refusing anything
+     * with a four-digit run means a misread line can only make the comparison
+     * "could not check", never a false match.
+     */
+    const looksLikeName = (value: string) => /[A-Z]/.test(value) && !/[0-9]{4}/.test(value);
+    const surname = tidy(nameParts[0] ?? "");
+    const givenNames = tidy(nameParts.slice(1).join(" "));
+
     return {
       lines: [line1, line2, line3],
       documentNumber,
       checksumsValid: failedChecks.length === 0,
       failedChecks,
       nationality: line2.slice(15, 18).replace(/</g, ""),
+      surname: looksLikeName(surname) ? surname : "",
+      givenNames: looksLikeName(givenNames) ? givenNames : "",
+      sex: line2[7] === "M" || line2[7] === "F" ? line2[7] : "",
+      dateOfBirth: line2.slice(0, 6),
     };
   }
 
   return null;
+}
+
+/**
+ * Read the holder's identity from the machine-readable zone on the card back.
+ *
+ * The MRZ is printed in OCR-B in a clean band, which is why it survives a
+ * photograph that defeats the rest of the card: measured on low-resolution
+ * samples, Tesseract recovered `I<GHA…` from the back while reading nothing
+ * usable from the front.
+ *
+ * Returns null when no TD1 zone could be parsed. That is not a verdict — the
+ * caller records it as "could not compare", never as a mismatch.
+ */
+export async function readCardIdentity(bytes: Uint8Array | null): Promise<Td1Read | null> {
+  if (!bytes || bytes.length === 0) return null;
+  const ocr = await readImageText(bytes);
+  if (!ocr) return null;
+  return readTd1(ocr.text);
 }
 
 function check(observed: string | undefined, source: string): boolean {
@@ -796,7 +866,14 @@ export function judgeSelfiePhoto(
  */
 export function judgeSelfieWithDetection(
   colour: FaceHeuristic,
-  detection: { human: boolean; status: "detected" | "none" | "unavailable"; score: number; detail?: string }
+  detection: {
+    human: boolean;
+    status: "detected" | "none" | "unavailable";
+    score: number;
+    detail?: string;
+    /** Landmark answer from `detectFaces`; absent when the caller has none. */
+    eyes?: "both" | "partial" | "none" | "unavailable";
+  }
 ): FaceHeuristic {
   /*
    * The detector wins, always.
@@ -812,9 +889,31 @@ export function judgeSelfieWithDetection(
    * allowed to overrule a model that looked.
    */
   if (detection.status === "detected" && detection.human) {
+    /*
+     * The eye question, and why it never refuses anyone.
+     *
+     * A face box can be produced by a photograph of a screen or by a print held
+     * in front of the lens. Landmarks are stronger evidence that eye structure
+     * is actually there, so two eye clusters are recorded as a pass.
+     *
+     * But `partial` and `none` are NOT failures. A member in glasses, standing
+     * back from the camera, blinking at the wrong moment, or simply small in the
+     * frame can lose both clusters while being entirely genuine, and the
+     * detector already scored her face 0.9. Refusing on this would repeat the
+     * deep-skin-tone mistake in a new costume. So a face that was found but has
+     * no eyes is *flagged for Rabi* by name, and she decides.
+     */
+    const eyes = detection.eyes ?? "unavailable";
+    const eyeNote =
+      eyes === "both"
+        ? [`eyes-detected`]
+        : eyes === "unavailable"
+          ? []
+          : [`eyes-${eyes}-face-found-please-confirm`];
+
     return {
       status: "pass",
-      reasons: [`human-face-detected-score-${detection.score.toFixed(2)}`],
+      reasons: [`human-face-detected-score-${detection.score.toFixed(2)}`, ...eyeNote],
       box: colour.box,
     };
   }

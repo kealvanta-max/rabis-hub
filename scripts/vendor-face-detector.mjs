@@ -50,6 +50,17 @@ const FILES = [
     "node_modules/@vladmandic/face-api/model/tiny_face_detector_model-weights_manifest.json",
     "tiny_face_detector_model-weights_manifest.json",
   ],
+  /*
+   * Landmarks, for the eye question. 68 points on a face are what separates a
+   * photograph of a person from a photograph of a screen or a printout held over
+   * a face: the detector can be fooled by a good print, but the landmark model
+   * still has to find eye and jaw structure. 360 KB, and loaded lazily.
+   */
+  ["node_modules/@vladmandic/face-api/model/face_landmark_68_model.bin", "face_landmark_68_model.bin"],
+  [
+    "node_modules/@vladmandic/face-api/model/face_landmark_68_model-weights_manifest.json",
+    "face_landmark_68_model-weights_manifest.json",
+  ],
   // The WebAssembly kernels TensorFlow.js runs the model on. Three flavours
   // because the runtime picks by CPU feature and a missing file is a hard stop.
   [

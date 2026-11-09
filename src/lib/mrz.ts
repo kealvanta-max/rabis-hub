@@ -24,6 +24,18 @@ export interface Td1Fields {
   dateOfExpiryCheck: number | null;
   compositeCheck: number | null;
   nationality: string;
+  /**
+   * The holder's name from line 3, as surname and given names.
+   *
+   * TD1 splits the name with `<<`, and pads the rest with `<`. This is the one
+   * piece of identity data on a Ghana Card that survives even a poor photograph,
+   * because the MRZ is printed in machine-readable OCR-B and sits in a clean band
+   * at the bottom of the card.
+   */
+  surname: string;
+  givenNames: string;
+  /** "M" or "F" from line 2 position 7. Empty when unreadable. */
+  sex: string;
   /** Which checks passed and which failed, for the audit trail. */
   documentNumberValid: boolean;
   dateOfBirthValid: boolean;
@@ -112,6 +124,17 @@ export function parseTd1(text: string): Td1Fields | null {
   const dateOfExpiry = line2.slice(8, 14);
   const dateOfExpiryCheck = asNumber(line2[14]);
   const nationality = line2.slice(15, 18).replace(/</g, "");
+  const sex = line2[7] === "M" || line2[7] === "F" ? line2[7] : "";
+
+  /*
+   * Line 3 is the name: `SURNAME<<GIVEN<NAMES<<<<<`. The double `<` is the
+   * separator between the two, and single `<` are spaces inside a name. Stripping
+   * the fill first would lose that distinction, so it is split before tidying.
+   */
+  const nameParts = line3.split("<<");
+  const tidy = (value: string) => value.replace(/</g, " ").replace(/\s+/g, " ").trim();
+  const surname = tidy(nameParts[0] ?? "");
+  const givenNames = tidy(nameParts.slice(1).join(" "));
   const compositeCheck = asNumber(line2[29]);
 
   const documentNumberValid = documentNumberCheck !== null && mrzCheckDigit(line1.slice(5, 14)) === documentNumberCheck;
@@ -132,6 +155,9 @@ export function parseTd1(text: string): Td1Fields | null {
     dateOfExpiryCheck,
     compositeCheck,
     nationality,
+    surname,
+    givenNames,
+    sex,
     documentNumberValid,
     dateOfBirthValid,
     dateOfExpiryValid,

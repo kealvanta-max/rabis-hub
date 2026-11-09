@@ -45,6 +45,8 @@ const nextConfig = {
         "./node_modules/@vladmandic/face-api/model/ssd_mobilenetv1_model-weights_manifest.json",
         "./node_modules/@vladmandic/face-api/model/tiny_face_detector_model.bin",
         "./node_modules/@vladmandic/face-api/model/tiny_face_detector_model-weights_manifest.json",
+        "./node_modules/@vladmandic/face-api/model/face_landmark_68_model.bin",
+        "./node_modules/@vladmandic/face-api/model/face_landmark_68_model-weights_manifest.json",
         "./node_modules/@vladmandic/face-api/dist/face-api.node-wasm.js",
         "./node_modules/@tensorflow/tfjs-core/dist/tf-core.node.js",
         "./node_modules/@tensorflow/tfjs-core/dist/tf-core.node.js.map",

@@ -86,6 +86,23 @@ export interface UserDoc {
   plans?: string[];
   ghanaCardNumber?: string;
   ghanaCardValid?: boolean;
+  /** The nine digits read from the card's machine-readable zone by the server. */
+  ghanaCardMrzNumber?: string;
+  /**
+   * How the legal name typed at signup compared with the name on the card.
+   * Written by `/api/signup/submit`; informational for Rabi, never an automatic
+   * decision.
+   */
+  kycIdentityOutcome?: "consistent" | "mostly-consistent" | "inconsistent" | "not-checked";
+  kycIdentitySentence?: string;
+  firstName?: string;
+  lastName?: string;
+  otherNames?: string;
+  previousNames?: string;
+  dateOfBirth?: string;
+  sex?: string;
+  nationality?: string;
+  placeOfIssuance?: string;
   ghanaCardFront: string;
   ghanaCardBack: string;
   passportPhoto: string;
@@ -142,6 +159,17 @@ export interface AchieverTier {
 export interface RegistrationData {
   firstName: string;
   lastName: string;
+  /*
+   * Legal identity, collected on step one and compared with the card on step
+   * two. All optional except the two names: a member with no former name, or
+   * who would rather not label their sex, must still be able to register.
+   */
+  previousNames?: string;
+  otherNames?: string;
+  dateOfBirth?: string;
+  sex?: string;
+  nationality?: string;
+  placeOfIssuance?: string;
   email: string;
   phone: string;
   location: string;
