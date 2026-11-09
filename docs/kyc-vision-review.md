@@ -30,42 +30,60 @@ The linked demo source has material integration caveats:
 
 ## Deterministic checks (no AI provider involved)
 
-`src/lib/kyc-deterministic.ts` answers five questions from the uploaded bytes
-themselves. It runs before any model is consulted, so a spoofed image is still
+`src/lib/kyc-deterministic.ts` (with `src/lib/kyc-face-server.ts` for the face
+model) answers these questions from the uploaded bytes themselves. It runs before any model is consulted, so a spoofed image is still
 caught when every provider key is missing, dead, or out of free quota — which is
 exactly the condition under which the previous pipeline accepted everything.
 
 | check | what it measures | refusing value |
 | --- | --- | --- |
-| `selfie-subject` | share of skin-toned pixels in the central 60% × 62% of the frame, then light-and-shadow structure | under 10% skin-toned pixels, or a flat region. **Above the floor it returns `inconclusive`, not `pass`** — see the limit below |
+| `selfie-face` | SSD MobileNet face detection on the full uploaded image, server-side | no face at 0.42 confidence — see below |
+| `selfie-subject` | colour fallback only, used when the model cannot load | under 10% skin-toned pixels |
 | `card-geometry-*` | width/height read from the file header | portrait orientation, or not card-shaped |
 | `card surface` | mean and spread of luminance in the card region | dark scene, or a featureless area with no printing |
 | `card-mrz` | ICAO TD1 zone from server-side Tesseract, issuer must be `GHA` | no zone found, or a non-blank back with no zone |
 | `card-pin` | the nine digits in the MRZ against the number the member typed | they disagree |
 
-### What the selfie screen cannot do
+### The selfie screen: a detector, not a colour test
 
-Measured, not assumed: a wooden door (130,102,85), beige paint (199,167,130) and
-tan paint (209,179,139) sit inside the same colour region as real skin, and the
-first version of this check called all three "skin". A member photographed in
-front of a beige wall would have scored 100% and passed; the same heuristic used
-as a hard test in the other direction rejects people for their paintwork.
+A colour test cannot answer "is there a human face here", and the previous
+version of this document said so while the code still tried. Both directions were
+measured wrong: a wooden door (130,102,85), beige paint (199,167,130) and tan
+paint (209,179,139) all scored as "skin", and a genuine smiling face in a park
+scored **below** the 10% floor and was refused.
 
-So the rule is one-directional on purpose:
+The screen is now a real face detector — SSD MobileNet, with Tiny Face Detector as
+a second opinion — running server-side on TensorFlow.js with the WebAssembly
+backend. No native modules, no WebGL, no network: it loads its model from
+`public/kyc/face` and runs on the bytes the member uploaded.
 
-- **Below the floor is a refusal.** A window, a night photo, a landscape, a page
-  of text and a cream wall all score 0–5%; there is nothing a selfie could
-  honestly be in those images. This is the case in the reported bug, and it is
-  caught with no AI provider, no network and no model.
-- **Above the floor is not a pass.** It means only "skin-coloured pixels are
-  present, this screen does not object". The result is `inconclusive`, the reason
-  is stored, and the face reaches Rabi marked
-  `automated-screening-could-not-confirm-a-face-please-look-yourself`.
+Measured on real photographs before it was wired in:
 
-Proving a face *is* present needs a face detector, which this codebase does not
-run on the server. Adding one is the honest next step if the queue shows spoofs
-getting past the colour floor; pretending a colour test proves a face is what
-the previous version did, and it was wrong.
+| sample set | detector score |
+| --- | --- |
+| genuine faces, including deep skin tone (n=7) | 0.69 – 0.999 |
+| drawn face, room, wall, card back, window photo, web page (n=6) | 0.000 |
+
+The threshold is **0.42**, near the middle of that gap rather than shaving either
+side.
+
+**The ordering matters and was nearly shipped wrong.** The first version asked
+the colour screen first and skipped the model when colour had already objected. A
+real member with deep skin tone — reading 9.5% inside the measurement box, just
+under the floor — was refused before the detector that scores her 0.84 ever ran.
+The detector now decides, always. Colour is a fallback for when the model cannot
+load, because a broken model must never refuse a real person and must never
+silently accept one either.
+
+What is still out of scope, stated plainly:
+
+- **A printed photo or a phone screen held up to the camera will produce a face
+  detection.** This detector finds faces in images; it does not judge whether
+  the face is physically present. Stopping that needs a liveness challenge, which
+  is a video problem, not an image problem.
+- **A very dark, distant or heavily occluded face can be missed.** The model
+  scored a full-body figure in near-darkness at 0.00. Refusing that is a retake
+  request, not a ban, and the message tells the member to use more light.
 
 Two deliberate asymmetries:
 

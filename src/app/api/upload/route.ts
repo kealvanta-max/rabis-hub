@@ -18,7 +18,10 @@ import {
   imageGeometry,
   judgeCardPhoto,
   judgeSelfiePhoto,
+  judgeSelfieWithDetection,
 } from "@/lib/kyc-deterministic";
+import { detectFaces } from "@/lib/kyc-face-server";
+import { decodeRgba } from "@/lib/kyc-deterministic";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -96,7 +99,7 @@ async function destroyCloudinaryAsset(url: string, kind: FileKind) {
 async function judgeUploadedImage(
   bytes: Buffer,
   purpose: string
-): Promise<{ state: "rejected" | "ok"; reasons: string[]; note?: string }> {
+): Promise<{ state: "rejected" | "ok"; reasons: string[]; note?: string; face?: number | null }> {
   /*
    * Decoded here from the bytes we already hold.
    *
@@ -112,7 +115,36 @@ async function judgeUploadedImage(
   const box = centralFaceBox();
 
   if (purpose === "selfie") {
-    const verdict = judgeSelfiePhoto(grid, box);
+    /*
+     * The colour screen runs first because it is free and it catches the
+     * simplest spoofs instantly. Then the face model answers the question the
+     * colour screen cannot, on the original bytes: is there a human face here?
+     *
+     * A model failure is reported as "unavailable" and falls back to the colour
+     * screen, so a missing model never refuses a real member and never quietly
+     * accepts either.
+     */
+    /*
+     * The model runs on every selfie, even one the colour screen already
+     * dislikes. Skipping it there was a bug that refused a genuine member: her
+     * deep skin tone measured 9.5% inside the box, under the 10% colour floor,
+     * and the detector that scores her 0.84 never got to look.
+     */
+    const colour = judgeSelfiePhoto(grid, box);
+    const raster = await decodeRgba(new Uint8Array(bytes));
+    const detection = raster
+      ? await detectFaces(raster.pixels, raster.width, raster.height)
+      : { human: false, score: 0, boxes: [], status: "unavailable" as const };
+    const verdict = judgeSelfieWithDetection(colour, detection);
+
+    if (detection.status === "detected") {
+      console.info("[upload] selfie accepted", { score: detection.score });
+    } else if (detection.status === "unavailable") {
+      console.warn("[upload] face model unavailable, falling back to colour screen", {
+        detail: detection.detail,
+      });
+    }
+
     if (verdict.status === "fail") {
       return { state: "rejected", reasons: verdict.reasons.map((reason) => `selfie:${reason}`) };
     }

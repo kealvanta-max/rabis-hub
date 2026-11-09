@@ -775,6 +775,73 @@ export function judgeSelfiePhoto(
 }
 
 /**
+ * The selfie verdict, now that a real detector exists.
+ *
+ * This wraps the colour screen above with the one piece of evidence that
+ * actually answers the question. The colour screen alone could never do it; it
+ * exists in `judgeSelfiePhoto` to catch the cases where the model is unavailable,
+ * so screening never degrades to "accept everything".
+ *
+ * The policy is deliberately asymmetric, by how expensive each mistake is:
+ *
+ *   face detected      -> pass. Model and colour agree, and this is the case
+ *                         every genuine member is in.
+ *   no face detected   -> fail, retryable. A model trained to find faces found
+ *                         none at all: that is a screen, a wall, a room, or a
+ *                         card. Refusing costs the member one retake.
+ *   model unavailable  -> fall through to the colour screen, which decides. If
+ *                         it cannot decide either, the photo goes to Rabi. A
+ *                         broken model must never refuse a real person, and must
+ *                         never silently accept either.
+ */
+export function judgeSelfieWithDetection(
+  colour: FaceHeuristic,
+  detection: { human: boolean; status: "detected" | "none" | "unavailable"; score: number; detail?: string }
+): FaceHeuristic {
+  /*
+   * The detector wins, always.
+   *
+   * This ordering is the whole point, and the first version had it backwards. It
+   * consulted the colour screen first and skipped the model when colour had
+   * already objected — so a real member with deep skin tone, whose face reads
+   * only 9.5% "skin" inside the measurement box, was refused before the model
+   * that scores her 0.84 had run at all. A dark-skinned applicant was being
+   * turned away by a test that had never been shown her face.
+   *
+   * Colour is now only a fallback for when the model cannot run. It is never
+   * allowed to overrule a model that looked.
+   */
+  if (detection.status === "detected" && detection.human) {
+    return {
+      status: "pass",
+      reasons: [`human-face-detected-score-${detection.score.toFixed(2)}`],
+      box: colour.box,
+    };
+  }
+
+  if (detection.status === "none") {
+    /*
+     * A model trained to find faces found none. That is a screen, a wall, a
+     * room, a card or a printout. Refusing costs a retake; accepting costs an
+     * identity. The colour screen's reason is kept when it had one, because
+     * "no skin in frame at all" is more useful to the member than a score.
+     */
+    if (colour.status === "fail") return colour;
+    return { status: "fail", reasons: ["no-face-detected-in-frame"], box: colour.box };
+  }
+
+  /*
+   * Unavailable. The colour screen is all that is left, and it is allowed to
+   * refuse an image with no skin at all, because nothing legitimate is in it.
+   * Anything else is Rabi's call.
+   */
+  return {
+    ...colour,
+    reasons: [...(colour.reasons ?? []), `face-model-${detection.status}`],
+  };
+}
+
+/**
  * The card question: is this a flat, landscape, printed card?
  *
  * Two independent signals, because either alone is easy to beat:
@@ -1301,6 +1368,54 @@ function decodeJpeg(bytes: Uint8Array): RawImage | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Decode straight to RGBA at full resolution.
+ *
+ * `decodeAny` deliberately throws the alpha channel away and its result is fed
+ * to the 32x32 grid; the face detector needs the real pixels, so it gets its own
+ * door to the same decoder rather than a lossy round trip.
+ *
+ * Returns null for anything not decodable here. The caller must treat that as
+ * "could not judge", never as "no face".
+ */
+export async function decodeRgba(
+  bytes: Uint8Array
+): Promise<{ pixels: Uint8Array; width: number; height: number } | null> {
+  if (bytes.length < 24) return null;
+
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    try {
+      const jpeg = require("jpeg-js") as {
+        decode: (input: Uint8Array, options?: { useTArray?: boolean; formatAsRGBA?: boolean }) => {
+          width: number;
+          height: number;
+          data: Uint8Array;
+        };
+      };
+      const image = jpeg.decode(bytes, { useTArray: true, formatAsRGBA: true });
+      if (!image.width || !image.height || !image.data) return null;
+      return { pixels: image.data, width: image.width, height: image.height };
+    } catch {
+      return null;
+    }
+  }
+
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    const grid = decodePngRgb(bytes);
+    if (!grid) return null;
+    const pixels = new Uint8Array(grid.width * grid.height * 4);
+    grid.values.forEach(([r, g, b], index) => {
+      pixels[index * 4] = r;
+      pixels[index * 4 + 1] = g;
+      pixels[index * 4 + 2] = b;
+      pixels[index * 4 + 3] = 255;
+    });
+    return { pixels, width: grid.width, height: grid.height };
+  }
+
+  return null;
 }
 
 /** Box-filter a decoded image down to `edge` x `edge`. */
