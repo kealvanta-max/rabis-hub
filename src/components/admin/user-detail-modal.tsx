@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   Trash2,
-  BadgeCheck,
   CheckCircle2,
   Copy,
   Download,
@@ -202,20 +201,40 @@ export default function UserDetailModal({
                 Ghana Card number
               </p>
               <p className="mt-1 font-mono text-sm tracking-wide text-white">
-                {user.ghanaCardNumber || "Not provided"}
+                {user.ghanaCardNumber || "Not typed by the member"}
               </p>
+              {user.ghanaCardMrzNumber && (
+                <p className="mt-0.5 text-[11px] text-gray-400">
+                  Read from the card: {user.ghanaCardMrzNumber}
+                </p>
+              )}
             </div>
-            <span
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${
-                user.ghanaCardValid
-                  ? "bg-emerald-500/12 text-emerald-300 ring-1 ring-inset ring-emerald-500/25"
-                  : "bg-red-500/12 text-red-300 ring-1 ring-inset ring-red-500/25"
+          </div>
+
+          {/*
+            * The identity sentence, verbatim.
+            *
+            * It is written by the screening to be read by a person and it already
+            * says what matched and what did not, in Rabi's terms. Paraphrasing it
+            * here risked the old bug, where a partially matching name was
+            * described as a match, so it is shown exactly as the check produced it.
+          */}
+          {user.kycIdentitySentence ? (
+            <div
+              className={`mt-3 rounded-xl border p-3 ${
+                user.kycIdentityOutcome === "inconsistent"
+                  ? "border-red-500/25 bg-red-500/[0.07]"
+                  : user.kycIdentityOutcome === "not-checked"
+                    ? "border-white/10 bg-white/[0.03]"
+                    : "border-emerald-500/25 bg-emerald-500/[0.07]"
               }`}
             >
-              {user.ghanaCardValid ? <BadgeCheck className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-              {user.ghanaCardValid ? "Format valid" : "Invalid format"}
-            </span>
-          </div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+                Name and details vs. the card
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-gray-200">{user.kycIdentitySentence}</p>
+            </div>
+          ) : null}
 
           {/* Location becomes an action, not a string of numbers */}
           {gps && mapUrl && (

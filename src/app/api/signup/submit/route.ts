@@ -6,7 +6,10 @@ import { authenticateRequest } from "@/lib/server-auth";
 import { adminFirestore } from "@/lib/server-firestore";
 import { kycVisionConfigured, screenKycImages, type VisionScreening } from "@/lib/kyc-vision";
 import { rejectionMessage } from "@/lib/kyc-vision-policy";
-import { screenDeterministically } from "@/lib/kyc-deterministic";
+import { screenDeterministically, readCardIdentity } from "@/lib/kyc-deterministic";
+import { checkIdentityAgainstCard } from "@/lib/kyc-identity-check";
+import { validateGhanaCardFormat } from "@/lib/ghana-card";
+import { digitsOf } from "@/lib/mrz";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -125,7 +128,32 @@ export async function POST(request: Request) {
   const phone = boundedText(body.phone, 24);
   const plan = boundedText(body.plan, 40);
   const location = boundedText(body.location, 120) ?? "";
-  const cardNumber = boundedText(body.ghanaCardNumber, 24) ?? "";
+  /*
+   * The card number is no longer typed by the member.
+   *
+   * It is read from the machine-readable zone on the back of the card further
+   * down. A caller may still send one (an older build of the app does), and it is
+   * used only as corroboration — never as the thing the card is checked against,
+   * because comparing a card to itself proves nothing.
+   */
+  const suppliedCardNumber = boundedText(body.ghanaCardNumber, 24) ?? "";
+  let cardNumber = suppliedCardNumber;
+  /** The nine digits printed in the card's own machine-readable zone. */
+  let mrzCardNumber = "";
+  /*
+   * The legal name is collected on step one now, so the card can be compared
+   * against something the applicant wrote before they ever saw it.
+   */
+  const typedIdentity = {
+    firstName: boundedText(body.firstName, 80) ?? "",
+    lastName: boundedText(body.lastName, 80) ?? "",
+    previousNames: boundedText(body.previousNames, 120) ?? "",
+    otherNames: boundedText(body.otherNames, 120) ?? "",
+    dateOfBirth: boundedText(body.dateOfBirth, 10) ?? "",
+    sex: boundedText(body.sex, 20) ?? "",
+    nationality: boundedText(body.nationality, 40) ?? "",
+    placeOfIssuance: boundedText(body.placeOfIssuance, 60) ?? "",
+  };
   const documentsDeferred = body.documentsDeferred === true;
   const front = evidenceUrl(body.ghanaCardFront, !documentsDeferred);
   const back = evidenceUrl(body.ghanaCardBack, !documentsDeferred);
@@ -134,7 +162,7 @@ export async function POST(request: Request) {
 
   if (!name || !email || email.toLowerCase() !== (actor.email ?? "").toLowerCase() ||
       !phone || !plan || front === null || back === null || selfie === null || video === null ||
-      !cardNumber || typeof body.termsAccepted !== "boolean" || body.termsAccepted !== true) {
+      typeof body.termsAccepted !== "boolean" || body.termsAccepted !== true) {
     return NextResponse.json({ error: "Signup details or document references are invalid" }, { status: 400 });
   }
 
@@ -186,7 +214,15 @@ export async function POST(request: Request) {
   let evidenceHashes: Record<string, string> = {};
   let screeningState: "screened_pass" | "manual_review_required" | "verification_unavailable" = "manual_review_required";
   let screeningReasons = ["human-review-required"];
+  /**
+   * Everything the screening recorded, keyed by check.
+   *
+   * Typed loosely for the Firestore record but the identity entry is held
+   * separately as well, because the two things stored from it — the outcome and
+   * the sentence Rabi reads — must be written even though the rest is opaque.
+   */
   let screeningChecks: Record<string, unknown> = {};
+  let identityRecord: { outcome: string; sentence: string } = { outcome: "not-checked", sentence: "" };
   const digests: Record<string, EvidenceDigest> = {};
   const visionConfigured = kycVisionConfigured();
   let visionResult: VisionScreening | null = null;
@@ -250,7 +286,9 @@ export async function POST(request: Request) {
         url: selfie as string,
         bytes: digests.selfie.base64 ? Buffer.from(digests.selfie.base64, "base64") : undefined,
       },
-      typedPin: cardNumber,
+      // Empty on a fresh client; `matchTypedPin` reports "not possible" rather
+      // than a failure when there is nothing to compare.
+      typedPin: cardNumber || suppliedCardNumber,
     });
 
     screeningChecks = { ...screeningChecks, deterministic: deterministic.checks };
@@ -273,6 +311,68 @@ export async function POST(request: Request) {
 
     if (deterministic.state === "manual_review_required" || deterministic.state === "verification_unavailable") {
       screeningReasons = [...screeningReasons, ...deterministic.reasons].slice(0, 40);
+    }
+
+    /*
+     * Does the card belong to the person who applied?
+     *
+     * The MRZ on the back is the only identity data a photographed Ghana Card
+     * gives up reliably, and it carries the holder's name, date of birth and sex.
+     * Those are compared with what the member typed on step one.
+     *
+     * A disagreement never blocks the application. It is recorded, it becomes a
+     * sentence on Rabi's screen, and she decides — because the alternative is
+     * refusing a citizen whose married name is on the card, and that has to be
+     * the worse outcome.
+     */
+    const cardIdentity = await readCardIdentity(
+      digests.back.base64 ? Buffer.from(digests.back.base64, "base64") : null
+    );
+    const identity = checkIdentityAgainstCard(typedIdentity, cardIdentity);
+    screeningChecks = { ...screeningChecks, identity };
+    identityRecord = { outcome: identity.outcome, sentence: identity.sentence };
+
+    /*
+     * Store the card's own number, not a typed one.
+     *
+     * The member no longer types it, so the only trustworthy source is the MRZ.
+     * A number that was sent is kept only when the card confirmed it — otherwise
+     * the application would record a number nobody verified. When the MRZ could
+     * not be read the field stays empty and says so, which is honest, rather than
+     * storing digits of unknown provenance in an identity record.
+     */
+    if (cardIdentity) {
+      const mrzDigits = (cardIdentity.documentNumber ?? "").replace(/\D/g, "");
+      if (mrzDigits.length >= 9) {
+        const cardDigits = mrzDigits.slice(-9);
+        mrzCardNumber = cardDigits;
+        /*
+         * Do NOT rebuild the printed PIN from the MRZ check digit.
+         *
+         * The obvious-looking `GHA-${cardDigits}-${mrzCheckDigit(cardDigits)}`
+         * was tried and is wrong: for the genuine card in the test fixtures the
+         * MRZ carries check digit 9 while the card is printed GHA-002089279-3.
+         * Ghana's printed check digit is not the ICAO one, so computing it would
+         * put a number in the identity record that no card in the country
+         * carries — a fabricated identifier, worse than a missing one.
+         *
+         * So the printed number is kept only when a client sent one and its nine
+         * digits agree with the card. Otherwise the field is left empty and the
+         * MRZ digits are recorded separately, under a name that says what they are.
+         */
+        if (validateGhanaCardFormat(suppliedCardNumber) && digitsOf(suppliedCardNumber).includes(cardDigits)) {
+          cardNumber = suppliedCardNumber.toUpperCase();
+        }
+      }
+    }
+
+    if (identity.outcome === "inconsistent") {
+      screeningReasons = [...screeningReasons, `identity-${identity.name.verdict}`, `identity-dob-${identity.dateOfBirth}`].slice(0, 40);
+      console.info("[signup] typed name does not match the card", {
+        uid: actor.uid,
+        outcome: identity.outcome,
+        cardName: identity.detail.cardName,
+      });
     }
   }
 
@@ -430,7 +530,27 @@ export async function POST(request: Request) {
         location,
         plan,
         plans: [plan],
+        /*
+         * The legal identity, stored beside the card it was checked against, so
+         * Rabi can put the two side by side without opening the images. The
+         * outcome sentence is stored too: it is what she reads first.
+         */
+        firstName: typedIdentity.firstName,
+        lastName: typedIdentity.lastName,
+        otherNames: typedIdentity.otherNames,
+        previousNames: typedIdentity.previousNames,
+        dateOfBirth: typedIdentity.dateOfBirth,
+        sex: typedIdentity.sex,
+        nationality: typedIdentity.nationality,
+        placeOfIssuance: typedIdentity.placeOfIssuance,
+        kycIdentityOutcome: identityRecord.outcome,
+        kycIdentitySentence: identityRecord.sentence,
         ghanaCardNumber: cardNumber,
+        /*
+         * The verified identifier. `ghanaCardNumber` above may be empty on a
+         * fresh client, so screens that need "the card's number" read this.
+         */
+        ghanaCardMrzNumber: mrzCardNumber,
         ghanaCardFront: front,
         ghanaCardBack: back,
         passportPhoto: selfie,

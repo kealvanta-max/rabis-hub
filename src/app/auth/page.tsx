@@ -33,7 +33,8 @@ import type { DocVerdict } from "@/lib/kyc-verification";
  */
 import FaceScan from "@/components/ui/face-scan";
 import Navigation from "@/components/layout/navigation";
-import { formatGhanaCardInput, validateGhanaCardFormat } from "@/lib/ghana-card";
+import Select from "@/components/ui/select";
+import { GHANA_REGIONS, SEX_OPTIONS, dateOfBirthProblem, normalizeDateOfBirth } from "@/lib/identity-fields";
 import { isValidGhanaPhone, normalizeGhanaPhone } from "@/lib/phone";
 import { requestNewMemberAlert } from "@/lib/notify-client";
 import type { RegistrationData } from "@/lib/types";
@@ -259,7 +260,9 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   }, [params]);
 
   const [form, setForm] = useState<RegistrationData>({
-    firstName: "", lastName: "", email: "", phone: "", location: "", password: "",
+    firstName: "", lastName: "", previousNames: "", otherNames: "", dateOfBirth: "",
+    sex: "", nationality: "Ghanaian", placeOfIssuance: "",
+    email: "", phone: "", location: "", password: "",
     plan: "", ghanaCardNumber: "", ghanaCardValid: false, ghanaCardFront: "", ghanaCardBack: "", passportPhoto: "",
     gpsLat: 0, gpsLng: 0, gpsAddress: "",
   });
@@ -270,8 +273,26 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim());
   const passwordValid = form.password.length >= 6;
   const phoneValid = isValidGhanaPhone(form.phone);
+  /*
+   * What step one actually needs.
+   *
+   * Names, date of birth, sex and place of issue are required because the card
+   * check depends on them; `previous names` and `other names` are not, because
+   * plenty of people have neither and being asked for a name you do not have is
+   * how a form makes someone feel unwelcome. The date problem is computed so the
+   * hint under the field is specific rather than "invalid input".
+   */
+  const dobProblem = dateOfBirthProblem(form.dateOfBirth);
   const canStep2 =
-    Boolean(form.firstName.trim() && form.lastName.trim() && form.phone.trim() && form.plan) &&
+    Boolean(
+      form.firstName.trim() &&
+        form.lastName.trim() &&
+        form.phone.trim() &&
+        form.plan &&
+        form.sex &&
+        form.placeOfIssuance
+    ) &&
+    !dobProblem &&
     emailValid &&
     passwordValid &&
     phoneValid;
@@ -282,7 +303,15 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const selfieReady = Boolean(form.passportPhoto);
   const documentsReady = frontReady && backReady && selfieReady;
   const documentsDeferred = uploadFailures > 0 && sendDocsOnWhatsApp;
-  const canStep3 = Boolean(form.ghanaCardNumber && form.ghanaCardValid && (documentsReady || documentsDeferred));
+  /*
+   * The card number is no longer typed.
+   *
+   * There is no field for it on step two any more: the number is read from the
+   * machine-readable zone on the back of the card and compared with itself there.
+   * Requiring `ghanaCardValid` here was what forced members to copy nine digits
+   * by hand and get one wrong, which then looked like fraud.
+   */
+  const canStep3 = Boolean(documentsReady || documentsDeferred);
   const canStep4 = Boolean(form.faceScanVideo) || livenessMode === "manual_review";
   const mathPassed = mathAns.trim() === (mathObj.a + mathObj.b).toString();
 
@@ -335,12 +364,24 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           Authorization: `Bearer ${await cred.user.getIdToken()}`,
         },
         body: JSON.stringify({
-          name: `${form.firstName} ${form.lastName}`,
+          name: [form.firstName, form.lastName].filter(Boolean).join(" "),
+          /*
+           * The legal identity the member typed on step one, sent so the card
+           * on step two can be compared against it. `ghanaCardNumber` is gone:
+           * the server reads it from the card's machine-readable zone.
+           */
+          firstName: form.firstName,
+          lastName: form.lastName,
+          otherNames: form.otherNames || "",
+          previousNames: form.previousNames || "",
+          dateOfBirth: form.dateOfBirth || "",
+          sex: form.sex || "",
+          nationality: form.nationality || "",
+          placeOfIssuance: form.placeOfIssuance || "",
           email: form.email.trim(),
           phone: normalizeGhanaPhone(form.phone),
           location: form.location,
           plan: form.plan,
-          ghanaCardNumber: form.ghanaCardNumber || "",
           ghanaCardFront: form.ghanaCardFront || "",
           ghanaCardBack: form.ghanaCardBack || "",
           passportPhoto: form.passportPhoto || "",
@@ -417,13 +458,104 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         ))}
       </div>
 
-      {/* STEP 1 — Personal */}
+      {/* STEP 1 — Legal identity */}
       {step === 1 && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="First Name" value={form.firstName} onChange={(e) => update("firstName", e.target.value)} required />
-            <Input label="Last Name" value={form.lastName} onChange={(e) => update("lastName", e.target.value)} required />
+          {/*
+            Tell them before they type, not after they submit.
+
+            The complaint this answers is people finishing a long form and being
+            surprised on the last screen. One sentence here, in plain words, and
+            the same promise repeated on the card step where the check happens.
+          */}
+          <div className="flex items-start gap-2 rounded-2xl border border-primary/25 bg-primary/[0.06] p-3">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p className="text-[11px] leading-relaxed text-gray-300">
+              Write your name exactly as it is on your Ghana Card. We check it against the card you
+              photograph next, so a small typo is fine. Rabi confirms anything that does not line up
+              instead of turning you away.
+            </p>
           </div>
+
+          {/*
+            Surname first, because that is the order on the card, the order the
+            MRZ prints it in, and the order Ghanaian forms have used for decades.
+            First name beside it on one row so the pair reads as a single name.
+          */}
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Surname"
+              value={form.lastName}
+              onChange={(e) => update("lastName", e.target.value)}
+              autoComplete="family-name"
+              placeholder="Mensah"
+              required
+            />
+            <Input
+              label="First name"
+              value={form.firstName}
+              onChange={(e) => update("firstName", e.target.value)}
+              autoComplete="given-name"
+              placeholder="Akosua"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Other names (optional)"
+              value={form.otherNames ?? ""}
+              onChange={(e) => update("otherNames", e.target.value)}
+              placeholder="Abena"
+            />
+            <Input
+              label="Previous names (optional)"
+              value={form.previousNames ?? ""}
+              onChange={(e) => update("previousNames", e.target.value)}
+              placeholder="Name before marriage"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Date of birth"
+              type="date"
+              value={form.dateOfBirth ?? ""}
+              onChange={(e) => update("dateOfBirth", normalizeDateOfBirth(e.target.value))}
+              autoComplete="bday"
+              max={new Date().toISOString().slice(0, 10)}
+              error={form.dateOfBirth ? dobProblem ?? undefined : undefined}
+              required
+            />
+            <Select
+              label="Sex"
+              value={form.sex ?? ""}
+              onChange={(e) => update("sex", e.target.value)}
+              options={SEX_OPTIONS}
+              placeholder="Select"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Nationality"
+              value={form.nationality ?? ""}
+              onChange={(e) => update("nationality", e.target.value)}
+              autoComplete="country-name"
+              placeholder="Ghanaian"
+              required
+            />
+            <Select
+              label="Region on your card"
+              value={form.placeOfIssuance ?? ""}
+              onChange={(e) => update("placeOfIssuance", e.target.value)}
+              options={GHANA_REGIONS}
+              placeholder="Select region"
+              required
+            />
+          </div>
+
           <Input label="Email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} required />
           <Input
             label="Phone / MoMo Number"
@@ -474,27 +606,23 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             </p>
           </div>
 
-          <div className="relative">
-            <Input
-              label="Ghana Card Number (GHA-XXXXXXXXX-X)"
-              value={form.ghanaCardNumber || ""}
-              onChange={(e) => {
-                const formatted = formatGhanaCardInput(e.target.value);
-                const isValid = validateGhanaCardFormat(formatted);
-                setForm((prev) => ({ ...prev, ghanaCardNumber: formatted, ghanaCardValid: isValid }));
-              }}
-              placeholder="GHA-123456789-0"
-              required
-            />
-            {form.ghanaCardNumber && form.ghanaCardNumber.length > 3 && (
-              <div className="absolute right-3 top-9">
-                {form.ghanaCardValid ? (
-                  <span className="font-bold text-emerald-400">✓</span>
-                ) : (
-                  <span className="text-xs font-bold uppercase tracking-widest text-red-400">Invalid</span>
-                )}
-              </div>
-            )}
+          {/*
+            No card-number box.
+
+            It used to sit here, formatted as GHA-123456789-0, and it was the
+            single most-rejected field in the form: nine digits copied by eye off
+            a glossy card, and one wrong digit then read as fraud. The number is
+            read from the machine-readable zone on the back of the card instead,
+            which also means it is the *card's* number rather than whatever
+            someone was willing to type.
+          */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs font-semibold text-gray-200">Your card number is read from your photo</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
+              There is nothing to copy here. We read the number from the back of your Ghana Card, then
+              check it against your name and date of birth. If it cannot be read, Rabi reads it herself,
+              that never counts against you.
+            </p>
           </div>
 
           <ImageUpload
