@@ -599,29 +599,28 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       {/* STEP 2 — Documents */}
       {step === 2 && (
         <div className="space-y-5">
-          <div className="flex items-start gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+          {/*
+            One note, not three.
+
+            This step used to open with a privacy block and a "your card number is
+            read from your photo" block stacked above the uploads, on top of the
+            reassurance already given on step one. Three separate grey boxes
+            saying similar things is the exact pattern that makes a form feel
+            machine-built, and it pushes the first upload below the fold on a
+            phone. The fact that matters before uploading is now one sentence.
+
+            No card-number box, either. It used to sit here, formatted as
+            GHA-123456789-0, and it was the most-rejected field in the form: nine
+            digits copied by eye off a glossy card, and one wrong digit then read
+            as fraud. The number comes from the machine-readable zone on the back.
+          */}
+          <div className="flex items-start gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
             <p className="text-[11px] leading-relaxed text-gray-400">
-              Your photos are uploaded for review and may be screened by external AI services such as Google Gemini, Groq, or OpenRouter when configured. These checks can be wrong and cannot prove liveness or official Ghana Card authenticity. Rabi reviews every application before approval. See our <a href="/privacy" className="text-primary underline">Privacy Policy</a>.
-            </p>
-          </div>
-
-          {/*
-            No card-number box.
-
-            It used to sit here, formatted as GHA-123456789-0, and it was the
-            single most-rejected field in the form: nine digits copied by eye off
-            a glossy card, and one wrong digit then read as fraud. The number is
-            read from the machine-readable zone on the back of the card instead,
-            which also means it is the *card's* number rather than whatever
-            someone was willing to type.
-          */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-            <p className="text-xs font-semibold text-gray-200">Your card number is read from your photo</p>
-            <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
-              There is nothing to copy here. We read the number from the back of your Ghana Card, then
-              check it against your name and date of birth. If it cannot be read, Rabi reads it herself,
-              that never counts against you.
+              Nothing to type here. We read your card number from the back of the card and check it
+              against your name and date of birth. Photos may be screened by AI providers; that can be
+              wrong, so Rabi reviews every application herself.{" "}
+              <a href="/privacy" className="text-primary underline">Privacy Policy</a>
             </p>
           </div>
 

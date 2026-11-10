@@ -61,8 +61,13 @@ describe("signup collects identity without asking for the card number", () => {
   });
 
   it("promises a double check before the member uploads anything", () => {
+    // Step one warns before the first keystroke.
     expect(page).toMatch(/We check it against the card you\s+photograph next/);
-    expect(page).toContain("There is nothing to copy here.");
+    // Step two says the number is read, not typed, in one sentence rather than
+    // in a stack of grey boxes. The wording changed when three statement cards
+    // were merged into one; the promise is what the test guards.
+    expect(page).toMatch(/Nothing to type here\./);
+    expect(page).toMatch(/Rabi reviews every application herself/);
   });
 
   it("does not gate the document step on a typed number", () => {
