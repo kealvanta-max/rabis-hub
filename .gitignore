@@ -42,3 +42,10 @@ lighthouse-report.json
 
 # Generated KYC runtimes (npm run prebuild copies them here)
 /public/kyc
+
+# Python bytecode left by the vendored design-intelligence scripts
+__pycache__/
+*.pyc
+
+# Local dev-server bookkeeping
+*.pid
