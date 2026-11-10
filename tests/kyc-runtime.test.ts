@@ -50,7 +50,6 @@ describe("a photo of an animal is refused, not sent to a human", () => {
 describe("the KYC runtimes are served by us, not a blocked CDN", () => {
   const face = read("src/lib/face-detection.ts");
   const scan = read("src/components/ui/face-scan.tsx");
-  const ocr = read("src/lib/ghana-card-ocr.ts");
   const config = read("next.config.mjs");
   const pkg = read("package.json");
 
@@ -62,10 +61,16 @@ describe("the KYC runtimes are served by us, not a blocked CDN", () => {
     expect(scan).not.toContain("tasks-vision@0.10.12");
   });
 
-  it("points the card reader at local worker, engine and language files", () => {
-    expect(ocr).toContain("/kyc/tesseract/worker.min.js");
-    expect(ocr).toContain("/kyc/tesseract/core");
-    expect(ocr).toContain("/kyc/tesseract/lang");
+  it("keeps card OCR on the server, where it is actually called", () => {
+    /*
+     * There used to be a browser Tesseract path in `ghana-card-ocr.ts` pointing
+     * at `/kyc/tesseract/*`. It was imported by nothing: the card is read
+     * server-side in `kyc-deterministic.ts` with the vendored language data. It
+     * was deleted with the rest of the dead KYC weight, so this now asserts the
+     * opposite of what it did before: no second OCR runtime is shipped.
+     */
+    expect(() => read("src/lib/ghana-card-ocr.ts")).toThrow();
+    expect(read("src/lib/kyc-deterministic.ts")).toContain("@tesseract.js-data/eng");
   });
 
   it("ships those files with the build", () => {

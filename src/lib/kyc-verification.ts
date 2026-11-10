@@ -4,7 +4,7 @@
  * Everything here is pure and unit-tested so the rules that decide whether a
  * Ghana Card or a selfie is acceptable can be reviewed and changed without
  * touching the UI. The browser-only bitmap/OCR helpers live in
- * `ghana-card-ocr.ts` and `face-detection.ts`.
+ * `face-detection.ts`.
  */
 
 export type DocVerdictStatus = "verified" | "review" | "rejected";

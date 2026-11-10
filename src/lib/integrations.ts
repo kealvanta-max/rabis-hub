@@ -107,15 +107,6 @@ export const INTEGRATIONS: IntegrationSpec[] = [
       "aistudio.google.com/apikey · console.groq.com/keys · openrouter.ai/keys (all free tier)",
   },
   {
-    id: "kyc-worker",
-    label: "KYC worker (Python, Render)",
-    category: "kyc",
-    required: ["KYC_SCREENING_URL", "KYC_SCREENING_SHARED_SECRET"],
-    impact:
-      "Card text and the MRZ checksum are not read, so a card with mismatched front/back numbers is not caught automatically. The AI pass still runs.",
-    source: "Render dashboard → your web service → URL, plus a random 32-byte shared secret",
-  },
-  {
     id: "resend",
     label: "Resend (transactional email)",
     category: "email",
@@ -219,9 +210,18 @@ export function integrationStatus(
   return INTEGRATIONS.map((spec) => evaluate(spec, env));
 }
 
-/** Everything that must be set before the site can serve real members. */
+/**
+ * Everything that must be set before the site can serve real members.
+ *
+ * `firebase-admin` is in this list now and it was the omission that hurt. The
+ * check used to cover the browser Firebase config and Cloudinary, which meant a
+ * deployment with a present-but-unparseable `FIREBASE_SERVICE_ACCOUNT_KEY`
+ * reported no critical gaps at all while every signup failed with "Secure
+ * signup storage is unavailable". The variable that writes the member record is
+ * not optional, so it belongs here.
+ */
 export function criticalGaps(env: Record<string, string | undefined> = process.env): string[] {
   return integrationStatus(env)
-    .filter((s) => !s.configured && (s.id === "firebase" || s.id === "cloudinary"))
+    .filter((s) => !s.configured && (s.id === "firebase" || s.id === "firebase-admin" || s.id === "cloudinary"))
     .flatMap((s) => s.missing.map((name) => `${s.id}: ${name}`));
 }

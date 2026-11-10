@@ -28,10 +28,11 @@ Both are fixed by owning the files instead of borrowing them:
 - `src/lib/face-detection.ts` and the liveness step now share one loader that tries
   local/GPU, local/CPU, CDN/GPU, CDN/CPU, in that order. Any of the four may be the
   one a given phone accepts.
-- `src/lib/ghana-card-ocr.ts` creates one worker from local files, reuses it for the
-  front, the back and any retry, and falls back to the CDN only if the local copy
-  fails. A read that takes longer than 45 seconds is abandoned so the member is
-  never stuck watching a spinner.
+- The card is read on the server, not on the member's phone. The browser Tesseract
+  path was removed: it shipped a 4 MB model to devices on mobile data and gave a
+  different answer on every handset. `src/lib/kyc-deterministic.ts` builds one
+  worker per lambda from the vendored files and reuses it for the front, the back
+  and any retry.
 - The CSP now allows the two fallback origins, because a blocked fallback is the
   same as no fallback.
 - A rejected selfie now says what actually happened: "No human face was found in
@@ -744,6 +745,13 @@ Two points, both server-side:
   returns **422 `kyc-screening-rejected`** *before the Firestore document is
   created*, so a refused applicant leaves no record and has nothing to "wait
   out".
+
+  These checks are the six that need no key: card MRZ and ICAO check digits, the
+  card number against the MRZ, printing markers on the card front, the typed PIN
+  against the printed one, whether the selfie contains a person, and whether it
+  contains eyes. A disagreement between the card and what the member typed is
+  never a refusal; it is a line on Rabi's screen, because a married name on the
+  card and a maiden name in the form is a normal thing and not a fraud.
 
 `src/lib/cloudinary.ts` throws a dedicated `KycRejectionError` for this, because
 the upload helper retries network blips, and a refusal is not a blip.

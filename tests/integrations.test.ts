@@ -15,6 +15,13 @@ const CLOUDINARY_ENV = {
   CLOUDINARY_API_SECRET: "x".repeat(27),
 };
 
+/*
+ * Presence only. This test file asks the registry "is the variable there", not
+ * "does it parse"; the parsing question lives in tests/service-account.test.ts
+ * and in the live probe at /api/health.
+ */
+const ADMIN_ENV = { FIREBASE_SERVICE_ACCOUNT_KEY: "c2VydmljZS1hY2NvdW50" };
+
 describe("integrations registry", () => {
   it("reports every declared integration exactly once", () => {
     const ids = INTEGRATIONS.map((i) => i.id);
@@ -52,6 +59,11 @@ describe("integrations registry", () => {
     expect(criticalGaps(FIREBASE_ENV)).toEqual(
       expect.arrayContaining([expect.stringContaining("cloudinary")])
     );
+    // The Admin SDK variable is required too: without it no member record can
+    // be written, whatever the browser config says.
+    expect(criticalGaps(FIREBASE_ENV)).toEqual(
+      expect.arrayContaining([expect.stringContaining("firebase-admin")])
+    );
   });
 
   it("requires the Cloudinary secret, not just the cloud name", () => {
@@ -84,13 +96,22 @@ describe("integrations registry", () => {
   });
 
 
-  it("critical gaps only ever name firebase or cloudinary", () => {
+  it("critical gaps only ever name a capability a signup cannot survive without", () => {
     const gaps = criticalGaps({});
     expect(gaps.length).toBeGreaterThan(0);
-    expect(gaps.every((g) => /^(firebase|cloudinary):/.test(g))).toBe(true);
+    expect(gaps.every((g) => /^(firebase|firebase-admin|cloudinary):/.test(g))).toBe(true);
   });
 
-  it("is ready with firebase + cloudinary + email present", () => {
-    expect(criticalGaps({ ...FIREBASE_ENV, ...CLOUDINARY_ENV })).toEqual([]);
+  it("is ready with firebase, the admin key and cloudinary present", () => {
+    expect(criticalGaps({ ...FIREBASE_ENV, ...ADMIN_ENV, ...CLOUDINARY_ENV })).toEqual([]);
+  });
+
+  it("names the Admin SDK variable when only the browser config is set", () => {
+    /*
+     * The exact production state that produced "Secure signup storage is
+     * unavailable" while this function reported no critical gaps at all.
+     */
+    const gaps = criticalGaps({ ...FIREBASE_ENV, ...CLOUDINARY_ENV });
+    expect(gaps).toEqual(["firebase-admin: FIREBASE_SERVICE_ACCOUNT_KEY"]);
   });
 });

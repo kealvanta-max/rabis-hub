@@ -446,70 +446,7 @@ export async function POST(request: Request) {
     screeningReasons = ["vision-provider-not-configured", "manual-review-required"];
   }
 
-  const screeningBase = process.env.KYC_SCREENING_URL?.replace(/\/$/, "");
-  const screeningSecret = process.env.KYC_SCREENING_SHARED_SECRET;
-  if (!documentsDeferred && (!visionResult || visionResult.state === "screened_pass" || visionResult.state === "verification_unavailable") && screeningBase && screeningSecret && digests.front && digests.back && digests.selfie) {
-    const createdAt = Math.floor(Date.now() / 1000);
-    const screeningPayload = {
-      submissionId: crypto.randomUUID().replace(/-/g, ""),
-      caseId: actor.uid,
-      sessionId: crypto.randomBytes(24).toString("hex"),
-      createdAt,
-      expiresAt: createdAt + 600,
-      evidence: [
-        { purpose: "card-front", deliveryUrl: front, sha256: digests.front.sha256, mime: digests.front.mime, bytes: digests.front.bytes },
-        { purpose: "card-back", deliveryUrl: back, sha256: digests.back.sha256, mime: digests.back.mime, bytes: digests.back.bytes },
-        { purpose: "selfie", deliveryUrl: selfie, sha256: digests.selfie.sha256, mime: digests.selfie.mime, bytes: digests.selfie.bytes },
-        ...(video && digests.video ? [{ purpose: "liveness-video", deliveryUrl: video, sha256: digests.video.sha256, mime: digests.video.mime, bytes: digests.video.bytes }] : []),
-      ],
-    };
-    const canonical = (value: unknown): string => {
-      if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-      if (value && typeof value === "object") {
-        const object = value as Record<string, unknown>;
-        return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${canonical(object[key])}`).join(",")}}`;
-      }
-      return JSON.stringify(value);
-    };
-    try {
-      const signature = crypto.createHmac("sha256", screeningSecret).update(canonical(screeningPayload)).digest("hex");
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 25_000);
-      try {
-        const response = await fetch(`${screeningBase}/v1/screen`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Screening-Signature": `sha256=${signature}` },
-          body: JSON.stringify(screeningPayload),
-          cache: "no-store",
-          redirect: "error",
-          signal: controller.signal,
-        });
-        const result = await response.json().catch(() => ({})) as Record<string, unknown>;
-        if (response.ok && result.submissionId === screeningPayload.submissionId &&
-            ["screened_pass", "manual_review_required", "verification_unavailable"].includes(String(result.state))) {
-          screeningState = result.state as typeof screeningState;
-          const checks = result.checks && typeof result.checks === "object" ? result.checks as Record<string, unknown> : {};
-          screeningChecks = { ...screeningChecks, worker: checks };
-          const workerReasons = Object.entries(checks).flatMap(([purpose, item]) => {
-            const reasons = item && typeof item === "object" && Array.isArray((item as { reasons?: unknown }).reasons)
-              ? (item as { reasons: unknown[] }).reasons.filter((reason): reason is string => typeof reason === "string")
-              : [];
-            return reasons.map((reason) => `${purpose}:${reason}`);
-          }).slice(0, 30);
-          screeningReasons = [...screeningReasons, ...workerReasons].slice(0, 30);
-          if (String(screeningState) === "screened_pass") screeningReasons.push("screening-only-human-review-required");
-        } else {
-          screeningState = "verification_unavailable";
-          screeningReasons = [...screeningReasons, "screening-service-unavailable", "manual-review-required"].slice(0, 30);
-        }
-      } finally {
-        clearTimeout(timer);
-      }
-    } catch {
-      screeningState = "verification_unavailable";
-      screeningReasons = [...screeningReasons, "screening-service-unavailable", "manual-review-required"].slice(0, 30);
-    }
-  } else if (!documentsDeferred && !visionResult && screeningState === "manual_review_required" && screeningReasons.includes("human-review-required")) {
+ else if (!documentsDeferred && !visionResult && screeningState === "manual_review_required" && screeningReasons.includes("human-review-required")) {
     screeningReasons = ["screening-service-not-configured", "manual-review-required"];
   }
 

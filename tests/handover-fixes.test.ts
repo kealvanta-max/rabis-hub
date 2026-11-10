@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -131,66 +132,91 @@ describe("premium loading", () => {
 });
 
 describe("server-side identity checks", () => {
-  const ooto = read("src/lib/ooto.ts");
-  const route = read("src/app/api/kyc/verify/route.ts");
   const diagnose = read("src/app/api/kyc/diagnose/route.ts");
-  const upload = read("src/components/ui/image-upload.tsx");
+  const signup = read("src/app/api/signup/submit/route.ts");
   const faceScan = read("src/components/ui/face-scan.tsx");
+  const deterministic = read("src/lib/kyc-deterministic.ts");
 
-  it("keeps the credentials on the server", () => {
-    expect(ooto).toContain("process.env.OOTO_APP_ID");
-    expect(ooto).toContain("process.env.OOTO_APP_KEY");
-    // A NEXT_PUBLIC_ variant would ship the app key to every browser.
-    expect(ooto).not.toContain("NEXT_PUBLIC_OOTO");
-    expect(read(".env.example")).not.toContain("NEXT_PUBLIC_OOTO");
+  /*
+   * Strategy A.
+   *
+   * There is no third-party identity provider any more. Four were tried and
+   * three were wrong: a Python worker that was never deployed, a browser OCR
+   * path that shipped a 4MB model to phones, and OOTO, whose two keys were
+   * never set in Vercel, so every call it made answered 503. What is left is
+   * six checks that need no key at all, and Rabi for everything else.
+   *
+   * These fences keep the deleted shapes from creeping back, because each one
+   * looked reasonable in isolation and each one was dead on arrival.
+   */
+
+  it("has no third-party identity provider in the signup path", () => {
+    expect(signup).not.toContain("ooto");
+    expect(signup).not.toContain("OOTO");
+    expect(read(".env.example")).not.toContain("OOTO_APP_KEY");
+    expect(fs.existsSync(new URL("../src/lib/ooto.ts", import.meta.url))).toBe(false);
+    expect(fs.existsSync(new URL("../src/lib/kyc-server-check.ts", import.meta.url))).toBe(false);
+    expect(fs.existsSync(new URL("../src/app/api/kyc/verify/route.ts", import.meta.url))).toBe(
+      false
+    );
   });
 
-  it("uses the three real endpoints", () => {
-    expect(ooto).toContain("/liveness?check_deepfake=true");
-    expect(ooto).toContain("/video/liveness");
-    expect(ooto).toContain("/recognize");
-    expect(ooto).toContain("/doc/compare");
+  it("runs the deterministic checks before any model is asked", () => {
+    /*
+     * Order matters and this is the assertion for it. The deterministic pass is
+     * a fact about the bytes; the model is an opinion. On a tie the fact wins,
+     * and the fact is cheaper and offline.
+     */
+    expect(signup.indexOf("screenDeterministically(")).toBeGreaterThan(-1);
+    expect(signup.indexOf("screenDeterministically(")).toBeLessThan(
+      signup.indexOf("screenKycImages(")
+    );
   });
 
-  it("treats engine code 5 as no human face", () => {
-    // "can not detect face" is the answer a photo of a dog produces.
-    expect(ooto).toContain("5: \"No human face was found");
-    expect(ooto).toContain('reasons.push("no-face")');
-  });
-
-  it("refuses to fetch anything but our own uploads", () => {
-    // Otherwise the route is a server-side request forger.
-    expect(route).toContain('parsed.hostname !== "res.cloudinary.com"');
-    expect(route).toContain("NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME");
-  });
-
-  it("runs AI screening at submission, refuses a rejection, and still requires a human", () => {
-    const signup = read("src/app/api/signup/submit/route.ts");
-    expect(upload).toContain("uploadToCloudinary(");
-    expect(upload).not.toContain("serverKycCheck");
-    // The worker path is still there as a second, independent signal.
-    expect(signup).toContain("KYC_SCREENING_URL");
-    expect(signup).toContain("X-Screening-Signature");
-    // Vision screening is authoritative for an outright refusal...
-    expect(signup).toContain("screenKycImages(");
+  it("refuses an outright rejection and still requires a human", () => {
     expect(signup).toContain('code: "kyc-screening-rejected"');
     expect(signup).toContain("422");
-    // ...and an accepted application still waits for Rabi.
     expect(signup).toContain('kycReviewStatus: "manual_review_required"');
     expect(signup).toContain('status: "pending"');
   });
 
   it("never records an AI outage as a pass", () => {
-    const signup = read("src/app/api/signup/submit/route.ts");
-    // A provider that cannot answer produces manual review, not screened_pass.
     expect(signup).toContain("verification_unavailable");
     expect(signup).not.toContain('screeningState = "screened_pass"');
   });
 
-  it("fails closed to manual review when the service is down", () => {
-    expect(ooto).toContain('return unavailable("selfie")');
-    expect(read("src/lib/kyc-server-check.ts")).toContain("ok: false, skipped: true");
-    expect(read("src/app/api/kyc/verify/route.ts")).toContain('code: "verification-unavailable"');
+  it("records a name or date disagreement for Rabi instead of refusing", () => {
+    /* The card's holder and the applicant can legitimately differ by marriage. */
+    expect(signup).toContain("readCardIdentity(");
+    expect(signup).toContain("manual_review_required");
+  });
+
+  it("saves the identity clip without pretending to verify it server-side", () => {
+    /*
+     * `/api/kyc/verify` required an authenticated account and the clip is filmed
+     * before the account exists, so it answered 401 to every real signup. The
+     * face scan now uploads and says what actually happens next.
+     */
+    expect(faceScan).not.toContain("serverKycCheck");
+    /* Nothing in the client may call a route that needs an account it lacks. */
+    expect(faceScan).not.toContain("fetch(\"/api/kyc");
+    expect(faceScan.toLowerCase()).toContain("rabi to review");
+  });
+
+  it("keeps every deterministic check keyless", () => {
+    /*
+     * If a future edit makes any of these need an API key, signup stops working
+     * on the day the free tier is exhausted. The check names are the contract.
+     */
+    for (const name of [
+      "readTd1",
+      "matchTypedPin",
+      "judgeCardGeometry",
+      "cardTemplateMarkers",
+      "judgeSelfiePhoto",
+    ]) {
+      expect(deterministic).toMatch(new RegExp(`export (async )?function ${name}\\(`));
+    }
   });
 
   it("can prove the vision credentials from production", () => {
