@@ -15,6 +15,8 @@
  * it refuses to send mail built from client-supplied profile data.
  */
 
+import { parseServiceAccount, serviceAccountRaw } from "@/lib/service-account";
+
 const PROJECT_ID =
   process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
   process.env.FIREBASE_PROJECT_ID ||
@@ -52,42 +54,11 @@ type AdminFirestore = import("firebase-admin/firestore").Firestore;
 
 let cachedDb: AdminFirestore | null | undefined;
 
-function serviceAccountRaw(): string | null {
-  return (
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
-    process.env.SERVICE_ACCOUNT ||
-    process.env.FIREBASE_SERVICE_ACCOUNT ||
-    null
-  );
-}
-
-/** Parses the service account from JSON, or from base64 JSON (the safer paste). */
-function parseServiceAccount(raw: string): Record<string, unknown> | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  const candidates = trimmed.startsWith("{")
-    ? [trimmed]
-    : [Buffer.from(trimmed, "base64").toString("utf8")];
-
-  for (const candidate of candidates) {
-    try {
-      const parsed = JSON.parse(candidate) as Record<string, unknown>;
-      if (parsed.project_id && parsed.private_key) {
-        // Vercel env values often carry the key with escaped newlines, which
-        // makes the PEM unreadable and every call fail with a vague error.
-        if (typeof parsed.private_key === "string") {
-          parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
-        }
-        return parsed;
-      }
-    } catch {
-      // Try the next shape.
-    }
-  }
-
-  return null;
-}
+/*
+ * Parsing lives in `service-account.ts` so the diagnosis route and the code that
+ * actually builds the credential cannot disagree about what a valid key is.
+ * Everything below is about getting a live handle from a parsed key.
+ */
 
 /**
  * The Admin SDK handle, or null when no service account is configured.

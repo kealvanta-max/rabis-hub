@@ -135,13 +135,42 @@ describe("signup cannot be blocked by storage", () => {
   });
 });
 
-describe("production can be asked which build it is", () => {
+describe("production can be asked which build it is, and what is broken", () => {
   const health = read("src/app/api/health/route.ts");
+  const probe = read("src/lib/capability-probe.ts");
 
   it("reports the commit Vercel deployed", () => {
     expect(health).toContain("VERCEL_GIT_COMMIT_SHA");
     expect(health).toContain("const build =");
-    expect(health).toContain("{ status: gaps.length === 0 ? \"ready\" : \"misconfigured\", build }");
+  });
+
+  it("answers with the capability verdict, not with variable presence", () => {
+    /*
+     * "Are the variables non-empty" was never the question production asked.
+     * Every variable was present the two times signup broke; one had a key that
+     * did not parse and nothing said so. The public shape is now the verdict.
+     */
+    expect(health).toContain("probeCapabilities(");
+    expect(health).toContain("overallState(");
+    expect(health).toContain("signupWorks");
+    expect(health).toContain("failing");
+  });
+
+  it("proves storage by writing and reading a scratch document", () => {
+    expect(probe).toContain("_health-probe");
+    expect(probe).toContain(".set(");
+    expect(probe).toContain(".delete()");
+    // A read alone would have passed while the write path was broken.
+    expect(probe).toContain("ref.set(");
+  });
+
+  it("asks Cloudinary directly instead of trusting the variables", () => {
+    expect(probe).toContain("api.cloudinary.com");
+    expect(probe).toContain("/ping");
+  });
+
+  it("keeps the detail away from anonymous callers", () => {
+    expect(health).toContain("if (!actor?.admin)");
   });
 });
 

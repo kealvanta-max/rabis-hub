@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 import { authenticateRequest } from "@/lib/server-auth";
 import { kycVisionConfigured, screenSelfie, visionProviderNames } from "@/lib/kyc-vision";
-import { ootoConfigured } from "@/lib/ooto";
 import { deterministicEngineStatus, judgeSelfiePhoto, centralFaceBox } from "@/lib/kyc-deterministic";
 
 export const runtime = "nodejs";
@@ -47,7 +46,6 @@ export async function GET(request: Request) {
         ok: false,
         configured: false,
         providers,
-        ootoConfigured: ootoConfigured(),
         summary:
           "No vision AI key is set. Every application will be saved for manual review, and photos of animals or fake cards will only be caught by you.",
         howToFix: [
@@ -96,7 +94,6 @@ export async function GET(request: Request) {
       ok: answered && !sawHuman,
       configured: true,
       providers,
-      ootoConfigured: ootoConfigured(),
       deterministic: {
         ocrEngine: engine.ocr ? "ready" : "unavailable",
         rejectedBlankSquare: greySelfie.status === "fail",

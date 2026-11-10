@@ -1,4 +1,65 @@
-# Beta fix pass — what was broken and what changed
+# Fix log
+
+## "Secure signup storage is unavailable", with every variable set
+
+A member reached the last step of signup and got that sentence. Every Firebase
+variable in Vercel was present and freshly pasted. The health endpoint said
+"misconfigured" and named nothing, so the only way to learn more was a Vercel log
+nobody had open.
+
+**The root cause was the question, not the answer.** `/api/health` reported
+whether variables were non-empty. That was always true. The service account was
+present and unparseable, which is a different thing, and no code path anywhere
+distinguished the two.
+
+Three changes, in order of how much they would have helped:
+
+1. **`src/lib/service-account.ts`.** One function decides whether the value is a
+   usable key, and returns either the credential or a named reason: absent, not
+   base64, not JSON, not an object, no `project_id`, no `private_key`, no
+   `client_email`, or a private key that is not a PEM block. The parser that
+   builds the credential and the diagnosis a human reads are the same function,
+   because an earlier draft had two and they disagreed about a key that would
+   load and could never sign.
+
+2. **`/api/health` exercises the capability instead of listing the variable.** It
+   writes and deletes a scratch Firestore document, asks Cloudinary's own
+   `/ping`, builds the OCR worker, and feeds a blank image to the colour screen
+   expecting a refusal. Each answers `ready`, `degraded`, `broken` or `off`, with
+   one sentence, the exact error, and what a member sees. `off` is a supported
+   state: log-mode mail and no AI provider are both deliberate.
+
+3. **`criticalGaps()` includes `firebase-admin`.** Its absence from that list is
+   why a deployment that could not write a single member record reported no
+   critical gaps.
+
+`GET /api/health/service-account` answers the narrower question, and names the
+fault with its one-step fix. The admin panel shows the same verdict, in place of
+the old banner that listed empty variables.
+
+### What was deleted at the same time
+
+Four KYC layers that never ran, found while tracing why signup was slow:
+
+| Removed | Why it was dead |
+| :--- | :--- |
+| `services/kyc-screening`, `render.yaml` | `autoDeploy: false` and `KYC_SCREENING_URL` empty. The call could not succeed. |
+| `n8n/` | The queue template for that worker. Nothing read it. |
+| `ooto.ts`, `/api/kyc/verify`, `kyc-server-check.ts` | OOTO's keys were never set, and the route required a signed-in account while a face scan happens before the account exists. It returned 401 to every real signup. |
+| `ghana-card-ocr.ts` | A browser Tesseract path that shipped 4 MB to phones. Nothing imported it since the server reader landed. |
+
+Plus `document-photo.ts`, `shadcn-card.tsx`, three unused `@fontsource`
+packages, and `@tensorflow/tfjs-converter` as a direct dependency.
+
+**What remains is the six checks that need no key**, run server-side before any
+model is asked: card MRZ and ICAO check digits, the card number against the MRZ,
+printing markers on the card front, the typed PIN against the printed one,
+whether the selfie contains a person, and whether it contains eyes. Everything
+they cannot decide goes to Rabi with the finding attached. Nothing is
+auto-approved, and a disagreement between the card and the form is a line on her
+screen rather than a refusal.
+
+---
 
 ## 🐕 Why a photo of a dog passed as "review"
 
@@ -28,10 +89,11 @@ Both are fixed by owning the files instead of borrowing them:
 - `src/lib/face-detection.ts` and the liveness step now share one loader that tries
   local/GPU, local/CPU, CDN/GPU, CDN/CPU, in that order. Any of the four may be the
   one a given phone accepts.
-- `src/lib/ghana-card-ocr.ts` creates one worker from local files, reuses it for the
-  front, the back and any retry, and falls back to the CDN only if the local copy
-  fails. A read that takes longer than 45 seconds is abandoned so the member is
-  never stuck watching a spinner.
+- The card is read on the server, not on the member's phone. The browser Tesseract
+  path was removed: it shipped a 4 MB model to devices on mobile data and gave a
+  different answer on every handset. `src/lib/kyc-deterministic.ts` builds one
+  worker per lambda from the vendored files and reuses it for the front, the back
+  and any retry.
 - The CSP now allows the two fallback origins, because a blocked fallback is the
   same as no fallback.
 - A rejected selfie now says what actually happened: "No human face was found in
@@ -744,6 +806,13 @@ Two points, both server-side:
   returns **422 `kyc-screening-rejected`** *before the Firestore document is
   created*, so a refused applicant leaves no record and has nothing to "wait
   out".
+
+  These checks are the six that need no key: card MRZ and ICAO check digits, the
+  card number against the MRZ, printing markers on the card front, the typed PIN
+  against the printed one, whether the selfie contains a person, and whether it
+  contains eyes. A disagreement between the card and what the member typed is
+  never a refusal; it is a line on Rabi's screen, because a married name on the
+  card and a maiden name in the form is a normal thing and not a fraud.
 
 `src/lib/cloudinary.ts` throws a dedicated `KycRejectionError` for this, because
 the upload helper retries network blips, and a refusal is not a blip.

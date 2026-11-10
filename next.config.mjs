@@ -20,7 +20,7 @@ const nextConfig = {
   experimental: {
     // Ship smaller client bundles: only the icons/components actually imported
     // are pulled in.
-    optimizePackageImports: ["lucide-react", "framer-motion", "recharts"],
+    optimizePackageImports: ["lucide-react", "framer-motion"],
     serverComponentsExternalPackages: ["tesseract.js", "tesseract.js-core"],
 
     /*
@@ -52,6 +52,13 @@ const nextConfig = {
         "./node_modules/@tensorflow/tfjs-core/dist/tf-core.node.js.map",
         "./node_modules/@tensorflow/tfjs-backend-wasm/dist/tf-backend-wasm.node.js",
         "./node_modules/@tensorflow/tfjs-backend-cpu/dist/tf-backend-cpu.node.js",
+        /*
+         * Not a direct dependency: face-api's Node build requires the
+         * `@tensorflow/tfjs` meta-package, which pulls the converter in, and the
+         * model loader will not start without it. Listing it here is what makes
+         * the traced function find it; removing the explicit package.json entry
+         * did not remove the file, so this line still points at something real.
+         */
         "./node_modules/@tensorflow/tfjs-converter/dist/tf-converter.node.js",
         "./public/kyc/face/**",
       ],

@@ -17,7 +17,6 @@ import Input from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { getPlanLabel, planLabels } from "@/lib/plans-data";
 import { formatDate, formatDateTime } from "@/lib/utils";
-import { isFirebaseConfigured } from "@/lib/firebase";
 import type { UserDoc, TestimonialDoc } from "@/lib/types";
 import {
   describeOutcome,
@@ -26,6 +25,7 @@ import {
 } from "@/lib/notify-client";
 import dynamic from "next/dynamic";
 import InsightsPanel from "@/components/admin/insights";
+import SystemStatus from "@/components/admin/system-status";
 import AdminTabs, { type AdminTab } from "@/components/admin/admin-tabs";
 import ActionButton from "@/components/admin/action-button";
 import UserRow from "@/components/admin/user-row";
@@ -68,14 +68,6 @@ export default function AdminPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [alertingPending, setAlertingPending] = useState(false);
-  const [health, setHealth] = useState<{
-    cloudinaryConfigured: boolean;
-    emailProvider: string | null;
-    integrations?: { id: string; label: string; category: string; configured: boolean; missing: string[] }[];
-  } | null>(null);
-
-  const unconfigured = health?.integrations?.filter((i) => !i.configured) ?? [];
-
   const fetchData = useCallback(async () => {
     try {
       // Users
@@ -122,16 +114,6 @@ export default function AdminPage() {
     }
     if (user && isAdmin) fetchData();
   }, [user, isAdmin, authLoading, router, fetchData]);
-
-  useEffect(() => {
-    if (!isAdmin || !user) return;
-    void user.getIdToken().then((token) =>
-      fetch("/api/health", { headers: { Authorization: `Bearer ${token}` } })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => data && setHealth(data))
-        .catch(() => setHealth(null))
-    ).catch(() => setHealth(null));
-  }, [isAdmin, user]);
 
   const setStatus = async (userId: string, status: "approved" | "rejected" | "pending", reason?: string) => {
     track(status === "approved" ? "admin_approved" : status === "rejected" ? "admin_rejected" : "admin_reset", {
@@ -622,44 +604,16 @@ export default function AdminPage() {
             </section>
           )}
 
-          {/* System status */}
-          {(!isFirebaseConfigured || unconfigured.length > 0) && (
-            <div className="mb-8 rounded-2xl border border-amber-500/30 bg-amber-500/[0.06] p-5">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86l-8.18 14.18A2 2 0 003.82 21h16.36a2 2 0 001.71-2.96L13.71 3.86a2 2 0 00-3.42 0z" />
-                </svg>
-                <div className="flex-1">
-                  <h3 className="text-sm font-bold text-amber-200">Setup needs attention</h3>
-                  <p className="text-xs text-amber-200/70 mb-3">
-                    Some integrations are missing, so parts of the site will not work for members.
-                  </p>
-                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {!isFirebaseConfigured && (
-                      <li className="min-w-0">
-                        <StatusPill ok={false} label="Firebase" />
-                      </li>
-                    )}
-                    {unconfigured
-                      .filter((i) => i.id !== "firebase")
-                      .map((integration) => (
-                        <li key={integration.id} className="flex min-w-0 items-start gap-2">
-                          <StatusPill ok={false} label={integration.label} />
-                          <span className="min-w-0 truncate text-[11px] text-amber-200/50">
-                            {integration.missing.join(", ")}
-                          </span>
-                        </li>
-                      ))}
-                  </ul>
-                  <p className="mt-3 text-[11px] text-amber-200/60">
-                    Values go in Vercel → Settings → Environment Variables, then run
-                    <code className="mx-1 text-amber-100">npm run env:check</code>
-                    locally. Full table: <code className="text-amber-100">docs/INTEGRATIONS.md</code>.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          {/*
+            System status.
+
+            This replaces a banner that listed empty variables. Twice, every
+            variable was present and signup still failed, and the banner was
+            silent both times. The panel below asks the server to exercise each
+            capability instead, so a present-but-wrong key shows up as a fault
+            instead of a tick.
+          */}
+          {user && <SystemStatus getIdToken={() => user.getIdToken()} />}
 
           {/* Tabs */}
           <AdminTabs
@@ -1036,22 +990,6 @@ function isOcrValid(raw: string): boolean {
   } catch {
     return false;
   }
-}
-
-function StatusPill({ ok, label }: { ok: boolean; label: string }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border ${
-        ok
-          ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-          : "bg-red-500/15 text-red-300 border-red-500/30"
-      }`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${ok ? "bg-emerald-400" : "bg-red-400"}`} />
-      {label}
-      {ok ? " ready" : " missing"}
-    </span>
-  );
 }
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {

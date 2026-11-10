@@ -13,7 +13,6 @@ import {
   Upload,
 } from "lucide-react";
 import { uploadToCloudinary } from "@/lib/cloudinary";
-import { serverKycCheck } from "@/lib/kyc-server-check";
 import { createFaceLandmarker } from "@/lib/face-detection";
 import FaceIdTile from "@/components/ui/face-id-tile";
 import { cn } from "@/lib/utils";
@@ -23,12 +22,6 @@ interface FaceScanProps {
   onComplete: (videoUrl: string) => void;
   /** Called when the member cannot use a camera; an admin reviews manually. */
   onManualReview?: (reason: string) => void;
-  /**
-   * Called when the clip was recorded and stored but could not be checked.
-   * The application continues and Rabi decides; a missing automated check is
-   * not a reason to strand a real member on the camera screen.
-   */
-  onUnverified?: (videoUrl: string, note: string) => void;
 }
 
 type Status =
@@ -72,7 +65,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  *  - there is always a way forward: record a short clip, or ask for manual
  *    review. A blocked camera must never trap someone in the signup flow.
  */
-export default function FaceScan({ onComplete, onManualReview, onUnverified }: FaceScanProps) {
+export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -137,43 +130,18 @@ export default function FaceScan({ onComplete, onManualReview, onUnverified }: F
         const url = await uploadToCloudinary(file);
 
         /*
-         * The clip has to survive a server-side liveness check before it counts.
-         * A printed photo, a phone screen or a mask can satisfy a camera, and the
-         * browser cannot tell. The server can.
-         */
-        setStatus("uploading");
-        setMessage("Checking that this is a real, live person…");
-        const server = await serverKycCheck("video", url);
-
-        /*
-         * "Skipped" means the server could not judge this clip, not that the clip
-         * was bad — and during signup it is guaranteed, because there is no
-         * account yet for `/api/kyc/verify` to authenticate. Showing that as a
-         * red error stranded members on a screen with no way forward, which is
-         * exactly what the reported screenshot shows.
+         * One round trip, and no second one.
          *
-         * An unproven clip is not a refusal. It goes to Rabi flagged for a closer
-         * look, and the member keeps moving.
+         * An earlier version posted the clip to a server check after uploading.
+         * That check required a signed-in account and a face scan happens during
+         * signup, before the account exists, so it refused every attempt and the
+         * member was told to wait for a human even when the clip was perfect.
+         *
+         * The clip is uploaded and recorded against the application, where Rabi
+         * watches it. That is the honest description of what happens to it, and
+         * it is what the member is told.
          */
-        if (server.skipped) {
-          doneRef.current = true;
-          setStatus("done");
-          setProgress(100);
-          setMessage("Your clip was recorded. Rabi will confirm it by hand.");
-          teardown();
-          onUnverified?.(url, server.message || "Liveness could not be checked automatically.");
-          return;
-        }
-
-        if (!server.ok) {
-          setStatus("error");
-          setMessage(
-            server.message ||
-              "That face scan did not look like a live person. Hold the phone at eye level and do it again."
-          );
-          return;
-        }
-
+        setMessage("Saving your clip for Rabi to review...");
         doneRef.current = true;
         setStatus("done");
         setProgress(100);
@@ -190,7 +158,7 @@ export default function FaceScan({ onComplete, onManualReview, onUnverified }: F
         );
       }
     },
-    [onComplete, onUnverified, teardown]
+    [onComplete, teardown]
   );
 
   const startClipRecording = useCallback(() => {
