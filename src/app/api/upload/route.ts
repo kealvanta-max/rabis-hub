@@ -27,6 +27,23 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
+ * This route does more work than any other in the app, on every photo:
+ *
+ *   decode (jpeg-js)         ~90ms
+ *   face detector, cold       1.4s     (wasm init + two models + landmarks)
+ *   face detector, warm      ~0.3s
+ *   AI vision provider       up to KYC_VISION_TIMEOUT_MS, default 20s
+ *   Cloudinary upload        unknown, on mobile data
+ *
+ * Without this export the function is capped at the plan's default (10s on
+ * Hobby). The provider timeout alone is 20s, so the function could be killed at
+ * 10s while the provider was still thinking, and the member saw a failed upload
+ * that had in fact been screened. Naming a budget larger than every internal
+ * timeout is what makes those timeouts meaningful.
+ */
+export const maxDuration = 60;
+
+/**
  * Cloudinary signature: every parameter that is sent to Cloudinary (except
  * `file`, `api_key` and `resource_type`) is sorted, joined as `k=v&…` and
  * SHA-1 hashed with the API secret.
