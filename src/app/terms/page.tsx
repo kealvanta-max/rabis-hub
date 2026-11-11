@@ -25,52 +25,52 @@ export default function TermsOfServicePage() {
               <h2 className="text-xl font-bold text-white mb-3">The Core Rules</h2>
               <div className="space-y-5">
                 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">1. Start Date</h3>
                   <p className="text-gray-300">Savings officially begin on Monday, 16th March 2026. Do not miss the start date.</p>
                 </div>
 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">2. Payment Deadlines</h3>
                   <p className="text-gray-300">Your money must be paid daily, or paid in full on CASHOUT days strictly before 4:00 PM. We do not accept late payments interfering with our schedule.</p>
                 </div>
 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">3. Mobile Money References</h3>
                   <p className="text-gray-300">Your actual registered name must be used as your Momo reference. You can also call us directly to confirm your payments if you want to be extra sure we received it. No anonymous transfers.</p>
                 </div>
 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">4. Non Refundable</h3>
                   <p className="text-gray-300">Money sent to the Susu account is absolutely not refundable under any circumstances. Commit to your plan.</p>
                 </div>
 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">5. Late Penalties</h3>
                   <p className="text-gray-300">Any delay in payments will automatically trigger a penalty fee of GH₵10. We respect time here.</p>
                 </div>
 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">6. No Excuses</h3>
                   <p className="text-gray-300">We do not entertain stories like &quot;pay for me I will give it to you tomorrow.&quot; You are responsible for your own contributions.</p>
                 </div>
 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">7. Identification Requirement</h3>
                   <p className="text-gray-300">You absolutely cannot participate in this savings community without a valid Ghana card. Period.</p>
                 </div>
 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">8. Cashout Protocol</h3>
                   <p className="text-gray-300">Everyone is obligated to fill out our mandatory Google form before receiving their CASHOUT amount. If you do not fill the form, no money will be sent to you.</p>
                 </div>
 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">9. Mandatory Completion</h3>
                   <p className="text-gray-300">You cannot stop your contributions midway. You are locked in until every single member has been paid.</p>
                 </div>
 
-                <div className="bg-[#051A10] border border-[#065F46] rounded-xl p-5">
+                <div className="panel-card">
                   <h3 className="text-primary font-bold mb-1">10. Zero Tolerance for Theft</h3>
                   <p className="text-gray-300">Anyone who tries to stop contributing after taking their own cashout money will be considered a thief. You will be arrested or sued without hesitation.</p>
                 </div>

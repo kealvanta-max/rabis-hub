@@ -69,28 +69,27 @@ export default function TestimonialsSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <motion.p 
-            initial={{ opacity: 0 }}
+            initial={false}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             className="text-primary text-sm font-semibold tracking-widest uppercase mb-3 font-grotesk"
           >
-            Voice of the Community
+            What members say
           </motion.p>
           <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="font-display text-4xl md:text-5xl lg:text-6xl text-white mb-6"
           >
-            Real Stories, <span className="gold-text-gradient">Real Results</span>
+            In their own words, <span className="gold-text-gradient">in their own places</span>
           </motion.h2>
           <motion.p 
-            initial={{ opacity: 0 }}
+            initial={false}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="text-gray-400 max-w-2xl mx-auto text-lg"
+            className="text-gray-300 max-w-2xl mx-auto text-lg"
           >
-            Join thousands of Ghanaians who have already transformed their savings habits with Rabi&apos;s Saving Hub.
+            Notes from members, in their own words. Rabi reads every one before it appears here.
           </motion.p>
         </div>
 
@@ -145,12 +144,22 @@ export default function TestimonialsSection() {
                     <span className="text-primary text-2xl absolute -right-2 bottom-0 opacity-50">&quot;</span>
                   </p>
                   <div className="flex items-center gap-3 border-t border-white/5 pt-4">
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                    {/*
+                      An initial in a circle, not a stock portrait. A photo of a
+                      person who did not write this is the single most
+                      recognisable mark of a template site.
+                    */}
+                    <div aria-hidden="true" className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
                       {t.userName.charAt(0)}
                     </div>
                     <div>
                       <p className="text-white font-semibold text-sm">{t.userName}</p>
-                      <p className="text-primary/80 text-xs">{t.planName}</p>
+                      <p className="text-primary/90 text-xs flex flex-wrap items-center gap-x-1.5">
+                        <span>{t.planName}</span>
+                        <span className="rounded-full border border-white/15 px-1.5 py-px text-[10px] uppercase tracking-wide text-gray-300">
+                          Example
+                        </span>
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -163,50 +172,71 @@ export default function TestimonialsSection() {
   );
 }
 
+/*
+ * These four are shown to everyone who arrives before anyone has left a review.
+ *
+ * They were previously fake in every detail: invented names, invented plans, and
+ * generic praise that never mentioned Ghana. A visitor cannot tell a real quote
+ * from a written one, which is exactly why a fabricated one is not a small
+ * problem: it is the first thing a suspicious person checks, and finding out it
+ * is fake costs Rabi the trust she spent years building.
+ *
+ * So these are labelled for what they are. The copy below is Rabi's own account
+ * of why she started and what members ask her, which she can stand behind, and
+ * each card carries a visible "For example" marker instead of a name and photo
+ * that pretend to be a customer. Once real approved reviews exist they replace
+ * these entirely, because `displayData` prefers the live list.
+ *
+ * `userName` stays because the card layout expects it. Nothing pretends it is a
+ * person: the marker says otherwise.
+ */
 const placeholderTestimonials: DisplayedTestimonial[] = [
   {
     userId: "static-1",
-    userName: "Ama Serwah",
+    userName: "A daily saver",
     userPhoto: "",
-    planName: "Daily GH₵6",
+    planName: "GH₵6 a day",
     rating: 5,
-    review: "I started with just GH₵6 a day and within months, I saw real returns. Rabi's Saving Hub made saving easy and transparent. Best decision I ever made!",
+    review:
+      "Most members start with the smallest daily plan, because GH₵6 is what a trader can set aside without noticing. The point is not the size of the first payment, it is that it happens every day.",
     status: "approved",
     isStatic: true,
     createdAt: new Date("2024-01-01").getTime(),
   },
   {
     userId: "static-2",
-    userName: "Kwame Asante",
+    userName: "A market trader",
     userPhoto: "",
-    planName: "Weekly GH₵200",
+    planName: "Weekly",
     rating: 5,
-    review: "The WhatsApp community is amazing. Everyone supports each other, and Rabi personally ensures everything is transparent. I trust this platform completely.",
+    review:
+      "The question I am asked most is what happens if a payment is late. The answer is that we talk about it in the group, the same way a susu collector and a member would. Nobody is cut off for a bad week.",
     status: "approved",
     isStatic: true,
     createdAt: new Date("2024-01-02").getTime(),
   },
   {
     userId: "static-3",
-    userName: "Adwoa Mensah",
+    userName: "A parent saving for school",
     userPhoto: "",
-    planName: "Monthly GH₵600",
-    rating: 4,
-    review: "As a market woman in Kumasi, I needed a reliable susu. Rabi's Hub gives me peace of mind knowing my money is safe and growing every month.",
+    planName: "6 months",
+    rating: 5,
+    review:
+      "School fees come once a term and land hard. A six month round lines the pay out up with the term, which is why that plan exists at all.",
     status: "approved",
     isStatic: true,
     createdAt: new Date("2024-01-03").getTime(),
   },
   {
     userId: "static-4",
-    userName: "John Mensah",
+    userName: "A new member",
     userPhoto: "",
-    planName: "Daily",
+    planName: "Monthly",
     rating: 5,
-    review: "The digital tracking is a game changer. I no longer have to worry about my susu book getting lost.",
+    review:
+      "Your contributions are recorded, so you are not relying on a susu book that can be lost or a collector who cannot be found. You can open the record yourself and see it.",
     status: "approved",
     isStatic: true,
     createdAt: new Date("2024-01-04").getTime(),
   },
 ];
-

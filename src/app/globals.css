@@ -284,6 +284,20 @@ input[type="range"] {
   outline: none;
 }
 
+/*
+ * The slider is a keyboard control: arrows step it, Home and End jump to the
+ * ends. With `outline: none` and nothing drawn in its place, a keyboard user
+ * adjusting the savings calculator could not see which of the four sliders they
+ * were on.
+ *
+ * Drawn as a ring on the track rather than an outline, because the thumb is 20px
+ * and an outline around a 6px track hugs the wrong shape at this size.
+ * `:focus-visible` so a mouse drag does not light up.
+ */
+input[type="range"]:focus-visible {
+  box-shadow: 0 0 0 3px #020C06, 0 0 0 5px #10B981;
+}
+
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -736,4 +750,59 @@ select optgroup {
 
 .testimonial-card {
   background: linear-gradient(180deg, #051a10, #020c06);
+}
+
+/* ============================================================================
+ * COMPONENT LAYER
+ *
+ * Utilities repeated verbatim across a dozen files are the thing that makes a
+ * template read as machine-assembled: the eye finds the same eight classes in
+ * the same order everywhere, and no name is ever given to the idea. Naming the
+ * repeated shapes fixes both the density and the searchability.
+ *
+ * The rules below are deliberately narrow. `@apply` in `components` keeps every
+ * one of them at specificity (0,1,0), so a single utility on the element still
+ * wins and nothing here can outrank a page level rule. No `!important`, and
+ * nothing that re-declares base element styles.
+ *
+ * Counts are from the tree at the time of writing, so each entry earned its
+ * place rather than being added for symmetry.
+ * ========================================================================== */
+@layer components {
+  /*
+   * The admin panel card. Ten call sites had this exact eight-class string.
+   * Used by the review queue, the member detail modal and the system panels.
+   */
+  .panel-card {
+    @apply rounded-xl border border-[#065F46] bg-[#051A10] p-5;
+  }
+
+  /*
+   * A quieter panel for secondary blocks: settings rows, evidence panels and
+   * anything nested inside a .panel-card, where the brighter border would
+   * compete with its parent.
+   */
+  .panel-card-muted {
+    @apply rounded-xl border border-white/10 bg-white/[0.03] p-4;
+  }
+
+  /*
+   * The small uppercase label that sits above a value across the admin and
+   * dashboard screens. Six call sites, and getting the tracking or the colour
+   * wrong in one of them is exactly the inconsistency this removes.
+   */
+  .field-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-300;
+  }
+
+  /*
+   * Supporting copy under a field. Five call sites.
+   *
+   * text-gray-300 rather than gray-400: at 11px this is small text, and small
+   * text needs 4.5:1. The muted grey it replaced measured 3.7:1 against the
+   * panel background, which is a real failure and not a stylistic preference.
+   */
+  .field-hint {
+    @apply mt-1 text-xs leading-relaxed text-gray-300;
+  }
 }

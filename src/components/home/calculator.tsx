@@ -27,7 +27,6 @@ export default function CalculatorSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center mb-16">
           <motion.p 
-            initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="text-primary text-sm font-semibold tracking-widest uppercase mb-3 font-grotesk"
@@ -35,7 +34,6 @@ export default function CalculatorSection() {
             Wealth Projection
           </motion.p>
           <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="font-display text-4xl md:text-5xl lg:text-6xl text-white mb-6"
@@ -72,7 +70,6 @@ export default function CalculatorSection() {
 
         <motion.div 
           layout
-          initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           className="max-w-2xl mx-auto relative group"
@@ -85,7 +82,6 @@ export default function CalculatorSection() {
                 {mode === "standard" ? (
                   <motion.div
                     key="standard-inputs"
-                    initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     className="space-y-8"
@@ -144,7 +140,6 @@ export default function CalculatorSection() {
                 ) : (
                   <motion.div
                     key="achiever-inputs"
-                    initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
                     className="space-y-8"
@@ -181,8 +176,14 @@ export default function CalculatorSection() {
                   <span className="text-gray-400 text-sm mb-2 font-medium">Estimated Total Returns</span>
                   <motion.div
                     key={`${total}-${mode}`}
-                    initial={{ scale: 0.8, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
+                    /*
+                     * A number, so it can start small, but never invisible.
+                     * With `opacity: 0` the prerendered markup carried a
+                     * `style="opacity:0"` that `style-src-attr 'none'` refuses to
+                     * update, and the headline figure of the savings calculator
+                     * is the one thing on this section a visitor came for.
+                     */
+                    animate={{ scale: 1 }}
                     transition={{ type: "spring", stiffness: 300, damping: 20 }}
                   >
                     <span className="text-5xl md:text-7xl font-display font-bold gold-text-gradient drop-shadow-2xl">

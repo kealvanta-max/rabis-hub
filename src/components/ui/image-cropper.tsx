@@ -274,7 +274,7 @@ export default function ImageCropper({
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-lg leading-tight">{title}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-gray-400">
+            <p className="field-hint">
               {subtitle ?? "Drag the photo to fit the frame, then confirm."}
             </p>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { SelectHTMLAttributes, forwardRef } from "react";
+import { SelectHTMLAttributes, forwardRef, useId } from "react";
 import { ChevronDown } from "lucide-react";
 
 interface Option {
@@ -26,7 +26,10 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
  */
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, error, options, placeholder, className = "", id, ...props }, ref) => {
-    const selectId = id || label?.toLowerCase().replace(/\s+/g, "-");
+    // Same collision as `Input`: a slug of the label is not unique.
+    const generatedId = useId();
+    const selectId = id || generatedId;
+    const errorId = `${selectId}-error`;
 
     return (
       <div className="w-full">
@@ -39,6 +42,8 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <select
             ref={ref}
             id={selectId}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
             className={`w-full appearance-none px-4 py-3 pr-10 bg-[#051A10]/60 border border-[#065F46] rounded-xl text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200 ${
               error ? "border-red-500 focus:ring-red-500/50" : ""
             } ${className}`}
@@ -60,7 +65,9 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
           />
         </div>
-        {error && <p className="mt-1 text-xs text-red-400">{error}</p>}
+        {error && (
+          <p id={errorId} role="alert" className="mt-1 text-xs text-red-400">{error}</p>
+        )}
       </div>
     );
   }

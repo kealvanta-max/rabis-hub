@@ -37,7 +37,19 @@ export default function Navigation() {
   }, []);
 
   return (
-    <nav
+    /*
+     * This is a <header>, not a <nav>.
+     *
+     * It wraps the wordmark, the section links, the account actions and the
+     * language picker, and inside it sits LiquidGlassNav, which is itself a
+     * <nav>. A <nav> inside a <nav> gives a screen reader two navigation
+     * landmarks with nothing to distinguish them, which is a landmark violation
+     * and the reason a jump list here reads "navigation, navigation".
+     *
+     * <header> is the correct element for the site banner anyway, and it keeps
+     * exactly one navigation landmark on the page.
+     */
+    <header
       className={`fixed top-0 left-0 right-0 z-[9000] transition-[background-color,box-shadow] duration-500 ${
         scrolled ? "lg-surface" : "bg-transparent"
       }`}
@@ -109,9 +121,12 @@ export default function Navigation() {
 
           {/* Mobile hamburger */}
           <button
+            type="button"
             onClick={() => setMenuOpen(!menuOpen)}
             className="md:hidden text-gray-300 hover:text-white transition-colors cursor-pointer"
             aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+            aria-controls="mobile-menu"
           >
             {menuOpen ? (
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -128,7 +143,7 @@ export default function Navigation() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="lg-surface md:hidden rounded-b-3xl">
+        <div id="mobile-menu" className="lg-surface md:hidden rounded-b-3xl">
           <div className="px-4 py-4 space-y-1">
             <MobileLink href="/#plans" onClick={() => setMenuOpen(false)}>{t.nav_plans}</MobileLink>
             <MobileLink href="/#calculator" onClick={() => setMenuOpen(false)}>{t.nav_calculator}</MobileLink>
@@ -179,7 +194,7 @@ export default function Navigation() {
           </div>
         </div>
       )}
-    </nav>
+    </header>
   );
 }
 

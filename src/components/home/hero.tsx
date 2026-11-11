@@ -24,10 +24,22 @@ import savingsAnimation from "../../../public/animations/savings-hero.json";
  * to the gentle float on the globe, which cannot delay a paint.
  */
 
+/*
+ * Three facts, no invented ones.
+ *
+ * This used to read "2K+ members", "GH₵5M+ saved" and a "98% success rate".
+ * None of them were true, none were sourced, and a visitor who does the maths on
+ * a GH₵6 plan can see they do not add up. Worse, the last one is a performance
+ * promise about other people's money, which nobody here is in a position to make.
+ *
+ * What is left is checkable from this app: the floor price Rabi actually quotes,
+ * when a round pays out, and the fact that a person answers. Those are the
+ * things a new member is really deciding on.
+ */
 const STATS = [
-  { value: "2K+", key: "hero_stat_members" as const },
-  { value: "₵5M+", key: "hero_stat_saved" as const },
-  { value: "98%", key: "hero_stat_rate" as const },
+  { key: "hero_stat_members" as const, value: "GH₵6", unit: "a day, the smallest plan" },
+  { key: "hero_stat_saved" as const, value: "5 days", unit: "one daily round, then you are paid" },
+  { key: "hero_stat_rate" as const, value: "WhatsApp", unit: "Rabi answers personally" },
 ];
 
 export default function HeroSection() {
@@ -70,21 +82,24 @@ export default function HeroSection() {
             <div className="inline-flex flex-wrap items-center justify-center gap-2 px-4 py-1.5 rounded-full border border-primary/40 bg-primary/10 mb-6 md:mb-8 glass-card">
               <span className="w-2 h-2 rounded-full bg-primary" aria-hidden="true" />
               <span className="text-[11px] md:text-xs font-semibold text-white tracking-widest uppercase font-grotesk">
-                Akwaaba, welcome
+                {t.hero_badge}
               </span>
             </div>
 
-            <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl leading-[1.1] text-white mb-2 max-w-3xl">
+            <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl leading-[1.1] text-white mb-2 max-w-[22ch]">
               {t.hero_heading}
             </h1>
 
-            <p className="text-xl sm:text-2xl md:text-3xl font-display italic text-primary mt-4 mb-4">
+            <p className="text-base sm:text-lg md:text-xl text-primary/90 mt-4 mb-4 font-medium">
               {t.hero_subheading}{" "}
               <span className="text-white italic px-2 rounded-lg bg-primary/20">{t.hero_susu}</span>
             </p>
 
-            <p className="max-w-xl text-gray-200 text-base sm:text-lg md:text-xl mb-8 md:mb-10 leading-relaxed font-sans">
-              {t.hero_description}
+            <p className="max-w-xl text-gray-200 text-sm sm:text-base md:text-lg mb-8 md:mb-10 leading-relaxed font-sans">
+              <span className="block font-semibold text-white text-base sm:text-lg">
+                The susu you already know, with a record you can check.
+              </span>
+              <span className="mt-2 block">{t.hero_description}</span>
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 justify-center lg:justify-start w-full sm:w-auto">
@@ -108,10 +123,15 @@ export default function HeroSection() {
             <dl className="mt-12 md:mt-16 grid grid-cols-3 gap-4 sm:gap-8 md:gap-10 w-full max-w-lg border-t border-white/10 pt-8">
               {STATS.map((stat) => (
                 <div key={stat.value} className="text-center lg:text-left">
-                  <dd className="text-2xl sm:text-3xl md:text-4xl font-display gold-text-gradient">{stat.value}</dd>
-                  <dt className="text-[10px] sm:text-[11px] md:text-xs text-gray-300 mt-1 md:mt-2 uppercase tracking-widest font-grotesk line-clamp-1">
-                    {t[stat.key]}
-                  </dt>
+                  {/*
+                    dd before dt is valid inside a single div wrapper per HTML5,
+                    and the visual order is deliberate. The label is above the
+                    value here because "Plans from" then "GH₵6" reads as a
+                    sentence, which is how it is spoken to a reader.
+                  */}
+                  <dt className="text-[11px] text-gray-300 uppercase tracking-[0.14em] font-grotesk">{t[stat.key]}</dt>
+                  <dd className="mt-1 text-lg sm:text-xl md:text-2xl font-semibold text-primary">{stat.value}</dd>
+                  <dd className="mt-0.5 text-[11px] leading-snug text-gray-300">{stat.unit}</dd>
                 </div>
               ))}
             </dl>

@@ -37,11 +37,20 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         className={`${base} ${variants[variant]} ${sizes[size]} ${className}`}
         disabled={disabled || loading}
+        /*
+         * A disabled button is announced as disabled, which says the action is
+         * unavailable but not that it is already running. `aria-busy` says the
+         * second thing, and that is the difference between waiting and pressing
+         * back.
+         */
+        aria-busy={loading || undefined}
         {...props}
       >
         {loading && (
           <svg
             className="animate-spin -ml-1 mr-2 h-4 w-4"
+            aria-hidden="true"
+            focusable="false"
             fill="none"
             viewBox="0 0 24 24"
           >

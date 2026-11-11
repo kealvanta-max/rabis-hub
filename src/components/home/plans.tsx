@@ -32,7 +32,7 @@ const PlanList = ({ plans, category }: { plans: any[]; category: string }) => {
               <div className="flex justify-between items-start mb-10">
                 <div className="space-y-1">
                   <span className="text-[10px] text-primary/90 font-black uppercase tracking-[0.2em]">{category}</span>
-                  <h3 className="text-xl font-bold text-white group-hover:text-primary transition-colors">{plan.name.replace(category, '').trim()}</h3>
+                  <h4 className="text-xl font-bold text-white group-hover:text-primary transition-colors">{plan.name.replace(category, '').trim()}</h4>
                 </div>
                 {plan.slots && (
                   <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/5 border border-emerald-500/10">
@@ -93,7 +93,7 @@ const AchieverList = ({ tiers }: { tiers: any[] }) => {
               <div className="flex justify-between items-start mb-10">
                 <div className="space-y-1">
                   <span className="text-[10px] text-gold-accent/60 font-black uppercase tracking-[0.2em]">HIGH ACHIEVER</span>
-                  <h3 className="text-xl font-bold text-white group-hover:text-gold-accent transition-colors">{tier.days} Days</h3>
+                  <h4 className="text-xl font-bold text-white group-hover:text-gold-accent transition-colors">{tier.days} Days</h4>
                 </div>
                 <div className="w-2 h-2 rounded-full bg-gold-accent shadow-[0_0_10px_#FACC15]" />
               </div>
@@ -163,7 +163,7 @@ export default function PlansSection() {
   ];
 
   return (
-    <section id="plans" className="py-28 bg-shader-gradient relative overflow-hidden">
+    <section id="plans" aria-labelledby="plans-heading" className="py-28 bg-shader-gradient relative overflow-hidden">
       {/* Background Glows */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gold/10 blur-[120px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none" />
@@ -173,7 +173,6 @@ export default function PlansSection() {
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-10">
           <div className="max-w-2xl">
             <motion.p
-              initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
               className="text-primary text-xs font-black tracking-[0.3em] uppercase mb-5 flex items-center gap-4"
@@ -182,7 +181,7 @@ export default function PlansSection() {
               CURATED SAVINGS JOURNEYS
             </motion.p>
             <motion.h2
-              initial={{ opacity: 0, y: 20 }}
+              id="plans-heading"
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               className="font-display text-5xl md:text-6xl lg:text-7xl text-white mb-8 leading-[1.1] tracking-tight"
@@ -192,7 +191,6 @@ export default function PlansSection() {
             </motion.h2>
           </div>
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="md:max-w-xs pb-2"
@@ -233,11 +231,11 @@ export default function PlansSection() {
           </Link>
         </div>
         <motion.p
-          initial={{ opacity: 0 }}
+          initial={false}
           whileInView={{ opacity: 1 }}
           className="mt-8 text-gray-400 text-sm font-medium tracking-wide uppercase"
         >
-          JOIN 2,000+ GHANAIANS BUILDING WEALTH DAILY
+          Start small. Stay consistent. Cash out when your round ends.
         </motion.p>
       </div>
     </section>

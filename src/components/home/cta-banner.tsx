@@ -16,14 +16,12 @@ export default function CTABanner() {
 
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center z-10">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
           className="bg-navy-light/40 backdrop-blur-xl border border-white/10 rounded-3xl p-10 md:p-16 shadow-2xl glass-card"
         >
           <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: 0.1 }}
@@ -32,7 +30,7 @@ export default function CTABanner() {
             {t.cta_heading_1} <br/> <span className="gold-text-gradient">{t.cta_heading_2}</span>
           </motion.h2>
           <motion.p 
-            initial={{ opacity: 0 }}
+            initial={false}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ delay: 0.2 }}
@@ -41,7 +39,6 @@ export default function CTABanner() {
             {t.cta_description}
           </motion.p>
           <motion.div
-             initial={{ opacity: 0, y: 20 }}
              whileInView={{ opacity: 1, y: 0 }}
              viewport={{ once: true }}
              transition={{ delay: 0.3 }}

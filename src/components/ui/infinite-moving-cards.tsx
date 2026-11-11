@@ -113,8 +113,17 @@ export const InfiniteMovingCards = ({
                   <span className="text-sm leading-[1.6] text-primary font-bold">
                     {item.name}
                   </span>
-                  <span className="text-xs leading-[1.6] text-gray-400 font-normal">
-                    {item.title}
+                  <span className="flex flex-wrap items-center gap-x-1.5 text-xs leading-[1.6] text-gray-400 font-normal">
+                    <span>{item.title}</span>
+                    {/*
+                      The quiet label that makes a sample quote honest.
+                      Without it a written example reads as a real review, and a
+                      visitor who later learns it was written by the owner has
+                      been misled by a page about trust.
+                    */}
+                    <span className="rounded-full border border-white/15 px-1.5 py-px text-[10px] uppercase tracking-wide text-gray-300">
+                      Example
+                    </span>
                   </span>
                 </span>
               </div>
