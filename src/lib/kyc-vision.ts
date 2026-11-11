@@ -41,6 +41,14 @@ export interface VisionImage {
 export interface VisionScreening {
   state: ScreeningState;
   reasons: string[];
+  /**
+   * True when the evidence looked like it was captured from a screen.
+   *
+   * Carried on the result rather than inferred from `reasons` by the caller,
+   * because the strings are for humans and parsing them for logic is how the
+   * two drift apart.
+   */
+  screenPhoto?: boolean;
   provider?: string;
   model?: string;
   /** How long the whole screening took, for the admin record. */

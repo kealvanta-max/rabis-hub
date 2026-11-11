@@ -18,6 +18,7 @@ import BlurUpImage from "@/components/ui/blur-up-image";
 import Badge from "@/components/ui/badge";
 import ActionButton from "@/components/admin/action-button";
 import ScreeningPanel, { DeterministicPanel } from "@/components/admin/screening-panel";
+import FraudEvidencePanel from "@/components/admin/fraud-evidence-panel";
 import MemberAvatar from "@/components/admin/member-avatar";
 import { formatDate } from "@/lib/utils";
 import type { UserItem } from "@/components/admin/types";
@@ -276,6 +277,7 @@ export default function UserDetailModal({
             files without any model involved. Then the AI's opinion, which is
             read in the light of those facts. */}
         <DeterministicPanel checks={user.kycScreeningChecks?.deterministic} />
+        <FraudEvidencePanel user={user} />
         <ScreeningPanel record={user.kycScreeningChecks?.vision} />
 
         {user.kycReviewReason && (

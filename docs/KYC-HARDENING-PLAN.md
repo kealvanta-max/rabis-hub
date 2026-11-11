@@ -278,29 +278,54 @@ decode** rather than skipping the pass entirely. One good selfie is enough to
 ask the subject question; it is not enough for face-match, so those two
 questions should be allowed different evidence.
 
-### 4.2 Anthropometric check: free, and it targets the dog specifically
+### 4.2 Anthropometric check: MEASURED AND REJECTED
 
-The 68-point landmark layout is already computed (`findEyes` in
-`kyc-face-server.ts`). Extend it to return the full landmark set and measure
-three ratios that are stable in human faces and wrong in dogs:
+This section was written as a hypothesis and then tested. **It does not work, and
+nothing from it shipped.** It is kept in the document because the measurement is
+the most useful thing in it.
 
-| Ratio | Human (typical) | Chihuahua in the screenshot | Why |
-|---|---|---|---|
-| inter-ocular distance / face-box width | 0.28 – 0.40 | ~0.55 (eyes wide-set, box fits muzzle) | dog eye placement is lateral |
-| nose-to-mouth / nose-to-eye vertical | 0.55 – 0.75 | < 0.35 | muzzle is short and the mouth is far forward |
-| face-box aspect (w/h) | 0.70 – 0.95 | ~1.4 | dog head is wider than tall in this crop |
+The hypothesis: a 68-point landmark model places eye and mouth clusters
+differently on a dog than on a person, so the ratios between them would separate
+the two species. The table originally in this section predicted human
+inter-ocular-to-box-width in the range 0.28–0.40 and the chihuahua at ~0.55.
 
-These must be **measured against the existing fixture sets before being trusted**,
-exactly as the descriptor was measured and rejected. Concretely: run them over
-`tests/fixtures/faces/*.jpg` and the dog crop, print the distributions, and only
-gate if the two ranges do not overlap. If they overlap, this section is deleted
-rather than shipped. Given how the descriptor experiment went, I expect this to
-be worth keeping (it targets anatomy rather than appearance) but it must be
-proven, not assumed.
+**Both predictions were wrong.** Measured on the real pipeline:
 
-Fail safe: outside the human range → `manual_review_required` with reason
-`face-proportions-unusual`, never an automatic refusal. Rabi decides. This is
-the same standard the rest of the app holds to, and it stays honest.
+| Sample | inter-ocular / box width | nose-to-chin / box width |
+|---|---|---|
+| 7 genuine faces (`tests/fixtures/faces`) | 0.625 – 0.661 | 0.423 – 0.592 |
+| the chihuahua from the report | 0.295 | 0.083 |
+
+On that evidence alone a gate at 0.60–0.70 looked perfect: it refused the dog and
+passed all seven members. That is exactly the trap, and it is why the sample was
+widened before anything was built.
+
+**Widening to 13 humans and 5 animals destroys the idea:**
+
+| Sample | inter-ocular | note |
+|---|---|---|
+| genuine, glasses, selfie | **0.295** | identical to the dog |
+| genuine, glasses | 0.662 | inside the human band |
+| genuine, woman | 0.355 | |
+| dog, pit bull | 0.431 | inside the human band |
+| dog, labrador | **0.667** | closer to a human than most humans |
+| dog, border collie | 0.313 | |
+| cat | 0.561 | inside the human band |
+
+Every threshold that refuses the animals refuses **a real man wearing glasses**,
+whose value is indistinguishable from the chihuahua's. Every threshold that
+admits him lets two to five of the five animals through. The ratios are not
+measuring species; they are measuring how much of the frame the detector's box
+happened to cover, which depends on crop, glasses and head angle.
+
+**Decision: deleted from the design.** This is the second measurement in this
+document (after the face descriptor in §1.2) where a plausible geometric idea
+failed against real data, and it is the reason every threshold in this codebase
+carries a measured range rather than a guess.
+
+What replaced it: the screen gate (§4.4) and live capture (§3). The report's
+selfie turned out to be a screenshot of a social-media video with the caption
+and a heart icon still in frame, and **that** is a signal that does hold.
 
 ### 4.3 Face-vs-card: use the descriptor for its real job
 
@@ -457,6 +482,59 @@ to see what it said.
 **Nothing is auto-approved, at any score.** That rule does not change, and §5.2
 is the only place an automatic refusal is introduced, because the same national
 ID owning two accounts is a fact rather than a judgement.
+
+---
+
+## 7.5 What was actually shipped
+
+Written after the implementation, so the document and the code cannot drift.
+
+| Planned | Status | Where |
+|---|---|---|
+| Perceptual hash (dHash) | **Shipped** | `src/lib/perceptual-hash.ts` |
+| Two-signal fraud rule | **Shipped** | `src/lib/kyc-fraud-signals.ts` |
+| Screen/replay gate | **Shipped**, and it is what refuses the dog | `src/lib/kyc-vision-policy.ts` |
+| Honest UI verdict | **Shipped** | `image-upload.tsx`, `cloudinary.ts` |
+| Live-only selfie capture | **Shipped** | `src/components/ui/selfie-capture.tsx` |
+| One card, one account | **Shipped** | submit route transaction + `firestore.rules` |
+| Rabi's fraud panel | **Shipped** | `src/components/admin/fraud-evidence-panel.tsx` |
+| Face proportions | **Rejected on measurement** | see §4.2 |
+| Face-vs-card descriptor | Not built (still valid, step 7 of the table) | |
+| Velocity / device scoring | Not built | |
+
+### The threshold that had to be measured twice
+
+`SAME_IMAGE_DISTANCE` was written as 6 bits, from the usual published advice.
+A test on this app's own fixtures then recompressed a genuine Ghana Card back at
+quality 25 and 50, which is where a WhatsApp forward lands, and moved the hash by
+**10 bits**. At 6 the duplicate check would have missed exactly the case it
+exists for.
+
+It is now 12, and that is safe because the separation is wide rather than
+tight: across every pair of distinct fixtures, the closest two different
+pictures were further apart than 12. Both sides of the threshold are measured in
+`tests/perceptual-hash.test.ts`, so a future change cannot close that gap
+without a failing test.
+
+### The rule as built
+
+A name mismatch alone is a flag. It refuses only alongside one of the three
+signals the owner named:
+
+    name mismatch  AND  ( manufactured template
+                       OR duplicate image
+                       OR no live capture )
+
+A manufactured template refuses on its own, because a card printed with
+`DATEMPL.COM` on it does not exist as a real document and a well-matched name on
+one is itself the fraud.
+
+A photographed **screen** deliberately does **not** count towards the refusal.
+It raises the loud flag on Rabi's queue and sets `kycScreenPhoto`, but a member
+holding only a digital copy of their card is a real case and refusing them by
+machine is the outcome this rule exists to prevent. The screenshot *selfie* is
+still refused, by the vision gate rather than by this rule, because a live camera
+cannot produce a screen finding; a card is paperwork and a selfie is a person.
 
 ---
 

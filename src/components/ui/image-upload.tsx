@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Camera, Check, Loader2, ShieldAlert, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
-import { KycRejectionError, uploadToCloudinary } from "@/lib/cloudinary";
+import { KycRejectionError, uploadToCloudinary, type UploadedEvidence } from "@/lib/cloudinary";
 import { captureException } from "@/lib/monitoring";
 import { cn } from "@/lib/utils";
 import type { DocVerdict } from "@/lib/kyc-verification";
@@ -42,6 +42,85 @@ const cropHint: Record<VerifyMode, string> = {
   "id-back": "The whole back of the card, barcode visible if it has one.",
   selfie: "Head and shoulders, eyes open, plain background, good light.",
 };
+
+/** Reason fragments the server emits when it could not confirm a face. */
+const NO_FACE_REASON = /could-not-confirm-a-face|not-a-human-face|no-face-detected|face-presence-not-provable/i;
+/** Reason fragments the server emits when the evidence came off a screen. */
+const SCREEN_REASON = /screen|screenshot|photo-of-a-screen|copy/i;
+
+/**
+ * Turn the server's answer into the sentence the member reads.
+ *
+ * The rule here is that every branch must be traceable to something the server
+ * actually said. If nothing was reported, the only honest thing to say is that
+ * a human still decides — not that the photo is fine, because we do not know
+ * that and saying it is what made this component lie.
+ */
+function buildVerdict(
+  uploaded: UploadedEvidence,
+  verify: VerifyMode
+): DocVerdict {
+  const reasons = uploaded.reasons ?? [];
+
+  /*
+   * A card photographed off a screen, or any evidence the server flagged.
+   * This is not a rejection: the member keeps their upload and Rabi looks
+   * closely. The wording is deliberately explicit so a genuine member holding a
+   * digital copy is reassured rather than alarmed.
+   */
+  if (uploaded.screenPhoto || reasons.some((reason) => SCREEN_REASON.test(reason))) {
+    return {
+      status: "review",
+      confidence: 0,
+      message:
+        verify === "selfie"
+          ? "Uploaded, but this looks like a photo of a screen rather than a live camera. Rabi will verify it by hand before your account is approved."
+          : "We noticed this is a photo of a screen. Rabi will manually verify it before approving.",
+      reasons: [...reasons, "screen-photo-flagged"],
+    };
+  }
+
+  /*
+   * The card and selfie screens disagreed, or the model could not answer.
+   * Saying "we could not check" is accurate and actionable; inventing a pass is
+   * neither.
+   */
+  if (uploaded.screening === "verification_unavailable") {
+    return {
+      status: "review",
+      confidence: 0,
+      message:
+        "Uploaded. We could not run the automatic check on this photo, so Rabi will look at it herself. This does not hold up your application.",
+      reasons: reasons.length ? reasons : ["screening-unavailable"],
+    };
+  }
+
+  /*
+   * The server could not confirm a face in a selfie but did not refuse it.
+   * This is the exact state the report's dog produced, so it gets its own
+   * sentence rather than being rounded up to "no obvious problem".
+   */
+  if (
+    verify === "selfie" &&
+    (reasons.some((reason) => NO_FACE_REASON.test(reason)) || uploaded.screening !== "screened_pass")
+  ) {
+    return {
+      status: "review",
+      confidence: 0,
+      message:
+        "Uploaded, but we could not confirm a human face in this photo. A machine check cannot prove identity, and Rabi will look at it herself.",
+      reasons: reasons.length ? reasons : ["face-not-confirmed"],
+    };
+  }
+
+  /* The clean case, and even here the sentence refuses to overclaim. */
+  return {
+    status: "review",
+    confidence: 0,
+    message: "Uploaded. Nothing in this photo stood out, but Rabi still reviews every application.",
+    reasons: ["screening-clear-human-review-required"],
+  };
+}
 
 export default function ImageUpload({
   label,
@@ -102,30 +181,22 @@ export default function ImageUpload({
        * back as a 422 with a sentence a member can act on, and it is shown
        * here, at the upload box, not five steps later.
        */
-      const url = await uploadToCloudinary(file, verify === "selfie" ? "selfie" : "document");
-      onUpload(url);
+      const uploaded = await uploadToCloudinary(file, verify === "selfie" ? "selfie" : "document");
+      onUpload(uploaded.secure_url);
       if (verify) {
         /*
          * Say only what the server actually established.
          *
-         * This used to read "A real face was found" for every successful upload,
-         * regardless of what the screening returned — so a photo of a document
-         * taped to a wall was reported back as a verified face. The upload route
-         * has already refused anything it could positively identify as wrong by
-         * the time we get here (a 422 throws above), so a `review` verdict means
-         * "nobody objected, Rabi decides", and that is all it means.
+         * This used to be a fixed string, so every successful upload was
+         * reported as "no obvious problem" whatever the screening had said. For
+         * the report that started this work, the server's own reason list said
+         * the photo contained no confirmable face, and the member was still told
+         * there was no obvious problem. The verdict below is now built from the
+         * server's answer and nothing else.
          */
-        const pending: DocVerdict = {
-          status: "review",
-          confidence: 0,
-          message:
-            verify === "selfie"
-              ? "Uploaded. We could not find an obvious problem with this photo, but a machine check cannot prove identity or liveness, so Rabi still reviews your application."
-              : "Uploaded. Automated screening is not identity verification; your application stays pending until Rabi reviews it.",
-          reasons: ["awaiting-server-screening", "manual-review-required"],
-        };
-        setVerdict(pending);
-        onVerdict?.(pending, null);
+        const reported = buildVerdict(uploaded, verify);
+        setVerdict(reported);
+        onVerdict?.(reported, null);
       }
     } catch (uploadError) {
       /*

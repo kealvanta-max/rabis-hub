@@ -142,10 +142,37 @@ describe("document scope", () => {
     expect(decision.reasons).toContain("not-a-ghana-card");
   });
 
-  it("refuses a photograph of a screen or a printed copy", () => {
+  it("flags a card photographed off a screen instead of refusing it", () => {
+    /*
+     * Changed deliberately, on the owner's instruction.
+     *
+     * This used to reject. It no longer does, because a real and common case is
+     * a member who holds only a digital copy of their Ghana Card and has no
+     * physical one to photograph. Refusing them by machine is the outcome the
+     * whole "a human decides" rule exists to prevent.
+     *
+     * It is not softened into silence either: the decision is still review, and
+     * `screenPhoto` is set so the queue can carry the loud flag.
+     */
     const decision = classifyVisionSignals(
       { subject: "uncertain", card: "looks_like_ghana_card", face_match: "uncertain", reproduction: "screen_or_copy", confidence: 0.88 },
       "document"
+    );
+    expect(decision.state).toBe("manual_review_required");
+    expect(decision.reasons).toContain("card-is-a-photo-of-a-screen");
+    expect(decision.screenPhoto).toBe(true);
+  });
+
+  it("still refuses a SELFIE that is a photograph of a screen", () => {
+    /*
+     * The distinction that makes the rule safe. A card is paperwork and may
+     * legitimately be a digital copy; a selfie is a person, and the live capture
+     * step cannot produce a screen finding. This is the gate that catches the
+     * report's dog, which arrived as a screenshot of a video.
+     */
+    const decision = classifyVisionSignals(
+      { subject: "uncertain", card: "uncertain", face_match: "uncertain", reproduction: "screen_or_copy", confidence: 0.6 },
+      "selfie"
     );
     expect(decision.state).toBe("rejected");
     expect(decision.reasons).toContain("photo-of-a-screen-or-copy");
