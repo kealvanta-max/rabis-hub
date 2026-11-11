@@ -47,6 +47,63 @@ function DashboardContent() {
   const { customPlans } = useCustomPlans();
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [addingPlan, setAddingPlan] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [recoverState, setRecoverState] = useState<"idle" | "done">("idle");
+  const [recoverError, setRecoverError] = useState<string | null>(null);
+
+  /**
+   * Restore a registration that never finished saving.
+   *
+   * The only action on this card that can actually succeed. "Try again" re-read
+   * a document that was never written; this asks the server to create it.
+   *
+   * The request carries the member's ID token and nothing else that matters. The
+   * server reads uid and email from the verified token and writes a stub marked
+   * as having no documents, so the worst outcome of a mistaken tap is an extra
+   * entry in Rabi's queue, never an approved account.
+   */
+  const recoverRegistration = async () => {
+    if (!user || recovering) return;
+    setRecovering(true);
+    setRecoverError(null);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/signup/recover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: user.displayName ?? "",
+          phone: "",
+          location: "",
+          plan: "",
+        }),
+      });
+      const result = (await response.json().catch(() => ({}))) as { error?: string; recovered?: boolean };
+
+      if (!response.ok) {
+        setRecoverError(result.error ?? "We could not restore your registration. Message Rabi and she will do it.");
+        return;
+      }
+
+      if (result.recovered === false) {
+        /*
+         * The document already exists, so the page was simply stale. Re-reading
+         * is the correct follow-up in this one case, and it is the only case
+         * where a re-read can work.
+         */
+        await refreshProfile();
+        return;
+      }
+
+      setRecoverState("done");
+      addToast("Registration restored. Rabi will ask for your documents.", "success");
+      await refreshProfile();
+    } catch {
+      setRecoverError("Your connection dropped. Try once more, or message Rabi.");
+    } finally {
+      setRecovering(false);
+    }
+  };
 
   const addPlanId = searchParams.get("addPlan");
   const userPlans = Array.isArray(userData?.plans) && userData.plans.length > 0
@@ -240,7 +297,23 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* Profile missing for a real member — recoverable: retry, or reach Rabi */}
+          {/*
+            Profile missing for a real member.
+
+            The copy here used to claim this was "usually a brief connection
+            problem" and offer "Try again", which re-read the same missing
+            document. It could never work: a document that was never written does
+            not appear on a re-read.
+
+            What actually happens is that signup creates the auth account first
+            and the profile second. When the second step fails the client tries to
+            delete the account, and that call needs a recent login and often
+            fails, leaving a working password with no profile. This card is what
+            that member sees when she comes back.
+
+            So the primary action now restores the registration server-side, which
+            is the only action that can succeed from here.
+          */}
           {!userData && !isAdmin && (
             <div className="glass-soft mb-8 rounded-2xl border-amber-400/25 p-5">
               <div className="flex items-start gap-4">
@@ -252,19 +325,30 @@ function DashboardContent() {
                     {user?.emailVerified ? "We can't see your details yet" : "Finish your registration"}
                   </h3>
                   <p className="mt-1 text-sm leading-relaxed text-gray-400">
-                    Your login works but your registration has not reached us. This is usually a brief connection
-                    problem. Tap <strong className="text-gray-200">Try again</strong>, if it still shows nothing, message
-                    Rabi and she will restore your account in minutes.
+                    {recoverState === "done"
+                      ? "Restored. Your registration is with Rabi now and she will ask you for your Ghana Card and a selfie."
+                      : "Your login works but your details are not on our side. Your registration was interrupted before it finished saving. Tap Restore my registration and we will create it now."}
                   </p>
+                  {recoverError && (
+                    <p role="alert" className="mt-2 text-sm leading-relaxed text-red-300">
+                      {recoverError}
+                    </p>
+                  )}
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => void refreshProfile()}
-                      loading={profileLoading}
-                      className="gap-2"
-                    >
-                      <RefreshCw className="h-4 w-4" /> Try again
-                    </Button>
+                    {recoverState === "done" ? (
+                      <Button size="sm" onClick={() => void refreshProfile()} loading={profileLoading} className="gap-2">
+                        <RefreshCw className="h-4 w-4" /> Show my registration
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => void recoverRegistration()}
+                        loading={recovering}
+                        className="gap-2"
+                      >
+                        <RefreshCw className="h-4 w-4" /> Restore my registration
+                      </Button>
+                    )}
                     <a
                       href={`https://wa.me/233504701032?text=${encodeURIComponent(
                         `Hello Rabi, my account (${user?.email || ""}) is signed in but my registration is missing. Please help me restore it.`

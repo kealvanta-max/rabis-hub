@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { criticalGaps, integrationStatus } from "@/lib/integrations";
+import { checkProjectAlignment, configuredBrowserProject } from "@/lib/project-alignment";
+import { diagnoseServiceAccount } from "@/lib/service-account";
 import { authenticateRequest } from "@/lib/server-auth";
 import {
   overallState,
@@ -59,6 +61,19 @@ export async function GET(request: Request) {
   const integrations = integrationStatus();
 
   /*
+   * Compare the two project ids before anything else is reported.
+   *
+   * This is the one failure mode that looks healthy from every other angle: both
+   * variables are set, the Admin SDK writes successfully, and the browser reads
+   * successfully. It just reads a different, empty database. A project id is not
+   * a secret, since it already appears in every Firebase URL the browser holds.
+   */
+  const projectAlignment = checkProjectAlignment(
+    configuredBrowserProject(),
+    diagnoseServiceAccount().shape.projectId
+  );
+
+  /*
    * The names only, in a shape a monitor or a test can assert on, so nobody has
    * to parse prose to find out whether signup works today.
    */
@@ -97,7 +112,21 @@ export async function GET(request: Request) {
         configured,
         missing,
       })),
-      criticalGaps: criticalGaps(),
+      /*
+       * A project mismatch is a critical gap even though nothing is "missing".
+       *
+       * This is the one failure mode that reports healthy everywhere else: both
+       * variables are set, the Admin SDK writes successfully, and the browser
+       * reads successfully. It just reads a different, empty database. Adding it
+       * to criticalGaps is what turns a silent evening into a one-line fix, and
+       * it is the first thing to rule out when a member is told her registration
+       * did not arrive.
+       */
+      projectAlignment,
+      criticalGaps: [
+        ...criticalGaps(),
+        ...(projectAlignment.state === "mismatch" ? ["firebase-admin: project mismatch"] : []),
+      ],
       mailMode: (process.env.MAIL_MODE || "").toLowerCase() === "live" ? "live" : "log",
       appUrl: process.env.NEXT_PUBLIC_APP_URL || null,
       checkedAt: new Date().toISOString(),

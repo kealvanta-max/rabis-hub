@@ -431,8 +431,20 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
       addToast("Account created! Your application is under review.", "success");
       router.push("/dashboard");
     } catch (err) {
-      // Never leave a half-registered auth account behind: without a users doc
-      // the dashboard would be permanently empty for that login.
+      /*
+       * Undo the auth account, and say so honestly when that is not possible.
+       *
+       * `deleteUser` requires a recent login and fails routinely: a member who
+       * spent more than a few minutes on the five steps has a stale credential.
+       * The old code fell back to `signOut`, which leaves a working password with
+       * no profile, and the member then found a dashboard that could never
+       * recover.
+       *
+       * So the rollback is attempted, and if it fails the member is told the
+       * truth: her login exists and the server can rebuild the registration. The
+       * dashboard offers exactly that, and it is the path that works whichever
+       * way the rollback went.
+       */
       if (createdUser) {
         try {
           await deleteUser(createdUser);
@@ -441,9 +453,17 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
         }
       }
       const message = err instanceof Error ? err.message : "Registration failed";
+      /*
+       * Distinguish "try again" from "your login now exists without a profile".
+       *
+       * The second case is not retryable on this screen, because the account
+       * already exists and creating it again would fail. It is recoverable from
+       * the dashboard, and saying so is the difference between a member who
+       * succeeds and one who calls Rabi in a panic.
+       */
       addToast(
         message.includes("permission-denied")
-          ? "We could not save your profile (Firestore rules blocked the write), so the account was rolled back. Please try again or contact support."
+          ? "We could not save your profile because our records refused the write. Please try again, and if it happens twice, message Rabi."
           : message,
         "error"
       );

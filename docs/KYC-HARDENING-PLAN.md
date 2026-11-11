@@ -420,46 +420,77 @@ actually makes.
 
 ## 6. Fixing "finish your registration"
 
-Three changes, in order of how much pain they remove.
+This is the screen in the second screenshot: the member has a working password,
+opens the dashboard, and reads *"Your login works but your registration has not
+reached us."* Two independent faults produce it, and fixing only one leaves the
+member stuck.
 
-1. **Stop losing the submission.** `POST /api/signup/submit` becomes idempotent
-   on a client-supplied `submissionId` (UUID, generated in `handleSubmit`). A
-   retry after a timeout returns the existing record instead of `409
-   application-exists`. Today a member whose request *did* land, but whose
-   response was lost, is told the same thing as a member whose request never
-   arrived, and retrying makes it worse.
+### 6.1 The fault nobody could see: two different Firebase projects
 
-2. **Never strand a logged-in member without a record.** In the client catch
-   block (`src/app/auth/page.tsx:424`), if `deleteUser` fails, do not leave the
-   member on an empty dashboard: call a new trusted route
-   `POST /api/signup/incomplete` with the ID token, which writes a stub record
-   with `status: "pending"`, `kycReviewStatus: "incomplete"`,
-   `kycReviewReason: "submission did not complete"`. The dashboard then shows
-   "your application is unfinished" with a resume link, which is true, instead
-   of "your registration has not reached us", which is not.
-
-3. **Make the error visible where it happened.** The dashboard already stores
-   `submissionError` nowhere. Add it to the auth context so the card can print
-   the actual reason: `503 storage unavailable` reads very differently from
-   `422 evidence could not be read`. The user has now spent two rounds guessing
-   because the banner was the same sentence every time.
-
-4. **Delete the misleading button.** `refreshProfile()` cannot fix a missing
-   document. Once (2) is in place the card has a real action: resume the
-   submission. Keep the WhatsApp link, which does work.
-
-### Detect the project mismatch
-
-Add to `/api/health/service-account`, already scaffolded:
+The service account that the server writes with carries its own project id, and
+`adminFirestore()` uses it:
 
 ```
-projectMatchesConfig: boolean | null
+initializeApp({ credential, projectId: String(credentials.project_id) })
 ```
 
-Compare `diagnoseServiceAccount().shape.projectId` against
-`NEXT_PUBLIC_FIREBASE_PROJECT_ID`. If false, the server writes where the browser
-does not read, and every write succeeds silently. This is the first thing to
-check for the screenshot's second failure, and it costs one line.
+The browser is configured from a different variable, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`.
+When those two name different projects, every write returns 200 into one
+database while every read in the browser looks in the other one, finds nothing,
+and the member is told her application never arrived.
+
+It is invisible from every direction that was already being checked:
+
+| Looking from | What it sees | Why it cannot see the fault |
+| --- | --- | --- |
+| `/api/health` write probe | write succeeds | the probe writes through the same Admin SDK, so the same wrong project |
+| `criticalGaps()` | no gaps | it tests that both variables are **present**, not that they agree |
+| browser `getDoc` | read succeeds | the other project exists and is empty |
+| the member | "not reached us" | true from where she sits, and useless |
+
+The only detector is to compare the two ids, which is what `src/lib/project-alignment.ts`
+does and what `/api/health` now reports as `projectAlignment`. On a mismatch the
+admin health body gains the critical gap `"firebase-admin: project mismatch"`, so
+it shows up in the same place Rabi already looks rather than in a log she does not read.
+
+### 6.2 The dead end: a rollback that could not roll back
+
+Signup creates the auth account first and the Firestore record second. When the
+second step fails the client calls `deleteUser(createdUser)`. That call requires a
+**recent login**, and a member who spent several minutes on five steps no longer
+has one, so it throws. The old fallback was `signOut`, which leaves exactly what
+the screenshot shows: a working password, no profile, and a dashboard with one
+button.
+
+That button was **Try again**, which called `refreshProfile()`. It re-read the
+same document that was never written. It could not succeed, by construction.
+
+Now there is a route that can: `POST /api/signup/recover`.
+
+- identity comes from the **verified ID token only** (`uid`, `email`); nothing
+  identifying is taken from the request body
+- `ref.create`, never `set`, so a completed application is never overwritten; an
+  existing record returns `{ recovered: false }` and the page simply re-reads
+- the stub is marked so it cannot be mistaken for a verified application:
+  `status: "pending"`, `kycReviewStatus: "manual_review_required"`,
+  `kycScreeningState: "verification_unavailable"`,
+  `kycRecoveredWithoutDocuments: true`, empty document URLs
+- rate limited 5 per 10 minutes, because it writes a document
+- when storage is unreachable it says `storage-unavailable` and tells the member
+  it was not her fault, instead of blaming her connection
+
+The dashboard card now offers **Restore my registration**, and keeps the WhatsApp
+link as the fallback. The copy no longer says "this is usually a brief connection
+problem", which was false in both faults above and sent members into a retry loop.
+
+### 6.3 What is still open from the original plan
+
+**Idempotent `submit` on a client `submissionId`** and **surfacing `submissionError`
+on the card** are not in this change. They remove a third, rarer way to reach the
+same screen: a request that did land but whose response was lost, where a retry
+returns `409 application-exists`. The recovery route already handles that member
+correctly (her record exists, so she is sent to re-read), which is why this was
+the right half to ship first.
 
 ---
 
