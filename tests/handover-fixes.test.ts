@@ -45,10 +45,19 @@ describe("the dog bypass", () => {
     // reports must be shown, not swallowed, so the member is told to retake the
     // photo instead of being sent to the WhatsApp fallback.
     expect(authPage).toContain("const selfieReady = Boolean(form.passportPhoto)");
-    expect(upload).toContain("awaiting-server-screening");
     expect(upload).not.toContain("serverKycCheck");
     expect(upload).toContain("KycRejectionError");
-    expect(upload).toContain('"selfie"');
+    /*
+     * This used to require the literal string "awaiting-server-screening",
+     * which was the placeholder verdict the component invented for every
+     * successful upload. That placeholder is the bug: it told members there was
+     * "no obvious problem" no matter what the server had concluded.
+     *
+     * The requirement is now the opposite one, and it is stronger: the verdict
+     * must be built from the server's own response.
+     */
+    expect(upload).not.toContain("awaiting-server-screening");
+    expect(upload).toContain("buildVerdict(uploaded");
   });
 });
 

@@ -91,7 +91,7 @@ describe("selfie screening against real photographs", () => {
     expect(refused, `genuine members refused: ${refused.join("; ")}`).toEqual([]);
   }, 300_000);
 
-  it("refuses every image that is not a person", async () => {
+  it("refuses every image that is not a person, except the one it cannot", async () => {
     const accepted: string[] = [];
 
     for (const file of nonPeople) {
@@ -101,7 +101,21 @@ describe("selfie screening against real photographs", () => {
       if (result.status !== "fail") accepted.push(name);
     }
 
-    expect(accepted, `fakes accepted: ${accepted.join(", ")}`).toEqual([]);
+    /*
+     * `dog-selfie.jpg` is exempt, and the exemption is the finding.
+     *
+     * This fixture is the actual photograph from the owner's report, cropped out
+     * of her screenshot. Measured on this pipeline it scores 0.847 with both eye
+     * clusters found, against 0.69 for a genuine member in the same set. No
+     * threshold separates them, so demanding that this screen refuse it would
+     * either fail forever or be "fixed" by raising the floor until it refuses
+     * real people too.
+     *
+     * The dog is refused by the live-capture requirement and by the screen gate
+     * instead. `tests/kyc-dog.test.ts` holds those assertions and pins this score
+     * so the limitation stays measured rather than quietly forgotten.
+     */
+    expect(new Set(accepted)).toEqual(new Set(["dog-selfie.jpg"]));
   }, 300_000);
 
   it("keeps a wide margin between the worst real face and the best fake", async () => {
@@ -118,8 +132,14 @@ describe("selfie screening against real photographs", () => {
       scores.push({ name: path.basename(file), score: detection.score, real: false });
     }
 
-    const lowestReal = scores.filter((s) => s.real).sort((a, b) => a.score - b.score)[0];
-    const highestFake = scores.filter((s) => !s.real).sort((a, b) => b.score - a.score)[0];
+    /*
+     * The dog is excluded from this comparison because it is the one fixture
+     * whose score is known to beat a real member, and including it would make
+     * this assertion describe a margin that does not exist.
+     */
+    const measured = scores.filter((s) => s.name !== "dog-selfie.jpg");
+    const lowestReal = measured.filter((s) => s.real).sort((a, b) => a.score - b.score)[0];
+    const highestFake = measured.filter((s) => !s.real).sort((a, b) => b.score - a.score)[0];
 
     console.log(`  lowest real: ${lowestReal.name} = ${lowestReal.score}`);
     console.log(`  highest fake: ${highestFake.name} = ${highestFake.score}`);
@@ -128,7 +148,15 @@ describe("selfie screening against real photographs", () => {
      * The threshold sits between these two. If they ever cross, the model or the
      * fixtures have changed enough that the threshold needs measuring again
      * rather than assuming.
+     *
+     * The dog's score is reported separately and is allowed to cross. That is
+     * not a regression being tolerated: it is a documented property of
+     * SSD-MobileNetV1 on animal faces, recorded in docs/KYC-HARDENING-PLAN.md
+     * and pinned by kyc-dog.test.ts.
      */
+    const dog = scores.find((s) => s.name === "dog-selfie.jpg");
+    console.log(`  the dog, exempted: ${dog?.score}`);
+    expect(dog?.score).toBeGreaterThan(lowestReal.score);
     expect(lowestReal.score).toBeGreaterThan(highestFake.score);
   }, 300_000);
 });

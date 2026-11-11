@@ -34,6 +34,33 @@ export interface UploadResult {
 
 export type UploadPurpose = "selfie" | "document" | "video";
 
+export interface UploadedEvidence {
+  secure_url: string;
+  /**
+   * What the server's screening concluded, in its own words.
+   *
+   * This is the field the UI used to throw away. `uploadToCloudinary` returned a
+   * bare string, so the component had no choice but to invent a verdict — which
+   * is how a refused-then-reviewed dog was reported back to the member as
+   * "no obvious problem". Returning the whole result makes the honest sentence
+   * available to the screen that shows it.
+   *
+   * Every field here is what the route actually said. Nothing is inferred, and
+   * nothing is upgraded: an absent field means the route did not report one.
+   */
+  screening?: "screened_pass" | "rejected" | "manual_review_required" | "verification_unavailable";
+  reasons: string[];
+  provider?: string | null;
+  /**
+   * True when the server believes the photo was taken of a screen.
+   *
+   * Not a refusal for cards — the owner's rule is that Rabi decides those — but
+   * it must survive the trip to the UI so the member is told plainly instead of
+   * being congratulated.
+   */
+  screenPhoto: boolean;
+}
+
 /**
  * A refusal from screening, not a broken upload.
  *
@@ -43,12 +70,23 @@ export type UploadPurpose = "selfie" | "document" | "video";
  */
 export class KycRejectionError extends Error {
   reasons: string[];
-  constructor(message: string, reasons: string[] = []) {
+  /*
+   * Screening reasons that suggest a screen rather than a camera, carried on the
+   * error so the UI can say something more useful than "try again" when the
+   * refusal was "take a real photo, not a screenshot".
+   */
+  screenPhoto: boolean;
+  constructor(message: string, reasons: string[] = [], screenPhoto = false) {
     super(message);
     this.name = "KycRejectionError";
     this.reasons = reasons;
+    this.screenPhoto =
+      screenPhoto || reasons.some((reason) => SCREEN_REASON_PATTERN.test(reason));
   }
 }
+
+/** Anything the server adds to a reason when it recognised a screen or copy. */
+const SCREEN_REASON_PATTERN = /screen|screenshot|copy|replay|photo-of-a-screen/i;
 
 interface ServerError {
   error?: string;
@@ -128,7 +166,19 @@ async function post(file: File, token: string | null, purpose: UploadPurpose): P
   });
 }
 
-export async function uploadToCloudinary(file: File, purpose: UploadPurpose = "document"): Promise<string> {
+/**
+ * Upload a file and report what the server concluded about it.
+ *
+ * The return type changed from `string` to `UploadedEvidence`. That is the whole
+ * fix for the lying UI: the server was already answering with `screening`,
+ * `reasons` and `provider`, and this function was discarding all three before
+ * the component ever saw them. Callers that only want the URL read
+ * `.secure_url`, and there is no overload that silently drops the rest again.
+ */
+export async function uploadToCloudinary(
+  file: File,
+  purpose: UploadPurpose = "document"
+): Promise<UploadedEvidence> {
   const token = await currentToken();
   const isImage = file.type.startsWith("image/");
 
@@ -171,7 +221,18 @@ export async function uploadToCloudinary(file: File, purpose: UploadPurpose = "d
 
     const data = (await response.json().catch(() => ({}))) as Partial<UploadResult> & ServerError;
 
-    if (response.ok && data.secure_url) return data.secure_url;
+    if (response.ok && data.secure_url) {
+      const reasons = Array.isArray(data.reasons)
+        ? data.reasons.filter((reason): reason is string => typeof reason === "string")
+        : [];
+      return {
+        secure_url: data.secure_url,
+        screening: data.screening,
+        reasons,
+        provider: data.provider ?? null,
+        screenPhoto: reasons.some((reason) => SCREEN_REASON_PATTERN.test(reason)),
+      };
+    }
 
     const message = messageForStatus(response.status, data.error);
 

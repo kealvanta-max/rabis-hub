@@ -95,6 +95,24 @@ export interface UserDoc {
    */
   kycIdentityOutcome?: "consistent" | "mostly-consistent" | "inconsistent" | "not-checked";
   kycIdentitySentence?: string;
+  /*
+   * The fraud evidence added with the two-signal rule. All written by the
+   * server, all immutable afterwards, and all read by Rabi's review sheet.
+   */
+  /** 8-byte perceptual hashes, keyed by the field they came from. */
+  kycPerceptualHashes?: Record<string, string>;
+  /** How the two-signal rule concluded, and why. */
+  kycRiskDecision?: "accept-for-review" | "flag-for-review" | "auto-refuse";
+  kycRiskSignals?: string[];
+  kycRiskSentence?: string;
+  /** The sha256 card lock this application holds, empty when it could not lock. */
+  kycCardLock?: string;
+  /** True when the evidence looked like a photograph of a screen. */
+  kycScreenPhoto?: boolean;
+  /** The earlier submission this picture matched, when one did. */
+  kycDuplicateOf?: { hash: string; field: string } | null;
+  /** "live-camera", "fallback-no-camera", or empty from an older client. */
+  kycSelfieCaptureMode?: string;
   firstName?: string;
   lastName?: string;
   otherNames?: string;
@@ -180,6 +198,19 @@ export interface RegistrationData {
   ghanaCardFront: string;
   ghanaCardBack: string;
   passportPhoto: string;
+  /**
+   * How the passport photo was obtained.
+   *
+   * `"live-camera"` means the frames came from a getUserMedia stream this page
+   * was holding open. `"fallback-no-camera"` means the member could not open a
+   * camera and Rabi will verify them by hand. Empty means an older client that
+   * still had the gallery picker.
+   *
+   * Recorded rather than inferred, because a saved image and a live frame are
+   * indistinguishable once uploaded, and this is the only place the difference
+   * survives.
+   */
+  captureMode?: string;
   faceScanVideo?: string;
   gpsLat: number;
   gpsLng: number;

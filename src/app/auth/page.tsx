@@ -22,6 +22,7 @@ import Button from "@/components/ui/button";
 import Input from "@/components/ui/input";
 import ErrorBoundary from "@/components/ui/error-boundary";
 import ImageUpload from "@/components/ui/image-upload";
+import SelfieCapture, { type CaptureMode } from "@/components/ui/selfie-capture";
 import PlanPicker from "@/components/ui/plan-picker";
 import type { DocVerdict } from "@/lib/kyc-verification";
 /*
@@ -263,7 +264,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
     firstName: "", lastName: "", previousNames: "", otherNames: "", dateOfBirth: "",
     sex: "", nationality: "Ghanaian", placeOfIssuance: "",
     email: "", phone: "", location: "", password: "",
-    plan: "", ghanaCardNumber: "", ghanaCardValid: false, ghanaCardFront: "", ghanaCardBack: "", passportPhoto: "",
+    plan: "", ghanaCardNumber: "", ghanaCardValid: false, ghanaCardFront: "", ghanaCardBack: "", passportPhoto: "", captureMode: "",
     gpsLat: 0, gpsLng: 0, gpsAddress: "",
   });
 
@@ -385,6 +386,13 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
           ghanaCardFront: form.ghanaCardFront || "",
           ghanaCardBack: form.ghanaCardBack || "",
           passportPhoto: form.passportPhoto || "",
+          /*
+           * How the selfie was obtained. The server treats a fallback capture
+           * as evidence that no machine check could vouch for the image, which
+           * is one of the corroborating signals in assessCardRisk. Omitting it
+           * would make a no-camera application look identical to a live one.
+           */
+          selfieCaptureMode: form.captureMode || "",
           faceScanVideo: form.faceScanVideo || "",
           documentsDeferred,
           gpsLat: gpsData?.lat ?? 0,
@@ -649,12 +657,22 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
             }}
           />
 
-          <ImageUpload
+          {/*
+            Live camera only. This slot used to be a file picker, and the report
+            that started this work used it to upload a photograph of a dog taken
+            from a short video. A picker cannot be fixed by screening, because a
+            stored file may be anything that has ever existed; a frame from a
+            getUserMedia stream at least came from the camera in front of the
+            member. A member whose camera will not open is not blocked: Rabi
+            reviews them by hand, and the capture mode records why.
+          */}
+          <SelfieCapture
             label="Passport Photo / Selfie"
             value={form.passportPhoto}
-            verify="selfie"
-            hint="Head and shoulders, good light, only you in the photo."
-            onUpload={(url) => update("passportPhoto", url)}
+            onUpload={(url, mode: CaptureMode) => {
+              update("passportPhoto", url);
+              update("captureMode", url ? mode : "");
+            }}
             onFailure={() => setUploadFailures((count) => count + 1)}
             onVerdict={(verdict) => {
               setDocVerdicts((prev) => ({ ...prev, selfie: verdict }));

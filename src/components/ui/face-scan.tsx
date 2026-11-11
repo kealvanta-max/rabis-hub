@@ -127,7 +127,7 @@ export default function FaceScan({ onComplete, onManualReview }: FaceScanProps) 
         const file = new File([blob], `liveness_${Date.now()}.webm`, {
           type: blob.type || "video/webm",
         });
-        const url = await uploadToCloudinary(file);
+        const { secure_url: url } = await uploadToCloudinary(file);
 
         /*
          * One round trip, and no second one.

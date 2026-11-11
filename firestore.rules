@@ -50,6 +50,12 @@ service cloud.firestore {
           // refused or held" would be worth nothing.
           'kycScreeningChecks', 'kycScreeningModelVersion',
           'evidenceHashes', 'reviewerUid', 'reviewedAt', 'approvalEligibility',
+          // The fraud evidence added with the two-signal rule. Same reasoning as
+          // the AI's answers above: if a reviewer could edit the reason an
+          // application was refused, the audit trail would be worth nothing.
+          'kycPerceptualHashes', 'kycRiskDecision', 'kycRiskSignals',
+          'kycRiskSentence', 'kycCardLock', 'kycScreenPhoto', 'kycDuplicateOf',
+          'kycSelfieCaptureMode',
           'gpsLat', 'gpsLng', 'gpsAddress', 'locationSource', 'locationAccuracy', 'locationReview',
           'adminAlertAt', 'adminAlertProvider', 'decisionEmailAt', 'decisionEmailFor',
           'decisionEmailStatus', 'decisionEmailProvider'
@@ -57,6 +63,30 @@ service cloud.firestore {
       );
 
       allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------
+    // One Ghana Card, one account
+    // ---------------------------------------------------------------
+    //
+    // A lock document per card, keyed on sha256(mrz document number). It is
+    // written only inside the signup transaction, so no client can create one,
+    // release one, or move a card from one account to another.
+    //
+    // Reads are admin-only, and that is a deliberate restriction rather than an
+    // oversight: the lock records which account holds a card, so allowing a
+    // member to read it would let anyone holding a stolen card number discover
+    // the victim's uid. Rabi needs the link; the applicant does not.
+    match /cardLocks/{lockId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Every attempt to reuse a claimed card, for Rabi's queue. Written by the
+    // server route from inside the error path, never by a browser.
+    match /cardLockAttempts/{attemptId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // ---------------------------------------------------------------
