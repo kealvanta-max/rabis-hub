@@ -744,8 +744,31 @@ export function isSkinTone(r: number, g: number, b: number): boolean {
   return true;
 }
 
-/** Below this share of the frame, there is no person to photograph. */
-export const MIN_SKIN_RATIO = 0.1;
+/**
+ * Below this share of the frame, there is no person to photograph.
+ *
+ * Measured against every fixture in the repository, inside the same central box
+ * this floor is applied to:
+ *
+ *   genuine members (deepest complexion)   9.52%   <- the lowest real face
+ *   genuine members (rest)                 19.0 - 72.6%
+ *   wall, room, card back, spoof page      0.00 - 4.76%   <- the highest non-person
+ *
+ * The old value was 0.10, which sat ABOVE the lowest genuine member. That person
+ * was refused with "no-human-skin-in-frame" by every caller that has no face
+ * detector: `screenDeterministically`, which is what the signup submission runs,
+ * and `judgeSelfiePhoto` whenever the model is unavailable. A 9.5%-against-10%
+ * margin is not a margin; it is a coin toss decided by the lighting in her room.
+ *
+ * 0.07 sits between the two measured populations with room on both sides: it is
+ * low enough that a real member in poor light cannot fall under it, and still
+ * far above every non-person image measured, which tops out at 4.76%.
+ *
+ * This is a screen for "there is nothing here that could be a person", never
+ * proof that a face is present. The face detector still decides whenever it can
+ * run; this number only decides what happens when it cannot.
+ */
+export const MIN_SKIN_RATIO = 0.07;
 
 /**
  * Ask Cloudinary for a small greyscale render of an uploaded image.
@@ -1225,15 +1248,105 @@ export async function screenDeterministically(
    */
   const selfieBytes = input.selfie.bytes ?? (await download(input.selfie.url));
   const selfieGrid = selfieBytes ? await decodeToGrid(selfieBytes) : null;
+
+  /*
+   * The face detector is asked here too, and it is asked FIRST.
+   *
+   * This used to be colour only, and that was a contradiction that refused real
+   * members. `/api/upload` runs `detectFaces` on the selfie and lets it pass with
+   * a score of 0.877; the same photo then reached submit, where only the colour
+   * screen looked at it, measured 9.5% inside the box, and failed the whole
+   * application with "no-human-skin-in-frame". The member was told her selfie
+   * does not show her face by a checkpoint that had never been shown her face,
+   * after an earlier checkpoint had already found it.
+   *
+   * A detector that finds a face is stronger evidence than a colour share, so
+   * when it answers, it decides. When it cannot run, the colour screen decides
+   * exactly as before, and "could not confirm" still goes to Rabi rather than
+   * becoming a refusal.
+   *
+   * Required lazily for the same reason `jpeg-js` and Tesseract are: this module
+   * is imported by routes that never look at a photo, and pulling TensorFlow in
+   * at module scope would make all of them pay for a model they do not use.
+   */
+  let detected: {
+    human: boolean;
+    score: number;
+    status: "detected" | "none" | "unavailable";
+    eyes?: "both" | "partial" | "none" | "unavailable";
+  } | null = null;
+  if (selfieBytes) {
+    try {
+      // Required lazily for the same reason `jpeg-js` is: see `decodeJpeg`.
+      const faceServer = require("@/lib/kyc-face-server") as {
+        detectFaces: (
+          pixels: Uint8Array,
+          width: number,
+          height: number
+        ) => Promise<{
+          human: boolean;
+          score: number;
+          status: "detected" | "none" | "unavailable";
+          eyes?: "both" | "partial" | "none" | "unavailable";
+        }>;
+      };
+      const raster = await decodeRgba(selfieBytes);
+      if (raster) {
+        detected = await faceServer.detectFaces(raster.pixels, raster.width, raster.height);
+      }
+    } catch {
+      // A missing or broken model is not a verdict about the member.
+      detected = null;
+    }
+  }
+
   if (boxJudgement.status === "fail") {
     checks["selfie-subject"] = boxJudgement;
   } else if (!selfieGrid) {
     checks["selfie-subject"] = { status: "inconclusive", reasons: ["selfie-pixels-unavailable"], detail: boxDetail(faceBox) };
+  } else if (detected?.status === "detected" && detected.human) {
+    /*
+     * The detector looked and found a human face. Landmark eyes are recorded but
+     * never required: a member in glasses or blinking must not be refused, which
+     * is why an eye miss is a note for Rabi rather than a failure.
+     */
+    const eyes = detected.eyes ?? "unavailable";
+    checks["selfie-subject"] = {
+      status: "pass",
+      reasons: [
+        `human-face-detected-score-${detected.score.toFixed(2)}`,
+        ...(eyes === "both" ? ["eyes-detected"] : eyes === "unavailable" ? [] : [`eyes-${eyes}-face-found-please-confirm`]),
+      ],
+      detail: boxDetail(faceBox),
+    };
   } else {
     const skin = skinRatio(selfieGrid, faceBox);
     if (skin === null) {
       checks["selfie-subject"] = { status: "inconclusive", reasons: ["selfie-pixels-unavailable"], detail: boxDetail(faceBox) };
+    } else if (detected?.status === "none") {
+      /*
+       * A model trained to find faces found none anywhere in the frame. That is a
+       * screen, a wall, a room, a card or a printout, and it is the case the dog
+       * photo in the report was in. Colour keeps the word when it had one,
+       * because "no skin in frame" is more useful to the member than a score.
+       */
+      checks["selfie-subject"] =
+        skin < MIN_SKIN_RATIO
+          ? {
+              status: "fail",
+              reasons: ["no-human-skin-in-frame"],
+              detail: { ...boxDetail(faceBox), skinShare: Number((skin * 100).toFixed(1)) },
+            }
+          : {
+              status: "fail",
+              reasons: ["no-face-detected-in-frame"],
+              detail: { ...boxDetail(faceBox), skinShare: Number((skin * 100).toFixed(1)) },
+            };
     } else if (skin < MIN_SKIN_RATIO) {
+      /*
+       * No detector answered, and there is nothing skin-shaped in the middle of
+       * the frame. Nothing legitimate is in this image, so refusing is safe.
+       */
       checks["selfie-subject"] = {
         status: "fail",
         reasons: ["no-human-skin-in-frame"],
