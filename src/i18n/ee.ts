@@ -17,12 +17,12 @@ const ee = {
   nav_join: "Va ka mía ŋu",
 
   // Hero
-  hero_badge: "Amesi 2,000+ le ga dzram le Ghana blibo me ɖo ŋusẽ ɖe mía ŋu",
+  hero_badge: "Susu si Rabi ŋutɔ kpɔa eŋu",
   hero_heading: "Tu wò edzodzome. Mía dzra ga ɖeka.",
   hero_subheading: "Kpɔ Susu yeye si nye",
   hero_susu: "Susu Ga Dzradzram",
-  hero_description: "Va ka Ghana ƒe digital ga dzradzram ha si dzi. Deɖiwo le eme, kokoko, eye wotutu be wò ga nadzi ɖe edzidzi.",
-  hero_cta: "Dze wò mɔzɔzɔ gɔme",
+  hero_description: "Tia ŋkeke sia ŋkeke, kɔsiɖa sia kɔsiɖa alo ɣleti sia ɣleti ɖoɖo tso GH₵6. Rabi xɔa wò ga le Mobile Money dzi, ɖea kpe ɖe WhatsApp ha la me, eye wòxena wò ga le wò ƒe ŋkeke nuwuwu.",
+  hero_cta: "Ge ɖe Rabi ƒe ɖoɖo me tso GH₵6",
   hero_view_plans: "Kpɔ dodokpɔwo",
   hero_stat_members: "Amesiwo le eme",
   hero_stat_saved: "Ga si wodzra",
@@ -37,7 +37,7 @@ const ee = {
   trust_security_title: "Deɖi si wokpɔ",
   trust_security_desc: "Ghana Card kple wò nɔnɔme ƒe nyatakaka kpɔkpɔ.",
   trust_community_title: "Hame si ɖo ŋusẽ",
-  trust_community_desc: "Va ka amesi 2,000+ le ga dzram le mía ƒe WhatsApp ha me ŋu.",
+  trust_community_desc: "Rabi ɖoa nya le WhatsApp, le ha si ŋutɔ kpɔa eŋu me.",
   trust_returns_title: "Vivɔnu si le kokooko me",
   trust_returns_desc: "Kpɔ alesi wò Susu ga le ƒuƒom ɖo ɣesiaɣi.",
   trust_mobile_title: "Telefon dzi gbã",
@@ -47,7 +47,7 @@ const ee = {
   // CTA Banner
   cta_heading_1: "Nèsɔ gbɔgblɔ be ne",
   cta_heading_2: "dze ga dzradzram gɔme loo?",
-  cta_description: "Va ka amesi 2,000+ siwo ŋu woɖo ŋusẽ ɖe siwo le dɔmetsotso tum na dzidzimeviwo ŋu. Wò ŋutɔ si va edzodzome la ava da akpe na wò.",
+  cta_description: "Dze egɔme kple GH₵6 ŋkeke sia ŋkeke. Rabi ɖea kpe ɖe eŋu le ha la me, eyata nènya afi si wò ga le ɣesiaɣi.",
   cta_button: "Va ka Rabi ƒe Susu Ha ŋu",
 
   // Footer

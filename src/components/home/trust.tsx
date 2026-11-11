@@ -59,7 +59,6 @@ export default function TrustSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center mb-16">
           <motion.p 
-            initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="text-primary text-sm font-semibold tracking-widest uppercase mb-3 font-grotesk"
@@ -67,7 +66,6 @@ export default function TrustSection() {
             {t.trust_label}
           </motion.p>
           <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="font-display text-4xl md:text-5xl lg:text-6xl text-white mb-6"
@@ -75,7 +73,7 @@ export default function TrustSection() {
             {t.trust_heading} <span className="gold-text-gradient">{t.trust_heading_gold}</span>
           </motion.h2>
           <motion.p 
-            initial={{ opacity: 0 }}
+            initial={false}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             className="text-gray-400 max-w-2xl mx-auto text-lg"

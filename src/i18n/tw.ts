@@ -17,12 +17,12 @@ const tw = {
   nav_join: "Bɛka yɛn ho",
 
   // Hero
-  hero_badge: "Nnipa 2,000+ a wɔsie sika wɔ Ghana nyinaa gye yɛn di",
+  hero_badge: "Susu a Rabi ankasa na ɛhwɛ so",
   hero_heading: "Yɛ wo daakye. Yɛnsie sika bom.",
   hero_subheading: "Hunu Susu a ɛfoforo no",
   hero_susu: "Susu Sika Sie",
-  hero_description: "Bɛka Ghana nnipa a wɔsie sika ho. Safe, transparent, na wɔayɛ no sɛnea wo sika bɛforo.",
-  hero_cta: "Fi ase w'akwantu",
+  hero_description: "Paw da, dapɛn biara, anaa bosome biara nhyehyɛe fi GH₵6. Rabi gye wo sika wɔ Mobile Money so, ɔsi so dua wɔ WhatsApp kuw mu, na ɔtua wo ka bere a wo akontabu ba awiei.",
+  hero_cta: "Bɛka Rabi nhyehyɛe no GH₵6",
   hero_view_plans: "Hwɛ nhyehyɛe",
   hero_stat_members: "Nnipa a wɔde bere",
   hero_stat_saved: "Sika a wɔasie",
@@ -37,7 +37,7 @@ const tw = {
   trust_security_title: "Safety a wɔahwɛ no so",
   trust_security_desc: "Ghana Card ne wo mfoni de hu wo sɛ wo ara ne wo.",
   trust_community_title: "Yɛyɛ kuw",
-  trust_community_desc: "Bɛka nnipa 2,000+ a wɔsie sika wɔ yɛn WhatsApp kuw mu.",
+  trust_community_desc: "Rabi gye mmuae wɔ WhatsApp, wɔ kuw a ɔno ara hwɛ so mu.",
   trust_returns_title: "W'ade a wobɛnya",
   trust_returns_desc: "Hwɛ wo Susu sika sɛnea ɛrekɔ so.",
   trust_mobile_title: "Wɔ wo fon so",
@@ -47,7 +47,7 @@ const tw = {
   // CTA Banner
   cta_heading_1: "Woasiesie wo ho sɛ",
   cta_heading_2: "Wobɛhyɛ ase asie sika?",
-  cta_description: "Bɛka nnipa 2,000+ a wɔgye mu sɛ wɔresie ahonyade ma wɔn mma ne wɔn awo ntoatoaso. Wo ankasa a ɛbɛba daakye no bɛda wo ase.",
+  cta_description: "Fi ase GH₵6 da biara. Rabi si so dua wɔ kuw mu, enti wunim baabi a wo sika wɔ bere nyinaa.",
   cta_button: "Bɛka Rabi Susu Kuw",
 
   // Footer

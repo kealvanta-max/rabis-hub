@@ -61,10 +61,21 @@ export default function GuidePage() {
     }
   ];
 
+  /*
+   * The guide is the one page a brand new member is sent to, and it was the
+   * least readable when it arrived.
+   *
+   * The whole page animated in from `opacity: 0`, which the prerender wrote into
+   * the HTML as `style="opacity:0"` on the container and on all seven sections.
+   * Production blocks style attributes (`style-src-attr 'none'`), so on the real
+   * site the stage directions and the content were both frozen, and anyone
+   * arriving from a link with JavaScript still loading saw a blank page.
+   *
+   * The stagger now moves and never fades.
+   */
   const containerVariants = {
-    hidden: { opacity: 0 },
+    hidden: {},
     visible: {
-      opacity: 1,
       transition: {
         staggerChildren: 0.1,
         delayChildren: 0.2,
@@ -73,7 +84,7 @@ export default function GuidePage() {
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
+    hidden: {},
     visible: {
       opacity: 1,
       y: 0,
@@ -89,8 +100,6 @@ export default function GuidePage() {
         {/* Hero Section */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-16">
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
             className="text-center"
           >

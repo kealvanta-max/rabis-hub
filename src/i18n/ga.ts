@@ -17,12 +17,12 @@ const ga = {
   nav_join: "Shwa ba",
 
   // Hero
-  hero_badge: "Gbɛi 2,000+ ni wɔ save shishi wɔ Ghana he aadaa da yɛ shi",
+  hero_badge: "Susu ni Rabi diɛŋtsɛ kwɛɔ nɔ",
   hero_heading: "Dze ni tsui. Yɛ save shishi ko.",
   hero_subheading: "Kɛ Susu fofoi lɛ yɛ lɛ",
   hero_susu: "Susu Shishi Save",
-  hero_description: "Shwa ba Ghana digital shishi save kɛ lɛ sɛi he. Safe, transparent, lɛ yɛ dze ni ni shishi growth.",
-  hero_cta: "Fi ni atuu ase",
+  hero_description: "Tsɔɔ daa gbi, kɔɔyɔɔ kwii, loo nyɔɔŋ kwii he gbɛjianɔ jɛ GH₵6. Rabi buɔ o shika yɛ Mobile Money nɔ, ejɔɔ yɛ WhatsApp kuu lɛ mli, ni etuɔ o nɔ nyɔɔŋ lɛ naa.",
+  hero_cta: "Ba Rabi gbɛjianɔ lɛ mli kɛjɛ GH₵6",
   hero_view_plans: "Kɛ dɔŋŋ",
   hero_stat_members: "Gbɛi ni wɔ mli",
   hero_stat_saved: "Shishi ni wɔ save",
@@ -37,7 +37,7 @@ const ga = {
   trust_security_title: "Safety ni wɔ check",
   trust_security_desc: "Ghana Card ne ni photo fa identify ni.",
   trust_community_title: "Yɛ yɛ kuw",
-  trust_community_desc: "Shwa ba gbɛi 2,000+ ni wɔ save shishi wɔ yɛ WhatsApp kuw mli.",
+  trust_community_desc: "Rabi hereɔ sanebimɔ yɛ WhatsApp, yɛ kuu lɛ mli ni eyɛ nɔ.",
   trust_returns_title: "Ni ade ni obɛ nyɛ",
   trust_returns_desc: "Kɛ ni Susu shishi bɛnɛɛ lɛ eko.",
   trust_mobile_title: "Wɔ ni phone shi",
@@ -47,7 +47,7 @@ const ga = {
   // CTA Banner
   cta_heading_1: "Ni yɛ ready bɛ",
   cta_heading_2: "fi ase save shishi?",
-  cta_description: "Shwa ba gbɛi 2,000+ ni wɔ trust ni wɔ dze ade ni wɔ mma ne wɔ shikpɔŋ. Ni ankasa ni ɛba tsui lɛ bɛ da ni ase.",
+  cta_description: "Je shishi kɛ GH₵6 daa gbi. Rabi jɔɔ yɛ kuu lɛ mli, no hewɔ lɛ ole he ni o shika yɔɔ daa.",
   cta_button: "Shwa ba Rabi Susu Kuw",
 
   // Footer

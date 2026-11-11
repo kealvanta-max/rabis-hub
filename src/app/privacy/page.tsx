@@ -29,7 +29,7 @@ export default function PrivacyPolicyPage() {
               <p>We only ask for information that we genuinely need to verify your identity and manage your savings. Here is exactly what we collect and why:</p>
 
               <div className="mt-4 space-y-4">
-                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+                <div className="panel-card-muted">
                   <h3 className="text-white font-semibold mb-2">Personal Details</h3>
                   <ul className="list-disc list-inside space-y-1 text-gray-400">
                     <li><span className="text-gray-300">Full name</span>, so we know who you are and can address you properly</li>
@@ -39,7 +39,7 @@ export default function PrivacyPolicyPage() {
                   </ul>
                 </div>
 
-                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+                <div className="panel-card-muted">
                   <h3 className="text-white font-semibold mb-2">Identity Documents</h3>
                   <ul className="list-disc list-inside space-y-1 text-gray-400">
                     <li><span className="text-gray-300">Ghana Card (front and back)</span>, to verify your identity before we approve your account</li>
@@ -50,14 +50,14 @@ export default function PrivacyPolicyPage() {
                   </p>
                 </div>
 
-                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+                <div className="panel-card-muted">
                   <h3 className="text-white font-semibold mb-2">GPS Location</h3>
                   <p className="text-gray-400">
                     During registration, we ask whether your device can share a location pin. If three consecutive detection attempts fail, you can enter your area manually instead. Location helps Rabi review your application; it does not prove that you are a real person. Any coordinates and the supplied or approximate area are stored with your account. We do not track your movement after registration.
                   </p>
                 </div>
 
-                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4">
+                <div className="panel-card-muted">
                   <h3 className="text-white font-semibold mb-2">Reviews and Testimonials</h3>
                   <p className="text-gray-400">
                     If you choose to leave a review, your name, profile photo, plan name, rating, and written review may be displayed publicly on our website after an admin approves it. You are never required to leave a review.

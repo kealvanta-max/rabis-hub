@@ -458,9 +458,9 @@ export default function AdminPage() {
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300/80">
                     One step left
                   </p>
-                  <h4 className="mt-1 font-grotesk text-base leading-snug text-white">
+                  <h2 className="mt-1 font-grotesk text-base leading-snug text-white">
                     Confirm your email address
-                  </h4>
+                  </h2>
                   <p className="mt-1.5 max-w-prose text-sm leading-relaxed text-gray-300">
                     The security rules trust an owner address only after Firebase confirms it is real.
                     Send yourself the link, open it, then sign out and back in.

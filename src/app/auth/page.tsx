@@ -45,12 +45,28 @@ export default function AuthPage() {
     <>
       <Navigation />
       <main className="min-h-screen flex items-center justify-center pt-24 pb-16 px-4">
+        {/*
+          The heading lives outside Suspense on purpose.
+
+          `AuthContent` reads `useSearchParams`, which Next requires to sit in a
+          Suspense boundary, so the prerendered HTML for this route was the
+          spinner and nothing else: no heading, no form, no text. A visitor
+          without JavaScript, a crawler, and the text-to-HTML measure all saw an
+          empty page with a loading icon.
+
+          A screen-reader-only h1 here gives every version of the page, including
+          the suspended one, a single top level heading. The visible titles that
+          AuthContent renders are h2, so the page still has exactly one h1 after
+          hydration replaces the fallback.
+        */}
+        <h1 className="sr-only">Sign in or join Rabi&apos;s Saving Hub</h1>
         <Suspense fallback={
-          <div className="flex items-center justify-center py-20">
-            <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24">
+          <div className="flex flex-col items-center justify-center gap-4 py-20">
+            <svg className="animate-spin h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24" aria-hidden="true">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
+            <p role="status" className="text-sm text-gray-300">Loading the form...</p>
           </div>
         }>
           <AuthContent />
@@ -156,7 +172,7 @@ function SigninForm({ onSwitch }: { onSwitch: () => void }) {
   return (
     <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-8">
       <div className="text-center mb-8">
-        <h1 className="font-display text-2xl text-white mb-2">Welcome Back</h1>
+        <h2 className="font-display text-2xl text-white mb-2">Welcome Back</h2>
         <p className="text-sm text-gray-400">Sign in to your account</p>
       </div>
 
@@ -241,6 +257,24 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   const [mathError, setMathError] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const mathInputRef = useRef<HTMLInputElement>(null);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  /*
+   * Moving between steps is not a navigation, so nothing tells a keyboard or
+   * screen reader user that the form under them changed. Focus is moved to the
+   * step heading instead: it names what they are now looking at, and the live
+   * region beside it carries the number.
+   *
+   * Skipped on first render, where the member has just arrived and moving focus
+   * would steal the caret from the top of the page.
+   */
+  const firstStepRender = useRef(true);
+  useEffect(() => {
+    if (firstStepRender.current) {
+      firstStepRender.current = false;
+      return;
+    }
+    stepHeadingRef.current?.focus();
+  }, [step]);
 
   /** Ask a fresh question. Called on mount and after every wrong answer. */
   const newMathQuestion = useCallback(() => {
@@ -455,8 +489,21 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
   return (
     <div className="bg-white/[0.04] border border-white/10 rounded-2xl p-8">
       <div className="text-center mb-6">
-        <h1 className="font-display text-2xl text-white mb-2">Join Rabi&apos;s Saving Hub</h1>
-        <p className="text-sm text-gray-400">Step {step} of 5</p>
+        <h2
+          ref={stepHeadingRef}
+          tabIndex={-1}
+          className="font-display text-2xl text-white mb-2 outline-none"
+        >
+          Join Rabi&apos;s Saving Hub
+        </h2>
+        {/*
+          The step number is the only cue that the page changed. Announcing it
+          politely means a reader hears "Step 3 of 5" and nothing else, rather
+          than the whole five step form being re-read.
+        */}
+        <p className="text-sm text-gray-400" aria-live="polite">
+          Step {step} of 5
+        </p>
       </div>
 
       {/* Progress */}
@@ -968,7 +1015,7 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                 onChange={(e) => update("location", e.target.value)}
                 placeholder="e.g. Kpormetey, Accra"
                 autoComplete="address-level2"
-                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-gray-400 focus:border-primary focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-gray-400 focus:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
               />
               <p className="mt-2 text-xs text-gray-400">
                 Rabi reads this herself, so spell it the way a neighbour would say it. It is recorded as typed by you, not as a GPS pin.
@@ -1012,8 +1059,10 @@ function SignupForm({ onSwitch }: { onSwitch: () => void }) {
                   setMathAns(e.target.value);
                   if (mathError) setMathError(null);
                 }}
-                className={`w-24 px-3 py-2 bg-[#020c06] border rounded-lg text-white font-bold focus:outline-none transition-colors ${
-                  mathError ? "border-red-500/70 focus:border-red-400" : "border-[#065F46] focus:border-primary"
+                className={`w-24 px-3 py-2 bg-[#020c06] border rounded-lg text-white font-bold focus:outline-none focus-visible:ring-2 transition-colors ${
+                  mathError
+                    ? "border-red-500/70 focus:border-red-400 focus-visible:ring-red-400/60"
+                    : "border-[#065F46] focus:border-primary focus-visible:ring-primary/50"
                 }`}
                 placeholder="?"
               />

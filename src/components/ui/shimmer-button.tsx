@@ -69,8 +69,10 @@ const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonProps>(
         ref={setRefs}
         {...props}
       >
-        {/* spark container */}
+        {/* spark container: decoration only, and every layer is a div a
+            reader would otherwise have to step over */}
         <div
+          aria-hidden="true"
           className={cn(
             "-z-30 blur-[2px]",
             "absolute inset-0 overflow-visible [container-type:size]",
@@ -86,6 +88,7 @@ const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonProps>(
 
         {/* Highlight */}
         <div
+          aria-hidden="true"
           className={cn(
             "insert-0 absolute h-full w-full",
             "rounded-2xl px-4 py-1.5 text-sm font-medium shadow-[inset_0_-8px_10px_#ffffff1f]",
@@ -97,6 +100,7 @@ const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonProps>(
 
         {/* backdrop */}
         <div
+          aria-hidden="true"
           className={cn(
             "absolute inset-0 -z-20 [background:var(--bg)] [border-radius:var(--radius)]",
           )}

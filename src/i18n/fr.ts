@@ -17,12 +17,12 @@ const fr = {
   nav_join: "Rejoindre",
 
   // Hero
-  hero_badge: "Plus de 2 000 épargnants nous font confiance au Ghana",
+  hero_badge: "Une tontine dirigée par Rabi elle-même",
   hero_heading: "Construisez votre avenir. Épargnez ensemble.",
   hero_subheading: "Découvrez la nouvelle référence en",
   hero_susu: "épargne Susu",
-  hero_description: "Rejoignez la première communauté d'épargne numérique du Ghana. Sécurisée, transparente, conçue pour votre croissance financière.",
-  hero_cta: "Commencer mon parcours",
+  hero_description: "Choisissez un plan quotidien, hebdomadaire ou mensuel à partir de 6 GH₵. Rabi collecte par Mobile Money, confirme chaque versement dans votre groupe WhatsApp et verse le solde à la fin de votre cycle.",
+  hero_cta: "Rejoindre le plan de Rabi dès 6 GH₵",
   hero_view_plans: "Voir les plans",
   hero_stat_members: "Membres actifs",
   hero_stat_saved: "Total épargné",
@@ -37,7 +37,7 @@ const fr = {
   trust_security_title: "Sécurité vérifiée",
   trust_security_desc: "Vérification avec carte Ghana et données biométriques en temps réel.",
   trust_community_title: "Communauté active",
-  trust_community_desc: "Rejoignez plus de 2 000 épargnants dans notre groupe WhatsApp exclusif.",
+  trust_community_desc: "Rabi répond sur WhatsApp, dans le groupe qu'elle anime elle-même.",
   trust_returns_title: "Rendements transparents",
   trust_returns_desc: "Suivi en temps réel de la croissance de votre épargne Susu.",
   trust_mobile_title: "Mobile d'abord",
@@ -47,7 +47,7 @@ const fr = {
   // CTA Banner
   cta_heading_1: "Prêt à commencer votre",
   cta_heading_2: "parcours d'épargne ?",
-  cta_description: "Rejoignez plus de 2 000 membres de confiance qui construisent ensemble une richesse sur plusieurs générations. Votre futur vous remerciera.",
+  cta_description: "Commencez avec 6 GH₵ par jour. Rabi confirme chaque versement dans le groupe, vous savez toujours où est votre argent.",
   cta_button: "Rejoindre Rabi's Saving Hub",
 
   // Footer

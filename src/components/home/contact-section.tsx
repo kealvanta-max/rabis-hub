@@ -4,17 +4,31 @@ import Card from "@/components/ui/card";
 import { motion } from "framer-motion";
 
 const containerVariants = {
-  hidden: { opacity: 0 },
+  // No opacity on the container either: it is the parent of every card, so a
+  // hidden state here would take the whole grid down with it.
+  hidden: {},
   visible: {
-    opacity: 1,
     transition: {
       staggerChildren: 0.1,
     },
   },
 };
 
+/*
+ * The contact cards were staggering in from `opacity: 0`, and the prerendered
+ * HTML carried that as an inline `style="opacity:0"`. Two problems, both real:
+ *
+ *   1. `style-src-attr 'none'` blocks style attributes, so in production the
+ *      browser refused to apply the animation's starting state and the cards sat
+ *      at whatever the CSS said, while the animation then tried to drive a
+ *      property the policy had frozen.
+ *   2. A crawler and a reader both meet `opacity:0` as invisible content.
+ *
+ * The stagger now moves and never fades, so the cards are painted from the first
+ * frame and the motion is only spatial.
+ */
 const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: {},
   visible: {
     opacity: 1,
     y: 0,
@@ -32,7 +46,6 @@ export default function ContactSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="text-center mb-16">
           <motion.p 
-            initial={{ opacity: 0, y: 10 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="text-primary text-sm font-semibold tracking-widest uppercase mb-3 font-grotesk"
@@ -40,7 +53,6 @@ export default function ContactSection() {
             Get in Touch
           </motion.p>
           <motion.h2 
-            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             className="font-display text-4xl md:text-5xl lg:text-6xl text-white mb-6"
@@ -48,7 +60,7 @@ export default function ContactSection() {
             Let&apos;s <span className="gold-text-gradient">Connect</span>
           </motion.h2>
           <motion.p 
-            initial={{ opacity: 0 }}
+            initial={false}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             className="text-gray-400 max-w-xl mx-auto text-lg"

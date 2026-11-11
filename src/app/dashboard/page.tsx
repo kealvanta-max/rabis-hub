@@ -137,7 +137,7 @@ function DashboardContent() {
   return (
     <>
       <Navigation />
-      <main className="min-h-screen pt-24 pb-16 px-4">
+      <main className="min-h-screen pt-24 pb-16 px-4" aria-label="Your savings dashboard">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <div className="mb-8">
@@ -154,6 +154,7 @@ function DashboardContent() {
           {/* Announcements — Rabi's own notice board (cashout days, reminders).
               A calm default keeps the cashout reminder visible until she posts
               her own, so members always know when money moves. */}
+          <section aria-label="Notice board">
           {visibleAnnouncements.length === 0 && (
             <div className="glass glass-sheen relative mb-8 overflow-hidden rounded-2xl border-amber-300/20 p-5">
               <span
@@ -168,9 +169,9 @@ function DashboardContent() {
                   <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300/80">
                     Cashout reminder
                   </p>
-                  <h4 className="font-display mt-1 text-lg leading-snug text-white">
+                  <h2 className="font-display mt-1 text-lg leading-snug text-white">
                     Cashouts run every Tuesday
-                  </h4>
+                  </h2>
                   <p className="mt-1.5 text-sm leading-relaxed text-gray-300">
                     Rabi confirms your payout in the WhatsApp group. Keep your contributions
                     coming and she will post the exact date here each week.
@@ -203,7 +204,7 @@ function DashboardContent() {
                       <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300/80">
                         Announcement
                       </p>
-                      <h4 className="font-display mt-1 text-lg leading-snug text-white">{a.title}</h4>
+                      <h2 className="font-display mt-1 text-lg leading-snug text-white">{a.title}</h2>
                       <p className="mt-1.5 text-sm leading-relaxed text-gray-300">{a.message}</p>
                       {a.createdAt && (
                         <p className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-400">
@@ -217,6 +218,7 @@ function DashboardContent() {
               ))}
             </div>
           )}
+          </section>
 
           {/* Add Plan Confirmation */}
           {addPlanId && !userPlans.includes(addPlanId) && (
@@ -227,7 +229,7 @@ function DashboardContent() {
                   <Plus className="w-7 h-7" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white mb-1">Add New Plan?</h3>
+                  <h2 className="text-xl font-bold text-white mb-1">Add New Plan?</h2>
                   <p className="text-sm text-gray-400">You are about to add <span className="text-primary font-bold">{getPlanLabel(addPlanId, customPlans)}</span> to your account.</p>
                 </div>
               </div>

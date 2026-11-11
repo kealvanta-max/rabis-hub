@@ -1,13 +1,33 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { Camera, Check, Loader2, ShieldAlert, ShieldCheck, Trash2, TriangleAlert } from "lucide-react";
 import { KycRejectionError, uploadToCloudinary, type UploadedEvidence } from "@/lib/cloudinary";
 import { captureException } from "@/lib/monitoring";
 import { cn } from "@/lib/utils";
 import type { DocVerdict } from "@/lib/kyc-verification";
 import { sniffFileKind } from "@/lib/file-kind";
-import ImageCropper from "@/components/ui/image-cropper";
+/*
+ * Loaded on demand.
+ *
+ * The cropper is 394 lines of geometry, pointer handling and canvas code, and it
+ * is only ever reachable after a member picks a photo. Importing it at the top
+ * meant every visitor to the signup flow downloaded and parsed it before they
+ * had chosen anything, which is the largest single piece of the 146 KiB of
+ * unused JavaScript the audit reported.
+ */
+const ImageCropper = dynamic<React.ComponentProps<typeof import("@/components/ui/image-cropper").default>>(() => import("@/components/ui/image-cropper"), {
+  ssr: false,
+  loading: () => (
+    <div
+      role="status"
+      className="fixed inset-0 z-[9999] grid place-items-center bg-black/80 p-4"
+    >
+      <p className="text-sm text-gray-200">Opening the crop tool...</p>
+    </div>
+  ),
+});
 import BlurUpImage from "@/components/ui/blur-up-image";
 
 export type VerifyMode = "id-front" | "id-back" | "selfie";
@@ -137,6 +157,9 @@ export default function ImageUpload({
   const [verdict, setVerdict] = useState<DocVerdict | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  /* Ties the format and lighting hints to the file input, so they are read as
+     part of the control instead of as loose text further down the page. */
+  const hintId = useId();
 
   const reset = () => {
     onUpload("");
@@ -330,13 +353,21 @@ export default function ImageUpload({
                 <Camera className="h-5 w-5 text-gray-300" />
               </span>
               <span className="text-xs font-semibold text-gray-300">Take a photo or choose a file</span>
-              <span className="text-[10px] text-gray-400">JPG or PNG · good light · no glare</span>
+              <span id={hintId} className="text-xs text-gray-300">JPG or PNG · good light · no glare</span>
             </>
           )}
+          {/*
+            The input is visually hidden and driven by the label, which is the
+            whole dashed panel. Without a name of its own it is the one form
+            control on the signup flow that a screen reader announces as a bare
+            "button", so it carries the label text explicitly.
+          */}
           <input
             ref={inputRef}
             type="file"
             accept="image/*"
+            aria-label={label}
+            aria-describedby={hintId}
             className="hidden"
             disabled={busy}
             onChange={(event) => {

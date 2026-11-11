@@ -16,6 +16,7 @@ import { ToastProvider } from "@/components/layout/toast-provider";
 import FloatingWhatsApp from "@/components/layout/floating-whatsapp";
 import FloatingTabBar from "@/components/layout/floating-tab-bar";
 import { SmoothScroll } from "@/components/providers/smooth-scroll";
+import { ReducedMotionProvider } from "@/components/providers/reduced-motion";
 import AnalyticsProvider from "@/components/providers/analytics-provider";
 import CookieConsent from "@/components/layout/cookie-consent";
 import "./globals.css";
@@ -141,12 +142,26 @@ export default async function RootLayout({
             dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
           />
         ))}
+        <ReducedMotionProvider>
         <SmoothScroll>
           <I18nProvider>
             <AuthProvider>
               <ToastProvider>
                 <AnalyticsProvider />
-                <div id="main-content">{children}</div>
+                {/*
+                  The skip link targets this element, so it must be able to hold
+                  focus: a browser scrolls to a plain `div` but leaves the caret
+                  where it was, which means "Skip to content" moved the view and
+                  not the keyboard. `tabIndex={-1}` makes the jump real without
+                  adding it to the tab order.
+
+                  It stays a div rather than becoming `<main>` because every page
+                  renders its own `<main>`; a second one would give a screen
+                  reader two "main" landmarks and no way to tell them apart.
+                */}
+                <div id="main-content" tabIndex={-1} className="outline-none">
+                  {children}
+                </div>
                 <FloatingWhatsApp />
                 <FloatingTabBar />
                 <CookieConsent />
@@ -154,6 +169,7 @@ export default async function RootLayout({
             </AuthProvider>
           </I18nProvider>
         </SmoothScroll>
+        </ReducedMotionProvider>
         </CspNonceProvider>
       </body>
     </html>

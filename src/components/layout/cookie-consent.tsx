@@ -38,7 +38,7 @@ export default function CookieConsent() {
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold text-white">We use cookies</p>
-            <p className="mt-1 text-xs leading-relaxed text-gray-400">
+            <p className="field-hint">
               Essential cookies keep you signed in. With your permission we also measure how the site is used so we
               can improve it. Read our{" "}
               <Link href="/privacy" className="text-emerald-300 underline underline-offset-2">

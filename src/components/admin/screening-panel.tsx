@@ -158,7 +158,7 @@ export default function ScreeningPanel({ record }: { record?: VisionScreeningRec
   if (!record) {
     return (
       <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">AI screening</p>
+        <p className="field-label">AI screening</p>
         <p className="mt-1 flex items-start gap-2 text-xs leading-relaxed text-gray-400">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" aria-hidden="true" />
           This application has no AI screening record. It was probably submitted before screening
@@ -294,10 +294,10 @@ export function DeterministicPanel({
         anyFail ? "bg-red-500/[0.08] ring-red-500/30" : "bg-white/[0.025] ring-white/[0.07]"
       )}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+      <p className="field-label">
         Document checks (no AI)
       </p>
-      <p className="mt-1 text-xs leading-relaxed text-gray-400">
+      <p className="field-hint">
         These were measured from the uploaded files themselves. They do not depend on any AI provider.
       </p>
       <ul className="mt-2.5 space-y-1.5">

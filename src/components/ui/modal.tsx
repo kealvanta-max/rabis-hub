@@ -25,18 +25,76 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = "ma
     };
   }, [isOpen]);
 
-  // Escape closes; focus moves into the panel so keyboard users are not lost
-  // behind the overlay.
+  /*
+   * Escape closes, focus moves into the panel, Tab stays inside it, and closing
+   * returns focus to whatever opened the dialog.
+   *
+   * The panel is `aria-modal="true"`, which tells a screen reader the rest of
+   * the page is inert. It does not make that true for the keyboard: without the
+   * trap, Tab walks out of the dialog and into the navigation behind a darkened
+   * overlay, where a keyboard user cannot see where they are. That is the
+   * "focus not contained" failure, and it is the most common way a custom
+   * dialog fails an audit.
+   *
+   * Restoring focus matters as much. The admin review screen opens this from a
+   * list of members; closing it used to drop focus to the top of the document,
+   * so reviewing twenty members meant tabbing back twenty times.
+   */
   useEffect(() => {
     if (!isOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    const focusables = () => {
+      const panel = panelRef.current;
+      if (!panel) return [] as HTMLElement[];
+      return Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((element) => element.offsetParent !== null || element === panel);
     };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const items = focusables();
+      if (items.length === 0) {
+        event.preventDefault();
+        panelRef.current?.focus();
+        return;
+      }
+
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && (active === first || active === panelRef.current)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
     window.addEventListener("keydown", onKeyDown);
-    const timer = window.setTimeout(() => panelRef.current?.focus(), 30);
+    const timer = window.setTimeout(() => {
+      const items = focusables();
+      // Prefer the first real control; the panel is the fallback for a dialog
+      // that is only text, and it still keeps the reader inside the content.
+      (items[0] ?? panelRef.current)?.focus();
+    }, 30);
+
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.clearTimeout(timer);
+      // Returning focus to a removed element would throw it away, so check.
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
   }, [isOpen, onClose]);
 

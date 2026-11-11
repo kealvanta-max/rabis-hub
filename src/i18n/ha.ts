@@ -17,12 +17,12 @@ const ha = {
   nav_join: "Ku shigo",
 
   // Hero
-  hero_badge: "Mutane 2,000+ masu ajiya a duk faɗin Ghana sun amince da mu",
+  hero_badge: "Susu da Rabi kanta ke tafiyar da shi",
   hero_heading: "Gina makomar ku. Mu yi ajiya tare.",
   hero_subheading: "Ku gano sabon salon",
   hero_susu: "Ajiyar Susu",
-  hero_description: "Ku shigo cikin al'ummar ajiyar kuɗi na dijital na farko a Ghana. Mai tsaro, fili, kuma an gina shi don ci gaban ku na kuɗi.",
-  hero_cta: "Fara tafiyar ku",
+  hero_description: "Zaɓi tsarin yau da kullum, mako-mako ko na wata daga GH₵6. Rabi na tattara ta Mobile Money, tana tabbatar da kowace gudummuwa a rukunin WhatsApp, kuma tana biya idan zagayen ku ya ƙare.",
+  hero_cta: "Shiga tsarin Rabi daga GH₵6",
   hero_view_plans: "Duba tsare-tsare",
   hero_stat_members: "Membobi masu aiki",
   hero_stat_saved: "Jimlar ajiya",
@@ -37,7 +37,7 @@ const ha = {
   trust_security_title: "Tsaro tabbatacce",
   trust_security_desc: "Tabbatarwa da katin Ghana da bayanan halittar mutum na ainihi.",
   trust_community_title: "Al'umma mai ƙarfi",
-  trust_community_desc: "Ku shigo tare da mutane 2,000+ masu ajiya a cikin rukunin WhatsApp na mu.",
+  trust_community_desc: "Rabi na amsawa a WhatsApp, cikin rukunin da ita kanta ke tafiyarwa.",
   trust_returns_title: "Ribar da ke a fili",
   trust_returns_desc: "Ku bi diddigin ci gaban ajiyar Susu ɗinku a kowane lokaci.",
   trust_mobile_title: "Na wayar hannu da farko",
@@ -47,7 +47,7 @@ const ha = {
   // CTA Banner
   cta_heading_1: "Kun shirya ku fara",
   cta_heading_2: "tafiya ta ajiya?",
-  cta_description: "Ku shigo tare da membobi 2,000+ masu aminci waɗanda ke gina arziki na tsararraki tare. Kanku na gobe zai gode muku.",
+  cta_description: "Fara da GH₵6 kowace rana. Rabi na tabbatar da kowace gudummuwa a rukuni, don haka kullum kun san inda kuɗin ku yake.",
   cta_button: "Ku shigo cikin Rabi's Saving Hub",
 
   // Footer

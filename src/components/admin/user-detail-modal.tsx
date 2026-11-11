@@ -76,7 +76,7 @@ function DataRow({
 
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">{label}</dt>
+      <dt className="field-label">{label}</dt>
       <dd className="mt-1 min-w-0">{value}</dd>
     </div>
   );
@@ -173,7 +173,7 @@ export default function UserDetailModal({
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+                <p className="field-label">
                   Decision email
                 </p>
                 <p className="mt-1 text-sm text-gray-200">{decisionEmailState(user)}</p>
@@ -198,7 +198,7 @@ export default function UserDetailModal({
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+              <p className="field-label">
                 Ghana Card number
               </p>
               <p className="mt-1 font-mono text-sm tracking-wide text-white">
@@ -230,7 +230,7 @@ export default function UserDetailModal({
                     : "border-emerald-500/25 bg-emerald-500/[0.07]"
               }`}
             >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+              <p className="field-label">
                 Name and details vs. the card
               </p>
               <p className="mt-1 text-xs leading-relaxed text-gray-200">{user.kycIdentitySentence}</p>
@@ -266,7 +266,7 @@ export default function UserDetailModal({
         {user.documentsDeferred && (
           <div className="rounded-2xl bg-amber-500/[0.07] p-4 ring-1 ring-inset ring-amber-500/25">
             <p className="text-sm font-semibold text-amber-200">Documents promised on WhatsApp</p>
-            <p className="mt-1 text-xs leading-relaxed text-gray-400">
+            <p className="field-hint">
               Storage refused this member&apos;s upload, so they agreed to send the Ghana Card and selfie to you
               directly. Ask for them before you approve, then record the payment as usual.
             </p>
@@ -306,7 +306,7 @@ export default function UserDetailModal({
                 <p className={`text-sm font-semibold ${ocrVerified ? "text-emerald-200" : "text-amber-200"}`}>
                   {ocrVerified ? "Card number matches the photo" : "We could not read this card automatically"}
                 </p>
-                <p className="mt-1 text-xs leading-relaxed text-gray-400">
+                <p className="field-hint">
                   {ocrVerified
                     ? "The number printed on the card was read on the member's phone and matches what they typed. Approve as normal."
                     : "The scan was blurry, glared or failed on a slow connection. Compare the card photo below with the number above before deciding, everything else about this member can be fine."}

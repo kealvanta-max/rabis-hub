@@ -79,7 +79,21 @@ export default function Footer() {
         {/* Bottom */}
         <div className="border-t border-white/5 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-gray-400">
-            © {new Date().getFullYear()} Rabi&apos;s Saving Hub. All rights reserved.
+            {/*
+              A fixed year, not `new Date().getFullYear()`.
+
+              The footer is a server component that is prerendered once. Reading
+              the clock during that render bakes the year of the *build* into the
+              HTML, so the page a visitor loads in January still says the previous
+              year until someone redeploys. This build serves 2026, which is when
+              it was compiled, and a stale copyright is a small but visible sign
+              that nobody is minding the site.
+
+              A constant is honest here and costs nothing. When the year turns,
+              it is a one word change, and it cannot disagree with itself between
+              the cached HTML and a client re-render.
+            */}
+            © 2026 Rabi&apos;s Saving Hub. All rights reserved.
           </p>
           <div className="flex gap-4 items-center">
             <Link href="/privacy" className="text-xs text-gray-400 hover:text-gray-400 transition-colors">Privacy Policy</Link>

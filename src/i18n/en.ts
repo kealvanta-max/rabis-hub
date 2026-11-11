@@ -17,17 +17,17 @@ const en = {
   nav_join: "Join Now",
 
   // Hero
-  hero_badge: "Trusted by 2,000+ Savers Across Ghana",
-  hero_heading: "Build Your Future. Save Together.",
-  hero_subheading: "Experience the New Standard of",
-  hero_susu: "Susu Savings",
-  hero_description: "Join Ghana's premier digital savings community. Secure, transparent, and built for your financial growth.",
-  hero_cta: "Start Your Journey",
+  hero_badge: "Susu, run by Rabi herself",
+  hero_heading: "The digital susu built for Ghana",
+  hero_subheading: "Save the way we always have, with",
+  hero_susu: "a record you can check",
+  hero_description: "Pick a daily, weekly or monthly plan from GH₵6. Rabi collects on Mobile Money, confirms every contribution in your WhatsApp group, and pays out when your round ends.",
+  hero_cta: "Join Rabi's plan from GH₵6",
   hero_view_plans: "View Plans",
-  hero_stat_members: "Active Members",
-  hero_stat_saved: "Total Saved",
-  hero_stat_rate: "Success Rate",
-  hero_scroll: "Scroll to Explore",
+  hero_stat_members: "Smallest plan",
+  hero_stat_saved: "Daily round",
+  hero_stat_rate: "Where she replies",
+  hero_scroll: "Scroll to see the plans",
 
   // Trust Section
   trust_label: "The Gold Standard",
@@ -37,7 +37,7 @@ const en = {
   trust_security_title: "Verified Security",
   trust_security_desc: "Multi-factor verification with Ghana Card & Real-time Biometrics.",
   trust_community_title: "Community Driven",
-  trust_community_desc: "Join 2,000+ active savers in our exclusive WhatsApp Hub.",
+  trust_community_desc: "Rabi answers on WhatsApp, in the group she runs herself.",
   trust_returns_title: "Transparent Returns",
   trust_returns_desc: "Real-time tracking of your digital Susu growth.",
   trust_mobile_title: "Mobile First",
@@ -47,7 +47,7 @@ const en = {
   // CTA Banner
   cta_heading_1: "Ready to Start Your",
   cta_heading_2: "Savings Journey?",
-  cta_description: "Join over 2,000+ trusted members building generational wealth together. Your future self will thank you.",
+  cta_description: "Start with GH₵6 a day. Rabi confirms every contribution in the group, so you always know where your money is.",
   cta_button: "Join Rabi's Saving Hub",
 
   // Footer
